@@ -17,6 +17,7 @@ typedef std::variant<PyCompoundConfigNode, bool, long long, unsigned long long,
 
 class PyCompoundConfigNode {
  public:
+  PyCompoundConfigNode() {}
   PyCompoundConfigNode(config::CompoundConfigNode node) : node_(node) {}
 
   LookupReturn LookupValue(const std::string &key) const;
@@ -28,15 +29,4 @@ class PyCompoundConfigNode {
 
  private:
   config::CompoundConfigNode node_;
-};
-
-class PyCompoundConfig {
- public:
-  PyCompoundConfig(std::string &fname) : config_(fname.c_str()) {}
-  PyCompoundConfig(std::vector<std::string> fnames) : config_(fnames) {}
-
-  PyCompoundConfigNode GetRoot() const;
-
- private:
-  config::CompoundConfig config_;
 };

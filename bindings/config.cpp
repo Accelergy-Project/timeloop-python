@@ -10,10 +10,6 @@
 
 namespace py = pybind11;
 
-PyCompoundConfigNode PyCompoundConfig::GetRoot() const {
-  return PyCompoundConfigNode(config_.getRoot());
-}
-
 LookupReturn PyCompoundConfigNode::LookupValue(const std::string &key) const {
   if (!node_.exists(key)) {
     throw py::key_error(key);
@@ -57,6 +53,6 @@ std::vector<std::string> PyCompoundConfigNode::GetMapKeys() {
   return all_keys;
 }
 
-config::CompoundConfigNode PyCompoundConfigNode::GetCompoundConfigNode() const {
+const config::CompoundConfigNode PyCompoundConfigNode::GetUnderlying() const {
   return node_;
 }
