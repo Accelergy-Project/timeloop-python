@@ -6,7 +6,7 @@ find_library(LIBTIMELOOP timeloop-model HINTS ${PROJECT_SOURCE_DIR}/timeloop/lib
 add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
 add_subdirectory(pybind11)
-pybind11_add_module(bindings bindings/bindings.cpp)
+pybind11_add_module(bindings bindings/bindings.cpp bindings/config.cpp)
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)
 target_include_directories(bindings PRIVATE timeloop/src pybind11/include)
 target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_gterminate)
