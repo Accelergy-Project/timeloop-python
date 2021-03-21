@@ -1,0 +1,40 @@
+[x] Bind CompoundConfigNode
+    [x] constructor
+    [x] exists
+[x] Bind CompoundConfig
+    [x] CompoundConfig::inFiles
+[x] Bind Workload
+    [x] problem::ParseWorkload
+[x] Bind model::Engine::Specs (ArchSpecs)
+    [x] model::Engine::ParseSpecs
+    [x] This.topology::ParseAccelergyART
+    [x] This.topology::ParseAccelergyERT
+    [x] This.topology::levelNames
+    [] This.topology::GetStorageLevel
+[x] Bind ArchProperties
+    [x] constructor
+[x] Bind mapping::Constraints
+    [x] constructor
+    [x] This::Parse
+    [x] This::SatisfiedBy
+[] Bind Mapping
+    [x] mapping::ParseAndConstruct
+    [] mapping::datatype_bypass_nest
+[x] Bind model::Engine
+    [x] constructor
+    [x] This::Spec
+    [x] This::PreEvaluationCheck
+    [x] This::Evaluate
+    [x] This::IsEvaluated
+    [x] This::Utilization
+    [x] This::Energy
+    [x] This::GetTopology
+[] Bind Topology
+    [x] This::MACCs
+    [] This::TileSizes
+[x] Bind problem::Shape
+[x] Bind problem::GetShape
+[x] Bind accelergy::invokeAccelergy
+[x] Bind model::EvalStats
+
+[x] Write Python version of timeloop-model
