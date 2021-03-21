@@ -53,6 +53,6 @@ std::vector<std::string> PyCompoundConfigNode::GetMapKeys() {
   return all_keys;
 }
 
-const config::CompoundConfigNode PyCompoundConfigNode::GetUnderlying() const {
+config::CompoundConfigNode PyCompoundConfigNode::GetUnderlying() const {
   return node_;
 }

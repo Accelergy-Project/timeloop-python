@@ -18,14 +18,14 @@ typedef std::variant<PyCompoundConfigNode, bool, long long, unsigned long long,
 class PyCompoundConfigNode {
  public:
   PyCompoundConfigNode() {}
-  PyCompoundConfigNode(config::CompoundConfigNode node) : node_(node) {}
+  PyCompoundConfigNode(config::CompoundConfigNode &&node) : node_(node) {}
 
   LookupReturn LookupValue(const std::string &key) const;
   LookupReturn operator[](int idx);
   bool Exists(const std::string &key) const;
   std::vector<std::string> GetMapKeys();
 
-  const config::CompoundConfigNode GetUnderlying() const;
+  config::CompoundConfigNode GetUnderlying() const;
 
  private:
   config::CompoundConfigNode node_;
