@@ -1,58 +1,67 @@
-#include "config.h"
-
 #include <optional>
+#include <variant>
 
-// PyBind11 headers
-#include "pybind11/pybind11.h"
+#include "bindings.h"
 
 // Timeloop headers
 #include "compound-config/compound-config.hpp"
 
-namespace py = pybind11;
+typedef std::variant<bool, long long, unsigned long long, double, std::string,
+                     config::CompoundConfigNode>
+    CompoundConfigLookupReturn;
 
-LookupReturn PyCompoundConfigNode::LookupValue(const std::string &key) const {
-  if (!node_.exists(key)) {
-    throw py::key_error(key);
-  }
+void BindConfigClasses(py::module& m) {
+  py::class_<config::CompoundConfig>(m, "Config")
+      .def(py::init<char*>())
+      .def(py::init<std::vector<std::string>>())
+      .def_readonly("in_files", &config::CompoundConfig::inFiles)
+      .def("get_root", &config::CompoundConfig::getRoot)
+      .def("get_variable_root", &config::CompoundConfig::getVariableRoot);
 
-  bool bool_res;
-  if (node_.lookupValue(key, bool_res)) return bool_res;
-  long long int_res;
-  if (node_.lookupValue(key, int_res)) return int_res;
-  unsigned long long uint_res;
-  if (node_.lookupValue(key, uint_res)) return uint_res;
-  double float_res;
-  if (node_.lookupValue(key, float_res)) return float_res;
-  std::string string_res;
-  if (node_.lookupValue(key, string_res)) return string_res;
+  py::class_<config::CompoundConfigNode>(m, "ConfigNode")
+      .def(py::init<>())
+      .def("__getitem__",
+           [](config::CompoundConfigNode& n,
+              std::string key) -> CompoundConfigLookupReturn {
+             if (!n.exists(key)) {
+               throw py::key_error(key);
+             }
 
-  return PyCompoundConfigNode(node_.lookup(key));
-}
+             bool bool_res;
+             if (n.lookupValue(key, bool_res)) return bool_res;
+             long long int_res;
+             if (n.lookupValue(key, int_res)) return int_res;
+             unsigned long long uint_res;
+             if (n.lookupValue(key, uint_res)) return uint_res;
+             double float_res;
+             if (n.lookupValue(key, float_res)) return float_res;
+             std::string string_res;
+             if (n.lookupValue(key, string_res)) return string_res;
 
-LookupReturn PyCompoundConfigNode::operator[](int idx) {
-  if (node_.isArray()) {
-    std::vector<std::string> resultVector;
-    if (node_.getArrayValue(resultVector)) {
-      return resultVector[idx];
-    }
-    throw py::index_error("Failed to access array.");
-  }
-  if (node_.isList()) {
-    return PyCompoundConfigNode(node_[idx]);
-  }
-  throw py::index_error("Not a list nor an array.");
-}
-
-bool PyCompoundConfigNode::Exists(const std::string &key) const {
-  return node_.exists(key);
-}
-
-std::vector<std::string> PyCompoundConfigNode::GetMapKeys() {
-  std::vector<std::string> all_keys;
-  node_.getMapKeys(all_keys);
-  return all_keys;
-}
-
-config::CompoundConfigNode PyCompoundConfigNode::GetUnderlying() const {
-  return node_;
+             return n.lookup(key);
+           })
+      .def("__getitem__",
+           [](config::CompoundConfigNode& n,
+              int idx) -> CompoundConfigLookupReturn {
+             if (n.isArray()) {
+               std::vector<std::string> resultVector;
+               if (n.getArrayValue(resultVector)) {
+                 return resultVector[idx];
+               }
+               throw py::index_error("Failed to access array.");
+             }
+             if (n.isList()) {
+               return n[idx];
+             }
+             throw py::index_error("Not a list nor an array.");
+           })
+      .def("lookup", [](config::CompoundConfigNode& n,
+                        std::string key) { return n.lookup(key); })
+      .def("__contains__", [](config::CompoundConfigNode& n,
+                              std::string key) { return n.exists(key); })
+      .def("keys", [](config::CompoundConfigNode& n) {
+        std::vector<std::string> all_keys;
+        n.getMapKeys(all_keys);
+        return all_keys;
+      });
 }
