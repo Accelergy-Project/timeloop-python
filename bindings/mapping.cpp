@@ -27,6 +27,8 @@ void BindMappingClasses(py::module& m) {
              model::Engine::Specs& archSpecs, problem::Workload& workload) {
             return mapping::ParseAndConstruct(mapping, archSpecs, workload);
           })
+      .def("datatype_bypass_nest",
+           [](Mapping& m) { return &Mapping::datatype_bypass_nest; })
       .def(
           "pretty_print",
           [](Mapping& m, py::object py_out,
