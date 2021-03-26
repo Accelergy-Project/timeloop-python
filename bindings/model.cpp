@@ -4,6 +4,9 @@
 #include "model/engine.hpp"
 #include "model/level.hpp"
 
+// Type casters
+#include "type_casters.h"
+
 void BindModelClasses(py::module& m) {
   py::class_<model::Engine::Specs>(m, "ArchSpecs")
       .def_static("parse_specs",
@@ -22,7 +25,10 @@ void BindModelClasses(py::module& m) {
           py::call_guard<py::scoped_ostream_redirect,
                          py::scoped_estream_redirect>())
       .def("level_names",
-           [](model::Engine::Specs& s) { return s.topology.LevelNames(); });
+           [](model::Engine::Specs& s) { return s.topology.LevelNames(); })
+      .def("storage_level_names", [](model::Engine::Specs& s) {
+        return s.topology.StorageLevelNames();
+      });
 
   py::class_<model::Engine>(m, "Engine")
       .def(py::init<>())
@@ -36,7 +42,8 @@ void BindModelClasses(py::module& m) {
       .def("get_topology", &model::Engine::GetTopology);
 
   py::class_<model::Topology>(m, "Topology")
-      .def("maccs", &model::Topology::MACCs);
+      .def("maccs", &model::Topology::MACCs)
+      .def("tile_sizes", &model::Topology::TileSizes);
 
   py::class_<model::EvalStatus>(m, "EvalStatus")
       .def_readonly("success", &model::EvalStatus::success)
