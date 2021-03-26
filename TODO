@@ -29,12 +29,13 @@
     [x] This::Utilization
     [x] This::Energy
     [x] This::GetTopology
-[] Bind Topology
+[x] Bind Topology
     [x] This::MACCs
-    [] This::TileSizes
+    [x] This::TileSizes
 [x] Bind problem::Shape
 [x] Bind problem::GetShape
 [x] Bind accelergy::invokeAccelergy
 [x] Bind model::EvalStats
+[x] Type caster for PerDataSpace
 
 [x] Write Python version of timeloop-model
