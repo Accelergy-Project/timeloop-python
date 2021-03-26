@@ -104,7 +104,7 @@ class TimeloopModelApp:
     def run(self):
         stats_fname = self.out_prefix + 'stats.txt'
         xml_fname = self.out_prefix + '.map+stats.xml'
-        map_xml_fname = self.out_prefix + '.map.txt'
+        map_txt_fname = self.out_prefix + '.map.txt'
 
         engine = Engine()
         engine.spec(self.arch_specs)
@@ -134,7 +134,11 @@ class TimeloopModelApp:
         if engine.is_evaluated():
             print('Utilization = ', engine.utilization(), ' | pJ/MACC',
                   engine.energy() / engine.get_topology().maccs())
-            # TODO: bind Topology::TileSizes
+            with open(map_txt_fname, 'w+') as f:
+                self.mapping.pretty_print(
+                    f, self.arch_specs.storage_level_names(),
+                    engine.get_topology().tile_sizes()
+                )
 
 
 if __name__ == '__main__':
