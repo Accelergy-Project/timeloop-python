@@ -7,15 +7,7 @@
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 PYBIND11_MODULE(bindings, m) {
-  m.doc() = R"pbdoc(
-        PyTimeloop bindings to C++ timeloop code
-        -----------------------
-        .. currentmodule:: pytimeloop
-        .. autosummary::
-           :toctree: _generate
-           add
-           subtract
-    )pbdoc";
+  m.doc() = "PyTimeloop bindings to C++ timeloop code ";
 
   BindAccelergyInterface(m);
   BindConfigClasses(m);

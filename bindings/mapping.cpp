@@ -18,15 +18,12 @@ void BindMappingClasses(py::module& m) {
       .def(py::init<const ArchProperties&, const problem::Workload&>())
       .def("parse", [](mapping::Constraints& c,
                        config::CompoundConfigNode config) { c.Parse(config); })
-      .def("satisfied_by", &mapping::Constraints::SatisfiedBy);
+      .def("satisfied_by", &mapping::Constraints::SatisfiedBy,
+           "Checks if the given mapping satisfies this constraint.");
 
   py::class_<Mapping>(m, "Mapping")
-      .def_static(
-          "parse_and_construct",
-          [](config::CompoundConfigNode mapping,
-             model::Engine::Specs& archSpecs, problem::Workload& workload) {
-            return mapping::ParseAndConstruct(mapping, archSpecs, workload);
-          })
+      .def(py::init(&mapping::ParseAndConstruct))
+      .def_static("parse_and_construct", &mapping::ParseAndConstruct)
       .def("datatype_bypass_nest",
            [](Mapping& m) { return &Mapping::datatype_bypass_nest; })
       .def(

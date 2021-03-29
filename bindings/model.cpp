@@ -9,10 +9,9 @@
 
 void BindModelClasses(py::module& m) {
   py::class_<model::Engine::Specs>(m, "ArchSpecs")
-      .def_static("parse_specs",
-                  [](config::CompoundConfigNode& specConfig) {
-                    return model::Engine::ParseSpecs(specConfig);
-                  })
+      .def(py::init(&model::Engine::ParseSpecs))
+      .def_static("parse_specs", &model::Engine::ParseSpecs,
+                  "Parse architecture specifications.")
       .def("parse_accelergy_art",
            [](model::Engine::Specs& s, config::CompoundConfigNode& art) {
              s.topology.ParseAccelergyART(art);
@@ -32,6 +31,11 @@ void BindModelClasses(py::module& m) {
 
   py::class_<model::Engine>(m, "Engine")
       .def(py::init<>())
+      .def(py::init([](model::Engine::Specs specs) {
+        auto e = std::make_unique<model::Engine>();
+        e->Spec(specs);
+        return e;
+      }))
       .def("spec", &model::Engine::Spec)
       .def("pre_evaluation_check", &model::Engine::PreEvaluationCheck)
       .def("evaluate", &model::Engine::Evaluate, py::arg("mapping"),

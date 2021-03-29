@@ -7,6 +7,11 @@
 void BindProblemClasses(py::module& m) {
   py::class_<problem::Workload>(m, "Workload")
       .def(py::init<>())
+      .def(py::init([](config::CompoundConfigNode& config) {
+        auto w = std::make_unique<problem::Workload>();
+        problem::ParseWorkload(config, *w);
+        return w;
+      }))
       .def("parse_workload",
            [](problem::Workload& w, config::CompoundConfigNode& config) {
              problem::ParseWorkload(config, w);
