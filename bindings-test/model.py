@@ -30,8 +30,10 @@ class TimeloopModelApp:
 
         # Problem configuration
         prob_cfg = root_node['problem']
-        self.workload = Workload()
-        self.workload.parse_workload(prob_cfg)
+        # Equivalent to
+        # self.workload = Workload()
+        # self.workload.parse_workload(prob_cfg)
+        self.workload = Workload(prob_cfg)
         if self.verbose:
             print('Problem configuration complete.')
 
@@ -40,7 +42,8 @@ class TimeloopModelApp:
             arch_cfg = root_node['arch']
         elif 'architecture' in root_node:
             arch_cfg = root_node['architecture']
-        self.arch_specs = ArchSpecs.parse_specs(arch_cfg)
+        # Originally self.arch_specs = ArchSpecs.parse_specs(arch_cfg)
+        self.arch_specs = ArchSpecs(arch_cfg)
 
         if 'ERT' in root_node:
             if self.verbose:
@@ -91,8 +94,8 @@ class TimeloopModelApp:
 
         # Mapping configuration
         mapping_cfg = root_node['mapping']
-        self.mapping = Mapping.parse_and_construct(
-            mapping_cfg, self.arch_specs, self.workload)
+        # Original: self.mapping = Mapping.parse_and_construct(...)
+        self.mapping = Mapping(mapping_cfg, self.arch_specs, self.workload)
         if verbose:
             print('Mapping construction complete.')
 
