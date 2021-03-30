@@ -86,8 +86,8 @@ class TimeloopModelApp:
         elif 'architecture_constraints' in arch_cfg:
             constraints_cfg = arch_cfg['architecture_constraints']
 
-        self.constraints = ArchConstraints(self.arch_props, self.workload)
-        self.constraints.parse(constraints_cfg)
+        self.constraints = ArchConstraints(
+            self.arch_props, self.workload, constraints_cfg)
 
         if verbose:
             print('Architecture configuration complete.')
@@ -109,8 +109,10 @@ class TimeloopModelApp:
         xml_fname = self.out_prefix + '.map+stats.xml'
         map_txt_fname = self.out_prefix + '.map.txt'
 
-        engine = Engine()
-        engine.spec(self.arch_specs)
+        # Originally:
+        # engine = Engine()
+        # engine.spec(self.arch_specs)
+        engine = Engine(self.arch_specs)
 
         level_names = self.arch_specs.level_names()
 

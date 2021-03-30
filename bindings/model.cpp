@@ -30,12 +30,15 @@ void BindModelClasses(py::module& m) {
       });
 
   py::class_<model::Engine>(m, "Engine")
-      .def(py::init<>())
+      .def(py::init<>(),
+           "Construct Engine. Engine.spec has to be called later with "
+           "ArchSpecs.")
       .def(py::init([](model::Engine::Specs specs) {
-        auto e = std::make_unique<model::Engine>();
-        e->Spec(specs);
-        return e;
-      }))
+             auto e = std::make_unique<model::Engine>();
+             e->Spec(specs);
+             return e;
+           }),
+           "Construct and spec Engine.")
       .def("spec", &model::Engine::Spec)
       .def("pre_evaluation_check", &model::Engine::PreEvaluationCheck)
       .def("evaluate", &model::Engine::Evaluate, py::arg("mapping"),

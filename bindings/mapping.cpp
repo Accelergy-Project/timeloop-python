@@ -15,7 +15,17 @@ void BindMappingClasses(py::module& m) {
       .def(py::init<const model::Engine::Specs&>());
 
   py::class_<mapping::Constraints>(m, "ArchConstraints")
-      .def(py::init<const ArchProperties&, const problem::Workload&>())
+      .def(py::init<const ArchProperties&, const problem::Workload&>(),
+           "Construct ArchConstraints. ArchConstraints.parse has to be called "
+           "later with the configs.")
+      .def(py::init([](const ArchProperties& props,
+                       const problem::Workload& workload,
+                       config::CompoundConfigNode config) {
+             auto c = std::make_unique<mapping::Constraints>(props, workload);
+             c->Parse(config);
+             return c;
+           }),
+           "Construct and parse ArchConstraints.")
       .def("parse", [](mapping::Constraints& c,
                        config::CompoundConfigNode config) { c.Parse(config); })
       .def("satisfied_by", &mapping::Constraints::SatisfiedBy,
