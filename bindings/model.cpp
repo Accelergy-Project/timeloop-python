@@ -29,10 +29,11 @@ void BindModelClasses(py::module& m) {
         return s.topology.StorageLevelNames();
       });
 
-  py::class_<model::Engine>(m, "Engine")
+  py::class_<model::Engine>(m, "NativeEngine")
       .def(py::init<>(),
-           "Construct Engine. Engine.spec has to be called later with "
-           "ArchSpecs.")
+           "Construct wrapper over Timeloop's native Engine class. Consider "
+           "using `pytimeloop.Accelerator` instead. \n"
+           "Engine.spec has to be called later with ArchSpecs.")
       .def(py::init([](model::Engine::Specs specs) {
              auto e = std::make_unique<model::Engine>();
              e->Spec(specs);
