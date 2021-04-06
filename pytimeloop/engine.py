@@ -4,7 +4,7 @@ from bindings import (ArchSpecs, get_problem_shape,
 
 class Accelerator(NativeEngine):
     def __init__(self, specs: ArchSpecs):
-        super(self, Engine).__init__(specs)
+        super().__init__(specs)
         self.specs = specs
 
     def evaluate(self, mapping: Mapping, workload: Workload,
@@ -44,7 +44,7 @@ class Accelerator(NativeEngine):
                 for pvi in range(get_problem_shape().num_data_spaces):
                     mapping.datatype_bypass_nest[pvi].reset(level-1)
 
-        eval_stat = self.evaluate(mapping, workload)
+        eval_stat = super().evaluate(mapping, workload)
         for level, status in enumerate(eval_stat):
             if not status.success:
                 print("ERROR: coulnd't map level ", level_names[level], ': ',
@@ -56,11 +56,27 @@ class Accelerator(NativeEngine):
                 print('Utilization = ', self.utilization(), ' | pJ/MACC',
                       self.energy() / self.get_topology().maccs())
 
-        return AcceleratorEvalStat(eval_stat, pre_eval_stat self.utilization(),
+        return AcceleratorEvalStat(eval_stat, pre_eval_stat, self.utilization(),
                                    self.energy(), self.get_topology().maccs())
 
 
 class AcceleratorEvalStat:
+    """
+    Evaluation result from calling `Accelerator.evaluate`.
+
+    Attributes:
+        eval_stat: evaluation status returned by Timeloop method
+            `Engine.Evaluate`.
+        pre_eval_stat: pre-evaluation status returned by Timeloop
+            method `Engine.PreEvaluationCheck`.
+        utilization: utilization of accelerator for the workload and
+            mapping.
+        total_energy: total energy consumed by the accelerator for the
+            workload and mapping.
+        total_macc: total number of MACC operations performed for the
+            workload and mapping.
+    """
+
     def __init__(self, eval_stat, pre_eval_stat, utilization, total_energy,
                  total_maccs):
         self.eval_stat = eval_stat
