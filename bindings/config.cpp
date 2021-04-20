@@ -3,6 +3,9 @@
 
 #include "bindings.h"
 
+// PyBind11 headers
+#include "pybind11/stl.h"
+
 // Timeloop headers
 #include "compound-config/compound-config.hpp"
 
@@ -11,14 +14,20 @@ typedef std::variant<bool, long long, unsigned long long, double, std::string,
     CompoundConfigLookupReturn;
 
 void BindConfigClasses(py::module& m) {
-  py::class_<config::CompoundConfig>(m, "Config")
+  py::class_<config::CompoundConfig>(m, "NativeConfig")
+      .def(py::init<>())
       .def(py::init<char*>())
       .def(py::init<std::vector<std::string>>())
+      .def("load_yaml",
+           [](config::CompoundConfig& c, std::string yamlStr) {
+             std::istringstream yamlStream(yamlStr);
+             c.parseYAMLString(yamlStream);
+           })
       .def_readonly("in_files", &config::CompoundConfig::inFiles)
       .def("get_root", &config::CompoundConfig::getRoot)
       .def("get_variable_root", &config::CompoundConfig::getVariableRoot);
 
-  py::class_<config::CompoundConfigNode>(m, "ConfigNode")
+  py::class_<config::CompoundConfigNode>(m, "NativeConfigNode")
       .def(py::init<>())
       .def("__getitem__",
            [](config::CompoundConfigNode& n,
