@@ -1,5 +1,7 @@
-from bindings import (ArchSpecs, get_problem_shape,
-                      Mapping, NativeEngine, Workload)
+from bindings import get_problem_shape, NativeEngine
+from .model import ArchSpecs
+from .problem import Workload
+from .mapping import Mapping
 
 
 class Accelerator(NativeEngine):
