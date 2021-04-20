@@ -5,7 +5,7 @@
 #include "workload/workload.hpp"
 
 void BindProblemClasses(py::module& m) {
-  py::class_<problem::Workload>(m, "Workload")
+  py::class_<problem::Workload>(m, "NativeWorkload")
       .def(py::init<>())
       .def(py::init([](config::CompoundConfigNode& config) {
         auto w = std::make_unique<problem::Workload>();

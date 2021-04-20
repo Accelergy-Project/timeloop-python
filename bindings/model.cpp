@@ -8,7 +8,7 @@
 #include "type_casters.h"
 
 void BindModelClasses(py::module& m) {
-  py::class_<model::Engine::Specs>(m, "ArchSpecs")
+  py::class_<model::Engine::Specs>(m, "NativeArchSpecs")
       .def(py::init(&model::Engine::ParseSpecs))
       .def_static("parse_specs", &model::Engine::ParseSpecs,
                   "Parse architecture specifications.")
