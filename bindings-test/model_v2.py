@@ -1,7 +1,7 @@
 import sys
 
-from bindings import (Config, ConfigNode, ArchConstraints, invoke_accelergy,
-                      ArchProperties, ArchSpecs, Mapping, Workload)
+from bindings import (NativeConfig, NativeConfigNode, NativeArchConstraints, invoke_accelergy,
+                      ArchProperties, NativeArchSpecs, NativeMapping, NativeWorkload)
 from pytimeloop import Accelerator
 
 
@@ -10,7 +10,7 @@ def eprint(*args, **kwargs):
 
 
 class TimeloopModelApp:
-    def __init__(self, cfg: Config, out_dir: str, verbose=False,
+    def __init__(self, cfg: NativeConfig, out_dir: str, verbose=False,
                  auto_bypass_on_failure=False, out_prefix=''):
         root_node = cfg.get_root()
 
@@ -32,9 +32,9 @@ class TimeloopModelApp:
         # Problem configuration
         prob_cfg = root_node['problem']
         # Equivalent to
-        # self.workload = Workload()
+        # self.workload = NativeWorkload()
         # self.workload.parse_workload(prob_cfg)
-        self.workload = Workload(prob_cfg)
+        self.workload = NativeWorkload(prob_cfg)
         if self.verbose:
             print('Problem configuration complete.')
 
@@ -43,8 +43,8 @@ class TimeloopModelApp:
             arch_cfg = root_node['arch']
         elif 'architecture' in root_node:
             arch_cfg = root_node['architecture']
-        # Originally self.arch_specs = ArchSpecs.parse_specs(arch_cfg)
-        self.arch_specs = ArchSpecs(arch_cfg)
+        # Originally self.arch_specs = NativeArchSpecs.parse_specs(arch_cfg)
+        self.arch_specs = NativeArchSpecs(arch_cfg)
 
         if 'ERT' in root_node:
             if self.verbose:
@@ -61,7 +61,7 @@ class TimeloopModelApp:
                 ert_path = self.out_prefix + '.ERT.yaml'
                 # Have to store config in a variable, so it doesn't get
                 # garbage collected. CompoundConfigNode referes to it.
-                ert_cfg = Config(ert_path)
+                ert_cfg = NativeConfig(ert_path)
                 ert = ert_cfg.get_root().lookup('ERT')
                 if self.verbose:
                     print('Generated Accelergy ERT to replace internal energy '
@@ -69,7 +69,7 @@ class TimeloopModelApp:
                 self.arch_specs.parse_accelergy_ert(ert)
 
                 art_path = self.out_prefix + '.ART.yaml'
-                art_cfg = Config(art_path)
+                art_cfg = NativeConfig(art_path)
                 art = art_cfg.get_root()['ART']
                 if self.verbose:
                     print('Generated Accelergy ART to replace internal energy '
@@ -79,7 +79,7 @@ class TimeloopModelApp:
         self.arch_props = ArchProperties(self.arch_specs)
 
         # Architecture constraints
-        constraints_cfg = ConfigNode()
+        constraints_cfg = NativeConfigNode()
         if 'constraints' in arch_cfg:
             constraints_cfg = arch_cfg['constraints']
         elif 'arch_constraints' in arch_cfg:
@@ -87,18 +87,19 @@ class TimeloopModelApp:
         elif 'architecture_constraints' in arch_cfg:
             constraints_cfg = arch_cfg['architecture_constraints']
 
-        self.constraints = ArchConstraints(
+        self.constraints = NativeArchConstraints(
             self.arch_props, self.workload, constraints_cfg)
 
         if verbose:
             print('Architecture configuration complete.')
 
-        # Mapping configuration
+        # NativeMapping configuration
         mapping_cfg = root_node['mapping']
-        # Original: self.mapping = Mapping.parse_and_construct(...)
-        self.mapping = Mapping(mapping_cfg, self.arch_specs, self.workload)
+        # Original: self.mapping = NativeMapping.parse_and_construct(...)
+        self.mapping = NativeMapping(
+            mapping_cfg, self.arch_specs, self.workload)
         if verbose:
-            print('Mapping construction complete.')
+            print('NativeMapping construction complete.')
 
         # Validate mapping against architecture constraints
         if not self.constraints.satisfied_by(self.mapping):
@@ -126,7 +127,7 @@ if __name__ == '__main__':
     input_files = []
     for input_dir in ['arch/', 'map/', 'prob/']:
         input_files += glob.glob(prefix + input_dir + '*')
-    config = Config(input_files)
+    config = NativeConfig(input_files)
 
     app = TimeloopModelApp(config, '.', verbose=True)
     app.run()
