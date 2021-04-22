@@ -52,12 +52,11 @@ class Config(ABC):
         raise NotImplementedError()
 
     def get_native(self):
-        if self.native_out_of_date:
-            self.native_config = NativeConfig()
-            self.native_config.load_yaml(self.root.dump_yaml())
-            self.native_config_node = self.native_config.get_root()
-            for key in self.root_key:
-                self.native_config_node = self.native_config_node[key]
+        self.native_config = NativeConfig()
+        self.native_config.load_yaml(self.root.dump_yaml())
+        self.native_config_node = self.native_config.get_root()
+        for key in self.root_key:
+            self.native_config_node = self.native_config_node[key]
         return self.native_config, self.native_config_node
 
     @staticmethod
@@ -79,19 +78,18 @@ class ConfigDict(Config):
             root = self
         self.root = root
         self.root_key = root_key
+
+        self.canonicalize_names()
+
         # Set up Timeloop native wrappers
-        self.native_out_of_date = True
         self.native_config = None
         self.native_config_node = None
         self.get_native()
-
-        self.canonicalize_names()
 
     def dump_yaml(self):
         return yaml.safe_dump(dict(self.dict))
 
     def __setitem__(self, key, value):
-        self.native_out_of_date = True
         self.dict[key] = value
 
     def __getitem__(self, key):
@@ -142,7 +140,6 @@ class ConfigList(Config):
         self.root = root
         self.root_key = root_key
         # Set up Timeloop native wrappers
-        self.native_out_of_date = True
         self.native_config = None
         self.native_config_node = None
         self.get_native()
@@ -151,7 +148,6 @@ class ConfigList(Config):
         return yaml.safe_dump(list(self.lis))
 
     def __setitem__(self, idx, value):
-        self.native_out_of_date = True
         self.lis[idx] = value
 
     def __getitem__(self, idx):
