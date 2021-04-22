@@ -27,7 +27,9 @@ class ArchSpecs(NativeArchSpecs):
         else:
             if 'subtree' in native_arch_cfg or 'local' in native_arch_cfg:
                 print('Invoking Accelergy')
-                invoke_accelergy(native_cfg.in_files,
+                with open('tmp-accelergy.yaml', 'w+') as f:
+                    f.write(config.dump_yaml())
+                invoke_accelergy(['tmp-accelergy.yaml'],
                                  semi_qualified_prefix, out_dir)
                 ert_path = out_prefix + '.ERT.yaml'
                 # Have to store config in a variable, so it doesn't get
