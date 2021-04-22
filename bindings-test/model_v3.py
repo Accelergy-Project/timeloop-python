@@ -46,12 +46,8 @@ class TimeloopModelApp:
         self.arch_props = ArchProperties(self.arch_specs)
 
         # Architecture constraints
-        if 'constraints' in cfg:
-            constraints_cfg = cfg['constraints']
-        else:
-            constraints_cfg = Config()
         self.constraints = ArchConstraints(
-            self.arch_props, self.workload, constraints_cfg)
+            self.arch_props, self.workload, cfg['constraints'])
 
         if verbose:
             print('Architecture configuration complete.')

@@ -79,7 +79,10 @@ class ConfigDict(Config):
         self.root = root
         self.root_key = root_key
 
-        self.canonicalize_names()
+        if root == self:
+            self.canonicalize_names()
+            # Set constraint to default no constraint
+            self['constraints'] = {}
 
         # Set up Timeloop native wrappers
         self.native_config = None
