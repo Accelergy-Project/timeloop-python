@@ -30,11 +30,15 @@ class TimeloopModelApp:
         # TODO: print banner if verbose
 
         # Architecture configuration
+        if 'architecture' not in cfg:
+            raise ValueError('Architecture not found in configuration.')
         self.arch_specs = ArchSpecs(
             cfg['architecture'], semi_qualified_prefix, out_dir,
             self.out_prefix)
 
         # Problem configuration
+        if 'problem' not in cfg:
+            raise ValueError('Problem not found in configuration.')
         self.workload = Workload(cfg['problem'])
         if self.verbose:
             print('Problem configuration complete.')
@@ -53,9 +57,10 @@ class TimeloopModelApp:
             print('Architecture configuration complete.')
 
         # Mapping configuration
-        mapping_cfg = config['mapping']
-        # Original: self.mapping = Mapping.parse_and_construct(...)
-        self.mapping = Mapping(mapping_cfg, self.arch_specs, self.workload)
+        if 'mapping' not in cfg:
+            raise ValueError('Mapping not found in configuration.')
+        self.mapping = Mapping(
+            cfg['mapping'], self.arch_specs, self.workload)
         if verbose:
             print('Mapping construction complete.')
 
