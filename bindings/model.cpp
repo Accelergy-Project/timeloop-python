@@ -56,4 +56,16 @@ void BindModelClasses(py::module& m) {
   py::class_<model::EvalStatus>(m, "EvalStatus")
       .def_readonly("success", &model::EvalStatus::success)
       .def_readonly("fail_reason", &model::EvalStatus::fail_reason);
+
+  py::class_<model::Topology::Stats>(m, "NativeTopologyStats")
+      .def_readonly("energy", &model::Topology::Stats::energy)
+      .def_readonly("area", &model::Topology::Stats::area)
+      .def_readonly("cycles", &model::Topology::Stats::cycles)
+      .def_readonly("utilization", &model::Topology::Stats::utilization)
+      .def("tile_sizes", [](model::Topology::Stats& s) { return s.tile_sizes; })
+      .def("utilized_instances",
+           [](model::Topology::Stats& s) { return s.utilized_instances; })
+      .def_readonly("maccs", &model::Topology::Stats::maccs)
+      .def_readonly("last_level_accesses",
+                    &model::Topology::Stats::last_level_accesses);
 }

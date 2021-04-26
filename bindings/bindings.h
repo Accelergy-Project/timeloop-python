@@ -14,3 +14,5 @@ void BindConfigClasses(py::module &m);
 void BindMappingClasses(py::module &m);
 void BindModelClasses(py::module &m);
 void BindProblemClasses(py::module &m);
+void BindMapSpaceClasses(py::module &m);
+void BindSearchClasses(py::module &m);

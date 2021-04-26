@@ -14,6 +14,8 @@ PYBIND11_MODULE(bindings, m) {
   BindMappingClasses(m);
   BindModelClasses(m);
   BindProblemClasses(m);
+  BindMapSpaceClasses(m);
+  BindSearchClasses(m);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
