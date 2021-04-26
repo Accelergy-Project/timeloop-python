@@ -21,12 +21,6 @@ class TimeloopModelApp:
         semi_qualified_prefix = 'timeloop-model'
         self.out_prefix = out_dir + '/' + semi_qualified_prefix
 
-        if 'model' in cfg:
-            model = cfg['model']
-            self.verbose = model['verbose']
-            self.auto_bypass_on_failure = model['auto_bypass_on_failure']
-            semi_qualified_prefix = model['out_prefix']
-
         # TODO: print banner if verbose
 
         # Architecture configuration
