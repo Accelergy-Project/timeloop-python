@@ -24,15 +24,11 @@ class TimeloopModelApp:
         # TODO: print banner if verbose
 
         # Architecture configuration
-        if 'architecture' not in cfg:
-            raise ValueError('Architecture not found in configuration.')
         self.arch_specs = ArchSpecs(
             cfg['architecture'], semi_qualified_prefix, out_dir,
             self.out_prefix)
 
         # Problem configuration
-        if 'problem' not in cfg:
-            raise ValueError('Problem not found in configuration.')
         self.workload = Workload(cfg['problem'])
         if self.verbose:
             print('Problem configuration complete.')
@@ -41,16 +37,13 @@ class TimeloopModelApp:
 
         # Architecture constraints
         self.constraints = ArchConstraints(
-            self.arch_props, self.workload, cfg['constraints'])
+            self.arch_props, self.workload, cfg['architecture_constraints'])
 
         if verbose:
             print('Architecture configuration complete.')
 
         # Mapping configuration
-        if 'mapping' not in cfg:
-            raise ValueError('Mapping not found in configuration.')
-        self.mapping = Mapping(
-            cfg['mapping'], self.arch_specs, self.workload)
+        self.mapping = Mapping(cfg['mapping'], self.arch_specs, self.workload)
         if verbose:
             print('Mapping construction complete.')
 
@@ -82,10 +75,6 @@ if __name__ == '__main__':
         with open(fname, 'r') as f:
             yaml_str += f.read()
     config = Config.load_yaml(yaml_str)
-
-    print(config['mapping'][0]['factors'])
-    config['mapping'][0]['factors'] = 'R=4 P=16'
-    print(config['mapping'][0]['factors'])
 
     app = TimeloopModelApp(config, '.', verbose=True)
     app.run()
