@@ -80,9 +80,9 @@ class ConfigDict(Config):
         self.root_key = root_key
 
         if root == self:
-            self.canonicalize_names()
             # Set constraint to default no constraint
-            self['constraints'] = {}
+            self['architecture_constraints'] = {}
+            self.canonicalize_names()
 
         # Set up Timeloop native wrappers
         self.native_config = None
@@ -123,10 +123,11 @@ class ConfigDict(Config):
     def canonicalize_names(self):
         if 'arch' in self:
             self['architecture'] = self['arch']
+        if 'architecture' in self and 'constraints' in self['architecture']:
+            self['architecture_constraints'] = \
+                self['architecture']['constraints']
         if 'arch_constraints' in self:
-            self['constraints'] = self['arch_constraints']
-        elif 'architecture_constraints' in self:
-            self['constraints'] = self['architecture_constraints']
+            self['architecture_constraints'] = self['arch_constraints']
 
 
 class ConfigList(Config):
