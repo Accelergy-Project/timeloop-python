@@ -8,6 +8,8 @@ class Accelerator(NativeEngine):
     def __init__(self, specs: ArchSpecs):
         super().__init__(specs)
         self.specs = specs
+        self.pre_eval_stat = None
+        self.eval_stat = None
 
     def evaluate(self, mapping: Mapping, workload: Workload,
                  break_on_failure=False, auto_bypass_on_failure=True,
@@ -37,6 +39,7 @@ class Accelerator(NativeEngine):
         level_names = self.specs.level_names()
         if auto_bypass_on_failure:
             pre_eval_stat = self.pre_evaluation_check(mapping, workload, False)
+            self.pre_eval_stat = pre_eval_stat
             for level, status in enumerate(pre_eval_stat):
                 if not status.success and self.verbose:
                     print("ERROR: couldn't map level ", level_names[level],
@@ -47,6 +50,7 @@ class Accelerator(NativeEngine):
                     mapping.datatype_bypass_nest[pvi].reset(level-1)
 
         eval_stat = super().evaluate(mapping, workload)
+        self.eval_stat = eval_stat
         for level, status in enumerate(eval_stat):
             if not status.success:
                 print("ERROR: coulnd't map level ", level_names[level], ': ',
@@ -60,6 +64,11 @@ class Accelerator(NativeEngine):
 
         return AcceleratorEvalStat(eval_stat, pre_eval_stat, self.utilization(),
                                    self.energy(), self.get_topology().maccs())
+
+    def get_stats(self):
+        return AcceleratorEvalStat(self.eval_stat, self.pre_eval_stat,
+                                   self.utilization(), self.energy(),
+                                   self.get_topology().maccs())
 
 
 class AcceleratorEvalStat:
