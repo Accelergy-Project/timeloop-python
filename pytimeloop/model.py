@@ -4,18 +4,15 @@ from .config import Config
 
 
 class ArchSpecs(NativeArchSpecs):
-    def __init__(self, config: Config, semi_qualified_prefix, out_dir,
-                 out_prefix, verbose=True):
+    def __init__(self, config: Config, verbose=True):
         _, native_arch_node = config.get_native()
         super().__init__(native_arch_node)
         self.verbose = verbose
-        self.generate_tables(
-            config, semi_qualified_prefix, out_dir, out_prefix)
 
     def generate_tables(self, config: Config, semi_qualified_prefix, out_dir,
                         out_prefix):
-        native_cfg, native_arch_cfg = config.get_native()
-        root_node = native_cfg.get_root()
+        native_root_cfg, native_cfg = config.get_native()
+        root_node = native_root_cfg.get_root()
         if 'ERT' in root_node:
             if self.verbose:
                 print('Found Accelergy ERT, replacing internal energy model')
@@ -25,6 +22,7 @@ class ArchSpecs(NativeArchSpecs):
                     print('Found Accelergy ART, replacing internal area model')
                 self.parse_accelergy_art(root_ndoe['art'])
         else:
+            _, native_arch_cfg = config['architecture'].get_native()
             if 'subtree' in native_arch_cfg or 'local' in native_arch_cfg:
                 print('Invoking Accelergy')
                 with open('tmp-accelergy.yaml', 'w+') as f:

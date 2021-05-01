@@ -24,9 +24,9 @@ class TimeloopModelApp:
         # TODO: print banner if verbose
 
         # Architecture configuration
-        self.arch_specs = ArchSpecs(
-            cfg['architecture'], semi_qualified_prefix, out_dir,
-            self.out_prefix)
+        self.arch_specs = ArchSpecs(cfg['architecture'])
+        self.arch_specs.generate_tables(
+            cfg, semi_qualified_prefix, out_dir, self.out_prefix)
 
         # Problem configuration
         self.workload = Workload(cfg['problem'])
