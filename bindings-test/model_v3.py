@@ -1,10 +1,16 @@
-import sys
-
-import yaml
 from bindings import (NativeConfigNode, invoke_accelergy,
                       ArchProperties)
 from pytimeloop import (Accelerator, Config, ArchSpecs,
                         Workload, ArchConstraints, Mapping)
+
+import sys
+import logging
+logger = logging.getLogger('pytimeloop.TimeloopModelApp')
+formatter = logging.Formatter(
+    '[%(levelname)s] %(name)s - %(message)s')
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
 def eprint(*args, **kwargs):
@@ -13,8 +19,10 @@ def eprint(*args, **kwargs):
 
 class TimeloopModelApp:
     def __init__(self, cfg: Config, out_dir: str, verbose=False,
-                 auto_bypass_on_failure=False, out_prefix=''):
-        # Use defaults for now
+                 auto_bypass_on_failure=False, out_prefix='',
+                 log_level=logging.INFO):
+        logger.setLevel(log_level)
+        # timeloop-model configurations
         self.verbose = verbose
         self.auto_bypass_on_failure = auto_bypass_on_failure
         self.out_prefix = out_prefix
@@ -30,26 +38,22 @@ class TimeloopModelApp:
 
         # Problem configuration
         self.workload = Workload(cfg['problem'])
-        if self.verbose:
-            print('Problem configuration complete.')
+        logger.info('Problem configuration complete.')
 
         self.arch_props = ArchProperties(self.arch_specs)
 
         # Architecture constraints
         self.constraints = ArchConstraints(
             self.arch_props, self.workload, cfg['architecture_constraints'])
-
-        if verbose:
-            print('Architecture configuration complete.')
+        logger.info('Architecture configuration complete.')
 
         # Mapping configuration
         self.mapping = Mapping(cfg['mapping'], self.arch_specs, self.workload)
-        if verbose:
-            print('Mapping construction complete.')
+        logger.info('Mapping construction complete.')
 
         # Validate mapping against architecture constraints
         if not self.constraints.satisfied_by(self.mapping):
-            print('ERROR: mapping violates architecture constraints.')
+            logger.error('Mapping violates architecture constraints. Exiting.')
             exit(1)
 
     def run(self):
