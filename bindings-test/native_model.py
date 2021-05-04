@@ -1,8 +1,13 @@
+"""
+Example of reimplementing `timeloop-model` using pytimeloop's bindings of
+native C++ classes and functions.
+"""
+
 import sys
 
 from bindings import (NativeConfig, NativeConfigNode, NativeArchConstraints, invoke_accelergy,
-                      ArchProperties, NativeArchSpecs, NativeMapping, NativeWorkload)
-from pytimeloop import Accelerator
+                      ArchProperties, NativeArchSpecs, NativeMapping, NativeWorkload,
+                      NativeEngine)
 
 
 def eprint(*args, **kwargs):
@@ -114,10 +119,38 @@ class TimeloopModelApp:
         # Originally:
         # engine = Engine()
         # engine.spec(self.arch_specs)
-        engine = Accelerator(self.arch_specs)
+        engine = NativeEngine(self.arch_specs)
 
-        eval_stat = engine.evaluate(
-            self.mapping, self.workload, False, True, True)
+        level_names = self.arch_specs.level_names()
+
+        if self.auto_bypass_on_failure:
+            # TODO: Nothing here is tested
+            pre_eval_stat = engine.pre_evaluation_check(
+                self.mapping, self.workload, False)
+            for level, status in enumerate(pre_eval_stat):
+                if not status.success and self.verbose:
+                    eprint("ERROR: couldn't map level ", level_names[level],
+                           ': ', pre_eval_stat[level].fail_reason,
+                           ', auto-bypassing.')
+                if not status.success:
+                    for pvi in range(get_problem_shape().num_data_spaces):
+                        self.mapping.datatype_bypass_nest[pvi].reset(level-1)
+
+        eval_stat = engine.evaluate(self.mapping, self.workload)
+        for level, status in enumerate(eval_stat):
+            if not status.success:
+                eprint("ERROR: couldn't map level ", level_names[level], ': ',
+                       pre_eval_stat[level].fail_reason)
+                exit(1)
+
+        if engine.is_evaluated():
+            print('Utilization = ', engine.utilization(), ' | pJ/MACC',
+                  engine.energy() / engine.get_topology().maccs())
+            with open(map_txt_fname, 'w+') as f:
+                self.mapping.pretty_print(
+                    f, self.arch_specs.storage_level_names(),
+                    engine.get_topology().tile_sizes()
+                )
 
 
 if __name__ == '__main__':
