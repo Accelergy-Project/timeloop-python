@@ -8,8 +8,8 @@ class Accelerator(NativeEngine):
     def __init__(self, specs: ArchSpecs):
         super().__init__(specs)
         self.specs = specs
-        self.pre_eval_stat = None
-        self.eval_stat = None
+        self.pre_eval_status = None
+        self.eval_status = None
 
     def evaluate(self, mapping: Mapping, workload: Workload,
                  break_on_failure=False, auto_bypass_on_failure=True,
@@ -38,9 +38,10 @@ class Accelerator(NativeEngine):
         """
         level_names = self.specs.level_names()
         if auto_bypass_on_failure:
-            pre_eval_stat = self.pre_evaluation_check(mapping, workload, False)
-            self.pre_eval_stat = pre_eval_stat
-            for level, status in enumerate(pre_eval_stat):
+            pre_eval_status = self.pre_evaluation_check(
+                mapping, workload, False)
+            self.pre_eval_status = pre_eval_status
+            for level, status in enumerate(pre_eval_status):
                 if not status.success and self.verbose:
                     print("ERROR: couldn't map level ", level_names[level],
                           ': ', pre_eval_stat[level].fail_reason,
@@ -49,9 +50,9 @@ class Accelerator(NativeEngine):
                 for pvi in range(get_problem_shape().num_data_spaces):
                     mapping.datatype_bypass_nest[pvi].reset(level-1)
 
-        eval_stat = super().evaluate(mapping, workload)
-        self.eval_stat = eval_stat
-        for level, status in enumerate(eval_stat):
+        eval_status = super().evaluate(mapping, workload)
+        self.eval_status = eval_status
+        for level, status in enumerate(eval_status):
             if not status.success:
                 print("ERROR: coulnd't map level ", level_names[level], ': ',
                       pre_eval_stat[level].fail_reason)
@@ -62,11 +63,12 @@ class Accelerator(NativeEngine):
                 print('Utilization = ', self.utilization(), ' | pJ/MACC',
                       self.energy() / self.get_topology().maccs())
 
-        return AcceleratorEvalStat(eval_stat, pre_eval_stat, self.utilization(),
-                                   self.energy(), self.get_topology().maccs())
+        return AcceleratorEvalStat(eval_status, pre_eval_status,
+                                   self.utilization(), self.energy(),
+                                   self.get_topology().maccs())
 
     def get_stats(self):
-        return AcceleratorEvalStat(self.eval_stat, self.pre_eval_stat,
+        return AcceleratorEvalStat(self.eval_status, self.pre_eval_status,
                                    self.utilization(), self.energy(),
                                    self.get_topology().maccs())
 
@@ -88,10 +90,10 @@ class AcceleratorEvalStat:
             workload and mapping.
     """
 
-    def __init__(self, eval_stat, pre_eval_stat, utilization, total_energy,
+    def __init__(self, eval_status, pre_eval_status, utilization, total_energy,
                  total_maccs):
-        self.eval_stat = eval_stat
-        self.pre_eval_stat = pre_eval_stat
+        self.eval_status = eval_status
+        self.pre_eval_status = pre_eval_status
         self.utilization = utilization
         self.total_energy = total_energy
         self.total_maccs = total_maccs
