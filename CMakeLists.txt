@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 3.4)
 project(timeloop_python)
 
-find_library(LIBTIMELOOP timeloop-model HINTS ${PROJECT_SOURCE_DIR}/timeloop/lib)
+if(DEFINED ENV{LIBTIMELOOP_PATH})
+    set(LIBTIMELOOP_PATH $ENV{LIBTIMELOOP_PATH})
+else()
+    set(LIBTIMELOOP_PATH ${PROJECT_SOURCE_DIR}/timeloop/lib)
+endif()
+message(STATUS "Using Timeloop library from: ${LIBTIMELOOP_PATH}")
+
+find_library(LIBTIMELOOP timeloop-model HINTS ${LIBTIMELOOP_PATH} REQUIRED)
 
 add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
