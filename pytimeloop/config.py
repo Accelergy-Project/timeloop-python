@@ -17,6 +17,12 @@ class Config(ABC):
 
     @classmethod
     def load_yaml(cls, stream: Union[bytes, IO[bytes], str, IO[str]]):
+        """Create config from YAML.
+
+        Args:
+            stream: can be either bytes, byte stream, string, or string
+                stream.
+        """
         loaded_yaml = yaml.load(stream, Loader=Loader)
         if isinstance(loaded_yaml, dict):
             return ConfigDict(loaded_yaml)
@@ -25,6 +31,7 @@ class Config(ABC):
 
     @abstractmethod
     def dump_yaml(self):
+        """Returns YAML string representation of the config."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -52,6 +59,9 @@ class Config(ABC):
         raise NotImplementedError()
 
     def get_native(self):
+        """Returns a `NativeConfig` representing the root of this config and 
+        `NativeConfigNode` of this config.
+        """
         self.native_config = NativeConfig()
         self.native_config.load_yaml(self.root.dump_yaml())
         self.native_config_node = self.native_config.get_root()
@@ -121,6 +131,14 @@ class ConfigDict(Config):
         return len(self.dict)
 
     def canonicalize_names(self):
+        """Rename keys in the configuration to canonical names. 
+
+        Raises:
+            NotRootConfigError: Using this not on a root-level config 
+                raises an exception.
+        """
+        if self.root != self:
+            raise NotRootConfigError()
         if 'arch' in self:
             self['architecture'] = self['arch']
         if 'architecture' in self and 'constraints' in self['architecture']:
@@ -178,3 +196,7 @@ class ConfigList(Config):
 
     def __sizeof__(self):
         return len(self.lis)
+
+
+class NotRootConfigError(Exception):
+    pass
