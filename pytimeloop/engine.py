@@ -15,7 +15,7 @@ class Accelerator(NativeEngine):
 
     def evaluate(self, mapping: Mapping, workload: Workload,
                  break_on_failure=False, auto_bypass_on_failure=True,
-                 log_level=logging.INFO):
+                 return_stats=True, log_level=logging.INFO):
         """
         Evaluate a given `Mapping` and `Workload`.
 
@@ -43,6 +43,7 @@ class Accelerator(NativeEngine):
         logger = logging.getLogger(__name__ + '.' + __class__.__name__)
         logger.setLevel(log_level)
 
+        # Perform pre-evaluation check and auto-bypass
         level_names = self.specs.level_names()
         if auto_bypass_on_failure:
             pre_eval_status = self.pre_evaluation_check(
@@ -57,13 +58,15 @@ class Accelerator(NativeEngine):
                 for pvi in range(get_problem_shape().num_data_spaces):
                     mapping.datatype_bypass_nest[pvi].reset(level-1)
 
+        # Perform evaluation
         eval_status = super().evaluate(mapping, workload)
         self.eval_status = eval_status
         for level, status in enumerate(eval_status):
             if not status.success:
                 logger.error("Coulnd't map level ", level_names[level], ': ',
                              self.pre_eval_status[level].fail_reason)
-                return None
+                return AcceleratorEvalStat(eval_status, pre_eval_status, None,
+                                           None, None)
 
         if self.is_evaluated():
             logger.info(
@@ -73,9 +76,11 @@ class Accelerator(NativeEngine):
                 )
             )
 
-        return AcceleratorEvalStat(eval_status, pre_eval_status,
-                                   self.utilization(), self.energy(),
-                                   self.get_topology().maccs())
+        if return_stats:
+            return self.get_stats()
+        else:
+            return AcceleratorEvalStat(eval_status, pre_eval_status, None,
+                                       None, None)
 
     def get_stats(self):
         return AcceleratorEvalStat(self.eval_status, self.pre_eval_status,
