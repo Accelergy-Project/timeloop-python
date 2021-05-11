@@ -38,12 +38,12 @@ cleaned. For example, by running `rm -rf build`.
 
 ### Using your own build of Timeloop
 If you want to use your own build of Timeloop, you can set the environment
-variable `LIBTIMELOOP_PATH` to your Timeloop directory that contains the
-Timeloop binary (`libtimeloop-model.so`).
+variable `LIBTIMELOOP_PATH` to your Timeloop directory.
 
-For example, if you have the library in `/path/to/library/libtimeloop-model.so`
-you can execute the following
+For example, if you have the library in `/path/to/timeloop/` -- if you have 
+built Timeloop, you can find `libtimeloop-model.so` in `/path/to/timeloop/lib`
+-- you can execute the following
 ```
-export LIBTIMELOOP_PATH=/path/to/library
+export LIBTIMELOOP_PATH=/path/to/timeloop
 rm -rf build && pip3 install -e .
 ```
