@@ -32,7 +32,7 @@ class Accelerator(NativeEngine):
                 library.
 
         Returns:
-            AcceleratorEvalStat: result of accelerator evaluation. 
+            AcceleratorEvalResult: result of accelerator evaluation. 
                 Has properties `eval_stat`, `utilization`, 
                 `total_energy`, `total_maccs`.
 
@@ -65,8 +65,8 @@ class Accelerator(NativeEngine):
             if not status.success:
                 logger.error("Coulnd't map level ", level_names[level], ': ',
                              self.pre_eval_status[level].fail_reason)
-                return AcceleratorEvalStat(eval_status, pre_eval_status, None,
-                                           None, None)
+                return AcceleratorEvalResult(eval_status, pre_eval_status, None,
+                                             None, None)
 
         if self.is_evaluated():
             logger.info(
@@ -79,16 +79,16 @@ class Accelerator(NativeEngine):
         if return_stats:
             return self.get_stats()
         else:
-            return AcceleratorEvalStat(eval_status, pre_eval_status, None,
-                                       None, None)
+            return AcceleratorEvalResult(eval_status, pre_eval_status, None,
+                                         None, None)
 
     def get_stats(self):
-        return AcceleratorEvalStat(self.eval_status, self.pre_eval_status,
-                                   self.utilization(), self.energy(),
-                                   self.get_topology().maccs())
+        return AcceleratorEvalResult(self.eval_status, self.pre_eval_status,
+                                     self.utilization(), self.energy(),
+                                     self.get_topology().maccs())
 
 
-class AcceleratorEvalStat:
+class AcceleratorEvalResult:
     """
     Evaluation result from calling `Accelerator.evaluate`.
 
