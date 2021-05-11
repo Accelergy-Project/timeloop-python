@@ -19,5 +19,5 @@ if __name__ == '__main__':
             yaml_str += f.read()
     config = Config.load_yaml(yaml_str)
 
-    app = Model(config, '.', verbose=True)
+    app = Model(config, '.')
     app.run()
