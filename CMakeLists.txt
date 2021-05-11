@@ -4,21 +4,21 @@ project(timeloop_python)
 if(DEFINED ENV{LIBTIMELOOP_PATH})
     set(LIBTIMELOOP_PATH $ENV{LIBTIMELOOP_PATH})
 else()
-    set(LIBTIMELOOP_PATH ${PROJECT_SOURCE_DIR}/timeloop/lib)
+    set(LIBTIMELOOP_PATH ${PROJECT_SOURCE_DIR}/lib/timeloop)
 endif()
 message(STATUS "Using Timeloop library from: ${LIBTIMELOOP_PATH}")
 
-find_library(LIBTIMELOOP timeloop-model HINTS ${LIBTIMELOOP_PATH} REQUIRED)
+find_library(LIBTIMELOOP timeloop-model HINTS ${LIBTIMELOOP_PATH}/lib REQUIRED)
 
 add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
 set(BINDINGS_SRC 
     bindings/bindings.cpp bindings/accelergy_interface.cpp bindings/config.cpp
     bindings/mapping.cpp bindings/model.cpp bindings/problem.cpp)
-add_subdirectory(pybind11)
+add_subdirectory(lib/pybind11)
 pybind11_add_module(bindings ${BINDINGS_SRC})
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)
-target_include_directories(bindings PRIVATE timeloop/src pybind11/include)
+target_include_directories(bindings PRIVATE ${LIBTIMELOOP_PATH}/src lib/pybind11/include)
 target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_gterminate)
 
 # VERSION_INFO is defined by setup.py and passed into the C++ code as a

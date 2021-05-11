@@ -9,7 +9,7 @@ from pytimeloop import Config
 if __name__ == '__main__':
     import glob
 
-    prefix = '../timeloop-accelergy-exercises/exercises/timeloop/00-model-conv1d-1level/'
+    prefix = '../tests/timeloop-accelergy-exercises/exercises/timeloop/00-model-conv1d-1level/'
     input_files = []
     for input_dir in ['arch/', 'map/', 'prob/']:
         input_files += glob.glob(prefix + input_dir + '*')
