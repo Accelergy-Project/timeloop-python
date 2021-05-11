@@ -3,6 +3,8 @@ from .model import ArchSpecs
 from .problem import Workload
 from .mapping import Mapping
 
+import logging
+
 
 class Accelerator(NativeEngine):
     def __init__(self, specs: ArchSpecs):
@@ -13,7 +15,7 @@ class Accelerator(NativeEngine):
 
     def evaluate(self, mapping: Mapping, workload: Workload,
                  break_on_failure=False, auto_bypass_on_failure=True,
-                 verbose=False):
+                 log_level=logging.INFO):
         """
         Evaluate a given `Mapping` and `Workload`.
 
@@ -25,8 +27,9 @@ class Accelerator(NativeEngine):
                 check and bypasses architecture levels that couldn't 
                 be mapped. `mapping` might be modified if this is 
                 turned on.
-            verbose: if True, auto-bypass and evaluation messages 
-                will be printed.
+            log_level: the level to perform logging. Levels can be
+                found in the documentation for thestandard logging
+                library.
 
         Returns:
             AcceleratorEvalStat: result of accelerator evaluation. 
@@ -36,16 +39,20 @@ class Accelerator(NativeEngine):
         Todo:
             Capture pretty print results somehow.
         """
+        # Setup logger
+        logger = logging.getLogger(__name__ + '.' + __class__.__name__)
+        logger.setLevel(log_level)
+
         level_names = self.specs.level_names()
         if auto_bypass_on_failure:
             pre_eval_status = self.pre_evaluation_check(
                 mapping, workload, False)
             self.pre_eval_status = pre_eval_status
             for level, status in enumerate(pre_eval_status):
-                if not status.success and self.verbose:
-                    print("ERROR: couldn't map level ", level_names[level],
-                          ': ', pre_eval_stat[level].fail_reason,
-                          ', auto-bypassing.')
+                if not status.success:
+                    logger.warning("Couldn't map level ", level_names[level],
+                                   ': ', self.pre_eval_status[level].fail_reason,
+                                   ', auto-bypassing.')
             if not status.success:
                 for pvi in range(get_problem_shape().num_data_spaces):
                     mapping.datatype_bypass_nest[pvi].reset(level-1)
@@ -54,14 +61,17 @@ class Accelerator(NativeEngine):
         self.eval_status = eval_status
         for level, status in enumerate(eval_status):
             if not status.success:
-                print("ERROR: coulnd't map level ", level_names[level], ': ',
-                      pre_eval_stat[level].fail_reason)
+                logger.error("Coulnd't map level ", level_names[level], ': ',
+                             self.pre_eval_status[level].fail_reason)
                 return None
 
         if self.is_evaluated():
-            if verbose:
-                print('Utilization = ', self.utilization(), ' | pJ/MACC',
-                      self.energy() / self.get_topology().maccs())
+            logger.info(
+                'Utilization = {} | pJ/MAC = {}'.format(
+                    self.utilization(),
+                    self.energy() / self.get_topology().maccs()
+                )
+            )
 
         return AcceleratorEvalStat(eval_status, pre_eval_status,
                                    self.utilization(), self.energy(),
