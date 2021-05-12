@@ -1,5 +1,5 @@
-from bindings import (NativeArchSpecs, NativeConfig,
-                      NativeConfigNode, invoke_accelergy)
+from bindings import NativeArchSpecs, NativeConfig, NativeConfigNode
+from .accelergy_interface import invoke_accelergy
 from .config import Config
 
 import logging
@@ -28,7 +28,6 @@ class ArchSpecs(NativeArchSpecs):
         else:
             _, native_arch_cfg = config['architecture'].get_native()
             if 'subtree' in native_arch_cfg or 'local' in native_arch_cfg:
-                print('Invoking Accelergy')
                 with open('tmp-accelergy.yaml', 'w+') as f:
                     f.write(config.dump_yaml())
                 invoke_accelergy(['tmp-accelergy.yaml'],
