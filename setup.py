@@ -112,5 +112,6 @@ if __name__ == '__main__':
         packages=find_packages(),
         ext_modules=[CMakeExtension('bindings')],
         cmdclass={'build_ext': CMakeBuild},
-        zip_safe=False
+        zip_safe=False,
+        scripts=['bin/timeloop-model.py']
     )
