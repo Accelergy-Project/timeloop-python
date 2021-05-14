@@ -19,5 +19,7 @@ def invoke_accelergy(input_files: List[str], out_prefix: str,
     finally:
         sys.stdout = old_stderr
         sys.stderr = old_stderr
-    logger.info(captured_stdout.getvalue())
-    logger.info(captured_stderr.getvalue())
+    if captured_stdout.getvalue():
+        logger.info(captured_stdout.getvalue())
+    if captured_stderr.getvalue():
+        logger.error(captured_stderr.getvalue())
