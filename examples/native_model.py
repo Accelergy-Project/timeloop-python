@@ -5,7 +5,7 @@ native C++ classes and functions.
 
 import sys
 
-from bindings import (NativeConfig, NativeConfigNode, NativeArchConstraints, invoke_accelergy,
+from bindings import (NativeConfig, NativeConfigNode, NativeArchConstraints, native_invoke_accelergy,
                       ArchProperties, NativeArchSpecs, NativeMapping, NativeWorkload,
                       NativeEngine)
 
@@ -62,7 +62,8 @@ class TimeloopModelApp:
         else:
             if 'subtree' in arch_cfg or 'local' in arch_cfg:
                 print('Invoking Accelergy')
-                invoke_accelergy(cfg.in_files, semi_qualified_prefix, out_dir)
+                native_invoke_accelergy(
+                    cfg.in_files, semi_qualified_prefix, out_dir)
                 ert_path = self.out_prefix + '.ERT.yaml'
                 # Have to store config in a variable, so it doesn't get
                 # garbage collected. CompoundConfigNode referes to it.
