@@ -13,14 +13,7 @@ class Model:
     def __init__(self, cfg: Config, out_dir: str, auto_bypass_on_failure=False,
                  out_prefix='', log_level=logging.INFO):
         # Setup logger
-        self.module_logger = logging.getLogger('pytimeloop')
-        formatter = logging.Formatter(
-            '[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(formatter)
-        self.module_logger.addHandler(handler)
-        self.module_logger.setLevel(log_level)
-
+        self.log_level = log_level
         self.model_logger = logging.getLogger('pytimeloop.app.Model')
         self.model_logger.setLevel(log_level)
 
@@ -64,5 +57,5 @@ class Model:
         engine = Accelerator(self.arch_specs)
 
         eval_stat = engine.evaluate(
-            self.mapping, self.workload, False, True, log_level=logging.INFO)
+            self.mapping, self.workload, log_level=self.log_level)
         return eval_stat
