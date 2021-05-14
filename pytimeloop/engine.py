@@ -65,8 +65,7 @@ class Accelerator(NativeEngine):
             if not status.success:
                 logger.error("Coulnd't map level ", level_names[level], ': ',
                              self.pre_eval_status[level].fail_reason)
-                return AcceleratorEvalResult(eval_status, pre_eval_status, None,
-                                             None, None)
+                return AcceleratorEvalResult(eval_status, pre_eval_status)
 
         if self.is_evaluated():
             logger.info(
@@ -79,13 +78,14 @@ class Accelerator(NativeEngine):
         if return_stats:
             return self.get_stats()
         else:
-            return AcceleratorEvalResult(eval_status, pre_eval_status, None,
-                                         None, None)
+            return AcceleratorEvalResult(eval_status, pre_eval_status)
 
     def get_stats(self):
         return AcceleratorEvalResult(self.eval_status, self.pre_eval_status,
                                      self.utilization(), self.energy(),
-                                     self.get_topology().maccs())
+                                     self.get_topology().maccs(),
+                                     self.get_topology().tile_sizes(),
+                                     self.pretty_print_stats())
 
 
 class AcceleratorEvalResult:
@@ -103,12 +103,25 @@ class AcceleratorEvalResult:
             workload and mapping.
         total_macc: total number of MACC operations performed for the
             workload and mapping.
+        tile_sizes: TODO
     """
 
-    def __init__(self, eval_status, pre_eval_status, utilization, total_energy,
-                 total_maccs):
+    def __init__(self, eval_status, pre_eval_status, utilization=None,
+                 total_energy=None, total_maccs=None, tile_sizes=None,
+                 pretty_printed_stats=''):
         self.eval_status = eval_status
         self.pre_eval_status = pre_eval_status
         self.utilization = utilization
         self.total_energy = total_energy
         self.total_maccs = total_maccs
+        self.tile_sizes = tile_sizes
+        self.pretty_printed_stats = pretty_printed_stats
+
+    def pretty_print_stats(self):
+        return self.pretty_printed_stats
+
+    def __str__(self):
+        res = 'Eval status: ' + self.eval_status.__str__() + '\n'
+        res += 'Pre-eval status: ' + self.pre_eval_status.__str__() + '\n'
+        res += self.pretty_printed_stats
+        return res

@@ -1,3 +1,6 @@
+#include <sstream>
+#include <string>
+
 #include "bindings.h"
 
 // Timeloop headers
@@ -47,7 +50,12 @@ void BindModelClasses(py::module& m) {
       .def("is_evaluated", &model::Engine::IsEvaluated)
       .def("utilization", &model::Engine::Utilization)
       .def("energy", &model::Engine::Energy)
-      .def("get_topology", &model::Engine::GetTopology);
+      .def("get_topology", &model::Engine::GetTopology)
+      .def("pretty_print_stats", [](model::Engine& e) -> std::string {
+        std::stringstream ss;
+        ss << e << std::endl;
+        return ss.str();
+      });
 
   py::class_<model::Topology>(m, "Topology")
       .def("maccs", &model::Topology::MACCs)
@@ -55,5 +63,12 @@ void BindModelClasses(py::module& m) {
 
   py::class_<model::EvalStatus>(m, "EvalStatus")
       .def_readonly("success", &model::EvalStatus::success)
-      .def_readonly("fail_reason", &model::EvalStatus::fail_reason);
+      .def_readonly("fail_reason", &model::EvalStatus::fail_reason)
+      .def("__repr__", [](model::EvalStatus& e) -> std::string {
+        if (e.success) {
+          return "EvalStatus(success=1)";
+        } else {
+          return "EvalStatus(success=0, fail_reason=" + e.fail_reason + ")";
+        }
+      });
 }

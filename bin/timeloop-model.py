@@ -6,10 +6,14 @@ from pytimeloop import Config
 import argparse
 import glob
 import logging
+import os
+import sys
 
 parser = argparse.ArgumentParser(
     description='Run Timeloop given architecture, workload, and mapping.')
 parser.add_argument('configs', nargs='+', help='Config files to run Timeloop.')
+parser.add_argument('--output_dir', default='.',
+                    help='Directory to dump output.')
 parser.add_argument('--verbosity', type=int, default=1,
                     help='0 is only error; 1 adds warning; 2 is everyting.')
 
@@ -40,5 +44,22 @@ if __name__ == '__main__':
     else:
         raise ValueError('Verbosity level unrecognized.')
 
-    app = Model(config, '.')
-    app.run()
+    # Print logs from pytimeloop to console
+    logger = logging.getLogger('pytimeloop')
+    formatter = logging.Formatter(
+        '[%(levelname)s] %(asctime)s - %(name)s - %(message)s')
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(log_level)
+
+    out_dir = args.output_dir
+    out_stats_fname = os.path.join(out_dir, 'timeloop-model.stats.txt')
+
+    app = Model(config, out_dir, log_level=log_level)
+    eval_stats = app.run()
+    logger.info('Evaluation status: {}'.format(eval_stats.eval_status))
+    logger.info('Pre-evaluation status: {}'.format(eval_stats.pre_eval_status))
+
+    with open(out_stats_fname, 'w+') as f:
+        f.write(eval_stats.pretty_print_stats())
