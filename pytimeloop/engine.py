@@ -76,16 +76,19 @@ class Accelerator(NativeEngine):
             )
 
         if return_stats:
-            return self.get_stats()
+            return self.get_stats(mapping)
         else:
             return AcceleratorEvalResult(eval_status, pre_eval_status)
 
-    def get_stats(self):
+    def get_stats(self, mapping):
+        pretty_printed_mapping = mapping.pretty_print(
+            self.specs.storage_level_names(), self.get_topology().tile_sizes())
         return AcceleratorEvalResult(self.eval_status, self.pre_eval_status,
                                      self.utilization(), self.energy(),
                                      self.get_topology().maccs(),
                                      self.get_topology().tile_sizes(),
-                                     self.pretty_print_stats())
+                                     self.pretty_print_stats(),
+                                     pretty_printed_mapping)
 
 
 class AcceleratorEvalResult:
@@ -108,7 +111,7 @@ class AcceleratorEvalResult:
 
     def __init__(self, eval_status, pre_eval_status, utilization=None,
                  total_energy=None, total_maccs=None, tile_sizes=None,
-                 pretty_printed_stats=''):
+                 pretty_printed_stats='', pretty_printed_mapping=''):
         self.eval_status = eval_status
         self.pre_eval_status = pre_eval_status
         self.utilization = utilization
@@ -116,12 +119,19 @@ class AcceleratorEvalResult:
         self.total_maccs = total_maccs
         self.tile_sizes = tile_sizes
         self.pretty_printed_stats = pretty_printed_stats
+        self.pretty_printed_mapping = pretty_printed_mapping
 
     def pretty_print_stats(self):
         return self.pretty_printed_stats
 
+    def pretty_print_mapping(self):
+        return self.pretty_printed_mapping
+
     def __str__(self):
         res = 'Eval status: ' + self.eval_status.__str__() + '\n'
         res += 'Pre-eval status: ' + self.pre_eval_status.__str__() + '\n'
+        res += 'Mapping:\n'
+        res += self.pretty_printed_mapping
+        res += 'Evaluation stats:\n'
         res += self.pretty_printed_stats
         return res

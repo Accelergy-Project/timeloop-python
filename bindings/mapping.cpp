@@ -38,14 +38,13 @@ void BindMappingClasses(py::module& m) {
            [](Mapping& m) { return &Mapping::datatype_bypass_nest; })
       .def(
           "pretty_print",
-          [](Mapping& m, py::object py_out,
-             const std::vector<std::string>& storage_level_names,
+          [](Mapping& m, const std::vector<std::string>& storage_level_names,
              const std::vector<problem::PerDataSpace<std::uint64_t>>&
                  tile_sizes,
              const std::string _indent) {
             std::ostringstream out;
-            py::scoped_ostream_redirect redirect(out, py_out);
             m.PrettyPrint(out, storage_level_names, tile_sizes, _indent);
+            return out.str();
           },
-          py::arg(), py::arg(), py::arg(), py::arg("indent") = "");
+          py::arg(), py::arg(), py::arg("indent") = "");
 }

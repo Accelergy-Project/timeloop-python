@@ -55,6 +55,7 @@ if __name__ == '__main__':
 
     out_dir = args.output_dir
     out_stats_fname = os.path.join(out_dir, 'timeloop-model.stats.txt')
+    out_mapping_fname = os.path.join(out_dir, 'timeloop-model.map.txt')
 
     app = Model(config, out_dir, log_level=log_level)
     eval_stats = app.run()
@@ -63,3 +64,6 @@ if __name__ == '__main__':
 
     with open(out_stats_fname, 'w+') as f:
         f.write(eval_stats.pretty_print_stats())
+
+    with open(out_mapping_fname, 'w+') as f:
+        f.write(eval_stats.pretty_print_mapping())
