@@ -58,7 +58,9 @@ can use on the command line:
 For example,
 ```
 $ timeloop-model.py --help
-usage: timeloop-model.py [-h] [--verbosity VERBOSITY] configs [configs ...]
+usage: timeloop-model.py [-h] [--output_dir OUTPUT_DIR]
+                         [--verbosity VERBOSITY]
+                         configs [configs ...]
 
 Run Timeloop given architecture, workload, and mapping.
 
@@ -67,6 +69,8 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  --output_dir OUTPUT_DIR
+                        Directory to dump output.
   --verbosity VERBOSITY
                         0 is only error; 1 adds warning; 2 is everyting.
 ```
