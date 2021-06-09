@@ -50,10 +50,6 @@ class Model:
             raise ValueError('Mapping violates architecture constraints.')
 
     def run(self):
-        stats_fname = self.out_prefix + 'stats.txt'
-        xml_fname = self.out_prefix + '.map+stats.xml'
-        map_txt_fname = self.out_prefix + '.map.txt'
-
         engine = Accelerator(self.arch_specs)
 
         eval_stat = engine.evaluate(
