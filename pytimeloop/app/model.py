@@ -5,7 +5,6 @@ from pytimeloop.model import ArchSpecs
 from pytimeloop.mapping import ArchConstraints, Mapping
 from pytimeloop.problem import Workload
 
-import sys
 import logging
 
 

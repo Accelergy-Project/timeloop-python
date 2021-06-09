@@ -1,4 +1,4 @@
-from bindings import NativeArchSpecs, NativeConfig, NativeConfigNode
+from bindings import NativeArchSpecs, NativeConfig
 from .accelergy_interface import invoke_accelergy
 from .config import Config
 

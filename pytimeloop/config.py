@@ -1,12 +1,11 @@
-from collections.abc import Mapping, Iterable
 from abc import ABC, abstractmethod
 from typing import Union, IO
 
 import yaml
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader, Dumper
+    from yaml import Loader
 
 from bindings import NativeConfig
 
