@@ -9,6 +9,8 @@
 // Type casters
 #include "type_casters.h"
 
+using PerDataSpaceInt = problem::PerDataSpace<std::uint64_t>;
+
 void BindMappingClasses(py::module& m) {
   py::class_<ArchProperties>(m, "ArchProperties")
       .def(py::init<>())
@@ -39,12 +41,14 @@ void BindMappingClasses(py::module& m) {
       .def(
           "pretty_print",
           [](Mapping& m, const std::vector<std::string>& storage_level_names,
-             const std::vector<problem::PerDataSpace<std::uint64_t>>&
-                 tile_sizes,
-             const std::string _indent) {
+             const std::vector<PerDataSpaceInt>& utilized_capacities,
+             const std::vector<PerDataSpaceInt>& tile_sizes,
+             const std::string indent) {
             std::ostringstream out;
-            m.PrettyPrint(out, storage_level_names, tile_sizes, _indent);
+            m.PrettyPrint(out, storage_level_names, utilized_capacities,
+                          tile_sizes, indent);
             return out.str();
           },
-          py::arg(), py::arg(), py::arg("indent") = "");
+          py::arg() = {}, py::arg() = {}, py::arg() = {},
+          py::arg("indent") = "");
 }

@@ -46,7 +46,8 @@ void BindModelClasses(py::module& m) {
       .def("spec", &model::Engine::Spec)
       .def("pre_evaluation_check", &model::Engine::PreEvaluationCheck)
       .def("evaluate", &model::Engine::Evaluate, py::arg("mapping"),
-           py::arg("workload"), py::arg("break_on_failure") = true)
+           py::arg("workload"), py::arg("sparse_optimizations"),
+           py::arg("break_on_failure") = true)
       .def("is_evaluated", &model::Engine::IsEvaluated)
       .def("utilization", &model::Engine::Utilization)
       .def("energy", &model::Engine::Energy)
@@ -58,7 +59,6 @@ void BindModelClasses(py::module& m) {
       });
 
   py::class_<model::Topology>(m, "Topology")
-      .def("maccs", &model::Topology::MACCs)
       .def("tile_sizes", &model::Topology::TileSizes);
 
   py::class_<model::EvalStatus>(m, "EvalStatus")

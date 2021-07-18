@@ -18,11 +18,10 @@ void BindConfigClasses(py::module& m) {
       .def(py::init<>())
       .def(py::init<char*>())
       .def(py::init<std::vector<std::string>>())
-      .def("load_yaml",
-           [](config::CompoundConfig& c, std::string yamlStr) {
-             std::istringstream yamlStream(yamlStr);
-             c.parseYAMLString(yamlStream);
-           })
+      .def_static("load_yaml",
+                  [](std::string yamlStr) {
+                    return config::CompoundConfig(yamlStr, "yaml");
+                  })
       .def_readonly("in_files", &config::CompoundConfig::inFiles)
       .def("get_root", &config::CompoundConfig::getRoot)
       .def("get_variable_root", &config::CompoundConfig::getVariableRoot);
