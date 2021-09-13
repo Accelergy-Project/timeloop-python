@@ -1,4 +1,4 @@
-#include "bindings.h"
+#include "bindings/bindings.h"
 
 // Timeloop headers
 #include "workload/shape-models/problem-shape.hpp"

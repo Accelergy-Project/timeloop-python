@@ -1,7 +1,7 @@
 #include <optional>
 #include <variant>
 
-#include "bindings.h"
+#include "bindings/bindings.h"
 
 // PyBind11 headers
 #include "pybind11/stl.h"
@@ -18,10 +18,7 @@ void BindConfigClasses(py::module& m) {
       .def(py::init<>())
       .def(py::init<char*>())
       .def(py::init<std::vector<std::string>>())
-      .def_static("load_yaml",
-                  [](std::string yamlStr) {
-                    return config::CompoundConfig(yamlStr, "yaml");
-                  })
+      .def(py::init<std::string, std::string>())
       .def_readonly("in_files", &config::CompoundConfig::inFiles)
       .def("get_root", &config::CompoundConfig::getRoot)
       .def("get_variable_root", &config::CompoundConfig::getVariableRoot);

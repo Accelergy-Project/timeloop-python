@@ -1,4 +1,5 @@
-#include "bindings.h"
+#include "bindings/bindings.h"
+#include "bindings/type_casters.h"
 
 // Timeloop headers
 #include "mapping/arch-properties.hpp"
@@ -6,8 +7,6 @@
 #include "mapping/mapping.hpp"
 #include "mapping/parser.hpp"
 
-// Type casters
-#include "type_casters.h"
 
 using PerDataSpaceInt = problem::PerDataSpace<std::uint64_t>;
 

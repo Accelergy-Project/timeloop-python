@@ -1,16 +1,17 @@
 #include <sstream>
 #include <string>
 
-#include "bindings.h"
+#include "bindings/model/bindings.h"
+#include "bindings/type_casters.h"
+
+// PyBind11 headers
+#include "pybind11/iostream.h"
 
 // Timeloop headers
 #include "model/engine.hpp"
 #include "model/level.hpp"
 
-// Type casters
-#include "type_casters.h"
-
-void BindModelClasses(py::module& m) {
+void BindEngine(py::module& m) {
   py::class_<model::Engine::Specs>(m, "NativeArchSpecs")
       .def(py::init(&model::Engine::ParseSpecs))
       .def_static("parse_specs", &model::Engine::ParseSpecs,
@@ -57,10 +58,9 @@ void BindModelClasses(py::module& m) {
         ss << e << std::endl;
         return ss.str();
       });
+}
 
-  py::class_<model::Topology>(m, "Topology")
-      .def("tile_sizes", &model::Topology::TileSizes);
-
+void BindLevel(py::module& m) {
   py::class_<model::EvalStatus>(m, "EvalStatus")
       .def_readonly("success", &model::EvalStatus::success)
       .def_readonly("fail_reason", &model::EvalStatus::fail_reason)
@@ -72,3 +72,9 @@ void BindModelClasses(py::module& m) {
         }
       });
 }
+
+void BindTopology(py::module& m) {
+  py::class_<model::Topology>(m, "Topology")
+      .def("tile_sizes", &model::Topology::TileSizes);
+}
+

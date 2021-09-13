@@ -14,11 +14,14 @@ add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
 set(BINDINGS_SRC 
     bindings/bindings.cpp bindings/accelergy_interface.cpp bindings/config.cpp
-    bindings/mapping.cpp bindings/model.cpp bindings/problem.cpp)
+    bindings/mapping.cpp bindings/model/engine.cpp bindings/problem.cpp)
 add_subdirectory(lib/pybind11)
 pybind11_add_module(bindings ${BINDINGS_SRC})
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)
-target_include_directories(bindings PRIVATE ${LIBTIMELOOP_PATH}/include lib/pybind11/include)
+target_include_directories(bindings PRIVATE
+    include
+    ${LIBTIMELOOP_PATH}/include
+    lib/pybind11/include)
 target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_gterminate)
 
 # VERSION_INFO is defined by setup.py and passed into the C++ code as a
