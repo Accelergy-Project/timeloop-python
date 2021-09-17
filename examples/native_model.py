@@ -137,7 +137,7 @@ class TimeloopModelApp:
                     for pvi in range(get_problem_shape().num_data_spaces):
                         self.mapping.datatype_bypass_nest[pvi].reset(level-1)
 
-        eval_stat = engine.evaluate(self.mapping, self.workload)
+        eval_stat = engine.evaluate(self.mapping, self.workload, [])
         for level, status in enumerate(eval_stat):
             if not status.success:
                 eprint("ERROR: couldn't map level ", level_names[level], ': ',

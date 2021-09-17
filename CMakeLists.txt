@@ -13,8 +13,13 @@ find_library(LIBTIMELOOP timeloop-model HINTS ${LIBTIMELOOP_PATH}/lib REQUIRED)
 add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
 set(BINDINGS_SRC 
-    bindings/bindings.cpp bindings/accelergy_interface.cpp bindings/config.cpp
-    bindings/mapping.cpp bindings/model/engine.cpp bindings/problem.cpp)
+    bindings/accelergy_interface.cpp
+    bindings/bindings.cpp
+    bindings/config.cpp
+    bindings/mapping.cpp
+    bindings/model/engine.cpp
+    bindings/model/sparse_optimization_info.cpp
+    bindings/problem.cpp)
 add_subdirectory(lib/pybind11)
 pybind11_add_module(bindings ${BINDINGS_SRC})
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)

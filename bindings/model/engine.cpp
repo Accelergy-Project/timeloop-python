@@ -11,6 +11,8 @@
 #include "model/engine.hpp"
 #include "model/level.hpp"
 
+namespace model_bindings {
+
 void BindEngine(py::module& m) {
   py::class_<model::Engine::Specs>(m, "NativeArchSpecs")
       .def(py::init(&model::Engine::ParseSpecs))
@@ -52,6 +54,7 @@ void BindEngine(py::module& m) {
       .def("is_evaluated", &model::Engine::IsEvaluated)
       .def("utilization", &model::Engine::Utilization)
       .def("energy", &model::Engine::Energy)
+      .def("area", &model::Engine::Area)
       .def("get_topology", &model::Engine::GetTopology)
       .def("pretty_print_stats", [](model::Engine& e) -> std::string {
         std::stringstream ss;
@@ -75,6 +78,10 @@ void BindLevel(py::module& m) {
 
 void BindTopology(py::module& m) {
   py::class_<model::Topology>(m, "Topology")
-      .def("tile_sizes", &model::Topology::TileSizes);
+      .def("algorithmic_computes", &model::Topology::AlgorithmicComputes)
+      .def("actual_computes", &model::Topology::ActualComputes)
+      .def("tile_sizes", &model::Topology::TileSizes)
+      .def("utilized_capacities", &model::Topology::UtilizedCapacities);
 }
 
+}  // namespace model_bindings
