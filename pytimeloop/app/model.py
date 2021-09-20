@@ -1,7 +1,7 @@
 from bindings import ArchProperties
 from pytimeloop.config import Config
 from pytimeloop.engine import Accelerator
-from pytimeloop.model import ArchSpecs
+from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
 from pytimeloop.mapping import ArchConstraints, Mapping
 from pytimeloop.problem import Workload
 
@@ -48,9 +48,19 @@ class Model:
                 'Mapping violates architecture constraints.')
             raise ValueError('Mapping violates architecture constraints.')
 
+        # Sparse optimizations
+        if 'sparse_optimizations' in cfg:
+            sparse_opt_cfg = cfg['sparse_optimizations']
+        else:
+            sparse_opt_cfg = Config()
+        self.sparse_optimizations = SparseOptimizationInfo(
+            sparse_opt_cfg, self.arch_specs)
+
     def run(self):
         engine = Accelerator(self.arch_specs)
 
-        eval_stat = engine.evaluate(
-            self.mapping, self.workload, log_level=self.log_level)
+        eval_stat = engine.evaluate(self.mapping,
+                                    self.workload,
+                                    self.sparse_optimizations,
+                                    log_level=self.log_level)
         return eval_stat

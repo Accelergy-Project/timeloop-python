@@ -1,7 +1,7 @@
-#include "bindings.h"
+#include "bindings/bindings.h"
 
 // Timeloop headers
-#include "workload/problem-shape.hpp"
+#include "workload/shape-models/problem-shape.hpp"
 #include "workload/workload.hpp"
 
 void BindProblemClasses(py::module& m) {

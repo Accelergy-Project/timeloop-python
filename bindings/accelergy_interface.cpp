@@ -1,4 +1,4 @@
-#include "bindings.h"
+#include "bindings/bindings.h"
 
 // Timeloop headers
 #include "util/accelergy_interface.hpp"

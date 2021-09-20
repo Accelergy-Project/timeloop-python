@@ -1,10 +1,11 @@
 #pragma once
 
 // Timeloop headers
-#include "workload/per-data-space.hpp"
+#include "workload/util/per-data-space.hpp"
 
 // PyBind11 headers
 #include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
 
 // Type casters
 namespace pybind11 {

@@ -74,3 +74,8 @@ optional arguments:
   --verbosity VERBOSITY
                         0 is only error; 1 adds warning; 2 is everyting.
 ```
+
+## Contributing
+This README is written with users as its audience, more information relevant
+to the development of the project can be found in CONTRIBUTING.md.
+

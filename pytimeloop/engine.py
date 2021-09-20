@@ -1,5 +1,5 @@
 from bindings import get_problem_shape, NativeEngine
-from .model import ArchSpecs
+from .model import ArchSpecs, SparseOptimizationInfo
 from .problem import Workload
 from .mapping import Mapping
 
@@ -14,6 +14,7 @@ class Accelerator(NativeEngine):
         self.eval_status = None
 
     def evaluate(self, mapping: Mapping, workload: Workload,
+                 sparse_optimizations: SparseOptimizationInfo,
                  break_on_failure=False, auto_bypass_on_failure=True,
                  return_stats=True, log_level=logging.INFO):
         """
@@ -22,7 +23,8 @@ class Accelerator(NativeEngine):
         Args:
             mapping: an instance of `Mapping` to evaluate.
             workload: an instance of `Workload` to evaluate.
-            break_on_failure: 
+            sparse_optimizations: TODO
+            break_on_failure: TODO
             auto_bypass_on_failure: if True, performs pre-evaluation 
                 check and bypasses architecture levels that couldn't 
                 be mapped. `mapping` might be modified if this is 
@@ -47,7 +49,7 @@ class Accelerator(NativeEngine):
         level_names = self.specs.level_names()
         if auto_bypass_on_failure:
             pre_eval_status = self.pre_evaluation_check(
-                mapping, workload, False)
+                mapping, workload, sparse_optimizations, False)
             self.pre_eval_status = pre_eval_status
             for level, status in enumerate(pre_eval_status):
                 if not status.success:
@@ -59,7 +61,7 @@ class Accelerator(NativeEngine):
                     mapping.datatype_bypass_nest[pvi].reset(level-1)
 
         # Perform evaluation
-        eval_status = super().evaluate(mapping, workload)
+        eval_status = super().evaluate(mapping, workload, sparse_optimizations)
         self.eval_status = eval_status
         for level, status in enumerate(eval_status):
             if not status.success:
@@ -69,10 +71,11 @@ class Accelerator(NativeEngine):
 
         if self.is_evaluated():
             logger.info(
-                'Utilization = {} | pJ/MAC = {}'.format(
-                    self.utilization(),
-                    self.energy() / self.get_topology().maccs()
-                )
+                'Utilization = {}\n'.format(self.utilization()) +
+                'pJ/Algorithmic-Compute = {}\n'.format(
+                    self.energy() / self.get_topology().algorithmic_computes()) +
+                'pJ/Compute = {}'.format(
+                    self.energy() / self.get_topology().actual_computes())
             )
 
         if return_stats:
@@ -81,12 +84,17 @@ class Accelerator(NativeEngine):
             return AcceleratorEvalResult(eval_status, pre_eval_status)
 
     def get_stats(self, mapping):
+        topology = self.get_topology()
         pretty_printed_mapping = mapping.pretty_print(
-            self.specs.storage_level_names(), self.get_topology().tile_sizes())
+            self.specs.storage_level_names(),
+            topology.utilized_capacities(),
+            topology.tile_sizes())
         return AcceleratorEvalResult(self.eval_status, self.pre_eval_status,
                                      self.utilization(), self.energy(),
-                                     self.get_topology().maccs(),
-                                     self.get_topology().tile_sizes(),
+                                     self.area(),
+                                     topology.algorithmic_computes(),
+                                     topology.actual_computes(),
+                                     topology.tile_sizes(),
                                      self.pretty_print_stats(),
                                      pretty_printed_mapping)
 
@@ -96,27 +104,31 @@ class AcceleratorEvalResult:
     Evaluation result from calling `Accelerator.evaluate`.
 
     Attributes:
-        eval_stat: evaluation status returned by Timeloop method
+        eval_status: evaluation status returned by Timeloop method
             `Engine.Evaluate`.
-        pre_eval_stat: pre-evaluation status returned by Timeloop
+        pre_eval_status: pre-evaluation status returned by Timeloop
             method `Engine.PreEvaluationCheck`.
         utilization: utilization of accelerator for the workload and
             mapping.
-        total_energy: total energy consumed by the accelerator for the
+        energy: total energy consumed by the accelerator for the
             workload and mapping.
-        total_macc: total number of MACC operations performed for the
-            workload and mapping.
+        area: TODO
+        algorithmic_compute: TODO
+        actual_compute: TODO
         tile_sizes: TODO
     """
 
     def __init__(self, eval_status, pre_eval_status, utilization=None,
-                 total_energy=None, total_maccs=None, tile_sizes=None,
-                 pretty_printed_stats='', pretty_printed_mapping=''):
+                 energy=None, area=None, algorithmic_compute=None,
+                 actual_compute=None, tile_sizes=None, pretty_printed_stats='',
+                 pretty_printed_mapping=''):
         self.eval_status = eval_status
         self.pre_eval_status = pre_eval_status
         self.utilization = utilization
-        self.total_energy = total_energy
-        self.total_maccs = total_maccs
+        self.energy = energy
+        self.area = area
+        self.algorithmic_compute = algorithmic_compute
+        self.actual_compute = actual_compute
         self.tile_sizes = tile_sizes
         self.pretty_printed_stats = pretty_printed_stats
         self.pretty_printed_mapping = pretty_printed_mapping

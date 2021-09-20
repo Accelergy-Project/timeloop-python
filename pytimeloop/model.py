@@ -1,4 +1,5 @@
-from bindings import NativeArchSpecs, NativeConfig
+from bindings import (NativeArchSpecs, NativeConfig,
+                      NativeSparseOptimizationInfo)
 from .accelergy_interface import invoke_accelergy
 from .config import Config
 
@@ -47,3 +48,9 @@ class ArchSpecs(NativeArchSpecs):
                 logger.info('Generated Accelergy ART to replace internal '
                             'energy model')
                 self.parse_accelergy_art(art)
+
+
+class SparseOptimizationInfo(NativeSparseOptimizationInfo):
+    def __init__(self, sparse_config: Config, arch_specs: ArchSpecs):
+        _, native_sparse_config_node = sparse_config.get_native()
+        super().__init__(native_sparse_config_node, arch_specs)

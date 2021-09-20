@@ -11,6 +11,14 @@ from bindings import NativeConfig
 
 
 class Config(ABC):
+    """
+    This class wraps NativeCompoundConfig to provide a more Pythonic interface
+    and to make the config mutable.
+
+    The C++ wrappers `NativeCompoundConfig` and `NativeConfigNode` are
+    immutable. Config has to regenerate these classes when it is passed to
+    functions. This is done via the `get_native` methods.
+    """
     def __new__(cls):
         return ConfigDict()
 
@@ -61,8 +69,7 @@ class Config(ABC):
         """Returns a `NativeConfig` representing the root of this config and 
         `NativeConfigNode` of this config.
         """
-        self.native_config = NativeConfig()
-        self.native_config.load_yaml(self.root.dump_yaml())
+        self.native_config = NativeConfig(self.root.dump_yaml(), 'yaml')
         self.native_config_node = self.native_config.get_root()
         for key in self.root_key:
             self.native_config_node = self.native_config_node[key]
