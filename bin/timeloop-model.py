@@ -26,6 +26,7 @@ def load_configs(input_fnames):
     for fname in input_files:
         with open(fname, 'r') as f:
             yaml_str += f.read()
+        yaml_str += '\n'
     config = Config.load_yaml(yaml_str)
     return config
 
