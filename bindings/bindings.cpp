@@ -13,7 +13,9 @@ PYBIND11_MODULE(bindings, m) {
 
   BindAccelergyInterface(m);
   BindConfigClasses(m);
+  BindMapperClasses(m);
   BindMappingClasses(m);
+  BindMapspaceClasses(m);
 
   model_bindings::BindEngine(m);
   model_bindings::BindLevel(m);
@@ -21,6 +23,7 @@ PYBIND11_MODULE(bindings, m) {
   model_bindings::BindTopology(m);
 
   BindProblemClasses(m);
+  BindSearchClasses(m);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
