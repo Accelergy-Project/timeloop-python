@@ -55,6 +55,7 @@ void BindEngine(py::module& m) {
       .def("utilization", &model::Engine::Utilization)
       .def("energy", &model::Engine::Energy)
       .def("area", &model::Engine::Area)
+      .def("cycles", &model::Engine::Cycles)
       .def("get_topology", &model::Engine::GetTopology)
       .def("pretty_print_stats", [](model::Engine& e) -> std::string {
         std::stringstream ss;
@@ -80,6 +81,7 @@ void BindTopology(py::module& m) {
   py::class_<model::Topology>(m, "Topology")
       .def("algorithmic_computes", &model::Topology::AlgorithmicComputes)
       .def("actual_computes", &model::Topology::ActualComputes)
+      .def("last_level_accesses", &model::Topology::LastLevelAccesses)
       .def("tile_sizes", &model::Topology::TileSizes)
       .def("utilized_capacities", &model::Topology::UtilizedCapacities);
 }
