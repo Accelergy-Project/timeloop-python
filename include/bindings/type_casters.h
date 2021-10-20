@@ -1,5 +1,8 @@
 #pragma once
 
+// Boost headers
+#include <boost/multiprecision/cpp_int.hpp>
+
 // Timeloop headers
 #include "workload/util/per-data-space.hpp"
 
@@ -10,6 +13,10 @@
 // Type casters
 namespace pybind11 {
 namespace detail {
+
+namespace mp = boost::multiprecision;
+
+/* Type caster for problem::PerDataSpace -> List */
 template <typename Type>
 struct type_caster<problem::PerDataSpace<Type>> {
   using value_conv = make_caster<Type>;
@@ -47,6 +54,37 @@ struct type_caster<problem::PerDataSpace<Type>> {
   }
 
   PYBIND11_TYPE_CASTER(problem::PerDataSpace<Type>, _("PerDataSpace"));
+};
+
+/*
+ * Type caster for boost::multiprecision::uint128_t.
+ *
+ * Source: https://stackoverflow.com/questions/54738011/pybind11-boostmultiprecisioncpp-int-to-python
+ *
+ * FIXME: This could be slow since it involves conversion to string.
+ */
+template<typename cpp_int_backend>
+struct type_caster<mp::number<cpp_int_backend>> {
+  PYBIND11_TYPE_CASTER(mp::number<cpp_int_backend>, _("number"));
+
+  bool load(handle src, bool) {
+    PyObject* tmp = PyNumber_ToBase(src.ptr(), 16);
+    if (!tmp) return false;
+
+    std::string s = py::cast<std::string>(tmp);
+    value = mp::uint128_t{s};
+
+    Py_DECREF(tmp);
+
+    return !PyErr_Occurred();
+  }
+
+  static handle cast(const mp::number<cpp_int_backend>& src,
+                     return_value_policy, handle) {
+    std::ostringstream oss;
+    oss << std::hex << src;
+    return PyLong_FromString(oss.str().c_str(), nullptr, 16);
+  }
 };
 }  // namespace detail
 }  // namespace pybind11
