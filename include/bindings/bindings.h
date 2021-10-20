@@ -12,5 +12,8 @@ namespace py = pybind11;
 void BindAccelergyInterface(py::module &m);
 void BindConfigClasses(py::module &m);
 void BindMappingClasses(py::module &m);
+void BindMapperClasses(py::module &m);
+void BindMapspaceClasses(py::module &m);
 void BindModelClasses(py::module &m);
 void BindProblemClasses(py::module &m);
+void BindSearchClasses(py::module &m);
