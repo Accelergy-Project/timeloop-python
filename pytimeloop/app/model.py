@@ -8,7 +8,7 @@ from pytimeloop.problem import Workload
 import logging
 
 
-class Model:
+class ModelApp:
     def __init__(self, cfg: Config, out_dir: str, auto_bypass_on_failure=False,
                  out_prefix='', log_level=logging.INFO):
         # Setup logger

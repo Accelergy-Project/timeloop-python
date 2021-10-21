@@ -1,1 +1,2 @@
-from .model import Model
+from .model import ModelApp
+from .mapper import MapperApp

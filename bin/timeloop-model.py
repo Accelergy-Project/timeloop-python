@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from yaml import parse
-from pytimeloop.app import Model
+from pytimeloop.app import ModelApp
 from pytimeloop import Config
 
 import argparse
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     out_stats_fname = os.path.join(out_dir, 'timeloop-model.stats.txt')
     out_mapping_fname = os.path.join(out_dir, 'timeloop-model.map.txt')
 
-    app = Model(config, out_dir, log_level=log_level)
+    app = ModelApp(config, out_dir, log_level=log_level)
     eval_stats = app.run()
     logger.info('Evaluation status: {}'.format(eval_stats.eval_status))
     logger.info('Pre-evaluation status: {}'.format(eval_stats.pre_eval_status))
