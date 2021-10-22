@@ -76,7 +76,7 @@ class Mapper:
                  search_algs, sparse_opts_info, metrics=['edp'],
                  accelerator_pool_num_threads=mp.cpu_count(), search_size=0,
                  timeout=1000, victory_condition=500,
-                 penalize_consecutive_bypass_fails=False,):
+                 penalize_consecutive_bypass_fails=False):
         # Architecture configuration
         self.arch_specs = arch_specs
         self.arch_props = ArchProperties(self.arch_specs)

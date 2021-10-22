@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
     log_level = logging.INFO
     if args.verbosity == 0:
-        log_level = logging.INFO
+        log_level = logging.ERROR
     elif args.verbosity == 1:
         log_level = logging.WARNING
     elif args.verbosity == 2:

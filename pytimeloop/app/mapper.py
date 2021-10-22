@@ -139,7 +139,8 @@ class MapperApp:
             mapspace_cfg = cfg['mapspace_constraints']
 
         self.mapspace = MapSpace.parse_and_construct(
-            mapspace_cfg, cfg['architecture_constraints'], self.arch_specs, self.workload)
+                mapspace_cfg, cfg['architecture_constraints'], self.arch_specs,
+                self.workload, log_level)
         self.split_mapspaces = self.mapspace.split(self.num_threads)
         self.logger.info('Mapspace construction complete.')
 

@@ -10,6 +10,8 @@ def invoke_accelergy(input_files: List[str], out_prefix: str,
                      out_dir: str, log_level=logging.INFO):
     logger = logging.getLogger(__name__ + '.'
                                + invoke_accelergy.__name__)
+    logger.setLevel(log_level)
+
     old_stdout = sys.stdout
     old_stderr = sys.stderr
     try:
