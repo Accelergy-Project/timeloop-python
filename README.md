@@ -79,3 +79,6 @@ optional arguments:
 This README is written with users as its audience, more information relevant
 to the development of the project can be found in CONTRIBUTING.md.
 
+## Known Bugs
+1. segmentation fault at the end of timeloop-mapper.py. Doesn't break anything,
+   but quite annoying. Might be caused when cleaning up some objects.
