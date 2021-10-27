@@ -72,6 +72,7 @@ class Mapper:
         penalize_consecutive_bypass_fails: If True, bypass fail is counted as
             an invalid mapping. Defaults to False.
     """
+
     def __init__(self, arch_specs, workload, arch_constraints, mapspaces,
                  search_algs, sparse_opts_info, metrics=['edp'],
                  accelerator_pool_num_threads=mp.cpu_count(), search_size=0,
@@ -91,15 +92,15 @@ class Mapper:
 
         self.search_size = search_size
         if self.search_size > 0:
-            self.search_size = 1 + (self.search_size - 1) / len(search_algs) 
+            self.search_size = 1 + (self.search_size - 1) / len(search_algs)
 
         self.victory_condition = 500
         self.penalize_consecutive_bypass_fails = \
-                penalize_consecutive_bypass_fails
+            penalize_consecutive_bypass_fails
 
         # Architecture constraints
         self.constraints = arch_constraints
-        
+
         # Mapspace configuration
         self.split_mapspaces = mapspaces
 
@@ -139,11 +140,12 @@ class Mapper:
                 break
             result = accelerator_pool.get_result()
             for idx, search_task in enumerate(outstanding_tasks):
-                if search_task.task_id == result.task_id:
+                if (not self.terminate[idx]
+                        and search_task.task_id == result.task_id):
                     self._search_report(idx, result, search_task)
                     outstanding_tasks[idx] = self._search_send_next(
-                            idx,
-                            accelerator_pool)
+                        idx,
+                        accelerator_pool)
                     break
 
         engine = Accelerator(self.arch_specs)
@@ -171,7 +173,7 @@ class Mapper:
             self.terminate[i] = True
 
         if self.terminate[i]:
-            return True
+            return None
 
         # Check if the only change vs. the previous mapping was in the bypass
         # dimension. This is useful later.
@@ -186,7 +188,7 @@ class Mapper:
         # Begin mapping
         # Stage 1: make sure mapping is valid
         const_status, mapping = self.split_mapspaces[i].construct_mapping(
-                map_id, True)
+            map_id, True)
         success = reduce(lambda a, b: a and b.success, const_status)
 
         self.total_maps[i] += 1
@@ -199,7 +201,7 @@ class Mapper:
 
         # Stage 2 & 3: pre-evaluation and evaluation
         task_id = accelerator_pool.evaluate(mapping, self.workload,
-                self.sparse_optimizations, False)
+                                            self.sparse_optimizations, False)
 
         return SearchTask(task_id, mapping, only_bypass_changed)
 
@@ -219,7 +221,7 @@ class Mapper:
                 self.invalid_maps_eval[i] += 1
             self.search[i].report(SearchStatus.EvalFailure)
             return
-        
+
         # Success!
         self.valid_maps[i] += 1
         self.invalid_maps_mapcnstr = 0
@@ -264,7 +266,8 @@ class Mapper:
                 else:
                     return Betterness.SLIGHTLY_WORSE
             else:
-                lsm = Mapper._is_better_recur(candidate, incumbent, metrics[1:])
+                lsm = Mapper._is_better_recur(
+                    candidate, incumbent, metrics[1:])
 
                 if lsm == Betterness.BETTER or lsm == Betterness.WORSE:
                     return lsm
@@ -272,7 +275,6 @@ class Mapper:
                     return Betterness.SLIGHTLY_BETTER
                 else:
                     return Betterness.SLIGHTLY_WORSE
-
 
     @staticmethod
     def _cost(stats, metric):
