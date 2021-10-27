@@ -43,12 +43,16 @@ void BindMapspaceClasses(py::module& m) {
       });
 
   py::class_<mapspace::ID>(m, "ID")
-      .def("__getitem__", [](mapspace::ID& id, unsigned idx) -> uint128_t {
-        return id[idx];
-      })
-      .def("__getitem__", [](mapspace::ID& id, mapspace::Dimension dim) {
-        return id[unsigned(dim)];
-      });
+      .def("__getitem__",
+           [](mapspace::ID& id, unsigned idx) -> uint128_t { return id[idx]; })
+      .def("__getitem__",
+           [](mapspace::ID& id, mapspace::Dimension dim) {
+             return id[unsigned(dim)];
+           })
+      .def("__setitem__", [](mapspace::ID& id, mapspace::Dimension dim,
+                             uint128_t v) { id.Set(unsigned(dim), v); })
+      .def("__setitem__",
+           [](mapspace::ID& id, unsigned idx, uint128_t v) { id.Set(idx, v); });
 
   py::class_<mapspace::Status>(m, "Status")
       .def_readonly("success", &mapspace::Status::success)
@@ -65,13 +69,19 @@ void BindMapspaceClasses(py::module& m) {
            py::call_guard<py::scoped_ostream_redirect,
                           py::scoped_estream_redirect>())
       .def("split", &mapspace::Uber::Split,
+           py::return_value_policy::reference_internal,
            py::call_guard<py::scoped_ostream_redirect,
                           py::scoped_estream_redirect>())
-      .def("construct_mapping", [](mapspace::Uber& m, mapspace::ID mapping_id,
-                                   bool break_on_failure) {
-        Mapping mapping;
-        auto construction_status =
-            m.ConstructMapping(mapping_id, &mapping, break_on_failure);
-        return std::make_tuple(construction_status, mapping);
-      });
+      .def("construct_mapping",
+           [](mapspace::Uber& m, mapspace::ID mapping_id,
+              bool break_on_failure) {
+             Mapping mapping;
+             auto construction_status =
+                 m.ConstructMapping(mapping_id, &mapping, break_on_failure);
+             return std::make_tuple(construction_status, mapping);
+           })
+      .def("size", [](mapspace::Uber& m) { return m.Size(); })
+      .def("size", [](mapspace::Uber& m,
+                      mapspace::Dimension dim) { return m.Size(dim); })
+      .def("all_sizes", &mapspace::Uber::AllSizes);
 }
