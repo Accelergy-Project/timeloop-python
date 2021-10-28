@@ -5,6 +5,7 @@ from pytimeloop import Config
 import glob
 import os
 from pathlib import Path
+import pstats
 
 PROJECT_DIR = Path(__file__).parent.parent
 TIMELOOP_EXAMPLES_DIR = (
@@ -35,9 +36,17 @@ def pytimeloop_bench(bench_name, bench_fname=None):
         os.mkdir(bench_dir)
 
     if bench_fname is None:
-        bench_fname = bench_name + '.bench'
+        bench_fname = bench_name + '.pstat'
 
     def dec(bench_f):
         return lambda: bench_f(bench_dir, bench_dir / bench_fname)
 
     return dec
+
+
+def view_stat(bench_names, *restrictions):
+    for name in bench_names:
+        stat_path = BENCH_DIR / name / (name + '.pstat')
+        stat = pstats.Stats(str(stat_path))
+        stat.sort_stats('cumtime')
+        stat.print_stats(*restrictions)
