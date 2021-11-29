@@ -2,6 +2,8 @@
 
 #include <pybind11/iostream.h>
 
+#include "bindings/model/accelerator.h"
+
 AcceleratorPool::AcceleratorPool(model::Engine::Specs arch_specs,
                                  unsigned num_workers)
     : arch_specs_(arch_specs), terminate_(false), cur_id_(0) {
@@ -13,16 +15,15 @@ AcceleratorPool::AcceleratorPool(model::Engine::Specs arch_specs,
 AcceleratorPool::~AcceleratorPool() { stop_workers(); }
 
 uint64_t AcceleratorPool::Evaluate(
-    Mapping mapping, const problem::Workload workload,
-    const sparse::SparseOptimizationInfo sparse_optimizations,
-    bool break_on_failure, bool auto_bypass_on_failure) {
+    Mapping& mapping, problem::Workload& workload,
+    sparse::SparseOptimizationInfo& sparse_optimizations,
+    bool break_on_failure) {
   uint64_t task_id;
   {
     std::lock_guard<std::mutex> lock(pool_mutex_);
     task_id = cur_id_++;
     task_q_.push(EvaluationTask{task_id, mapping, workload,
-                                sparse_optimizations, break_on_failure,
-                                auto_bypass_on_failure});
+                                sparse_optimizations, break_on_failure});
   }
   worker_cv_.notify_one();
   return task_id;
@@ -38,10 +39,7 @@ EvaluationResult AcceleratorPool::GetResult() {
 }
 
 void AcceleratorPool::worker_loop() {
-  model::Engine engine;
-  engine.Spec(arch_specs_);
-
-  auto level_names = arch_specs_.topology.LevelNames();
+  Accelerator accelerator(arch_specs_);
 
   while (true) {
     // Acquire task from task_q_
@@ -57,40 +55,12 @@ void AcceleratorPool::worker_loop() {
     task_q_.pop();
     lock.unlock();
 
-    // TODO: Perform evaluation
-    std::vector<model::EvalStatus> pre_eval_status;
-    pre_eval_status = engine.PreEvaluationCheck(
-        task.mapping, task.workload, &task.sparse_optimizations, false);
-    if (task.auto_bypass_on_failure) {
-      for (unsigned level = 0; level < pre_eval_status.size(); level++) {
-        if (!pre_eval_status[level].success) {
-          for (unsigned pvi = 0; pvi < problem::GetShape()->NumDataSpaces;
-               pvi++) {
-            task.mapping.datatype_bypass_nest.at(pvi).reset(level - 1);
-          }
-        }
-      }
-    } else {
-      queue_result(EvaluationResult{task.id, pre_eval_status, std::nullopt});
-    }
+    auto result =
+        accelerator.Evaluate(task.mapping, task.workload,
+                             task.sparse_optimizations, task.break_on_failure);
+    result.id = task.id;
 
-    auto eval_status = engine.Evaluate(task.mapping, task.workload,
-                                       &task.sparse_optimizations);
-    for (unsigned level = 0; level < eval_status.size(); level++) {
-      if (!eval_status[level].success) {
-        std::cerr << "ERROR: couldn't map level " << level_names.at(level)
-                  << ": " << eval_status[level].fail_reason << std::endl;
-      }
-    }
-
-    if (engine.IsEvaluated()) {
-      auto topology = engine.GetTopology();
-      queue_result(EvaluationResult{
-          task.id, pre_eval_status, eval_status, engine.Utilization(),
-          engine.Energy(), engine.Area(), engine.Cycles(),
-          topology.AlgorithmicComputes(), topology.ActualComputes(),
-          topology.LastLevelAccesses()});
-    }
+    queue_result(std::move(result));
   }
 }
 
@@ -115,11 +85,12 @@ void AcceleratorPool::stop_workers() {
 
 namespace model_bindings {
 void BindAcceleratorPool(py::module& m) {
-  py::class_<AcceleratorPool>(m, "NativeAcceleratorPool")
+  py::class_<AcceleratorPool>(m, "AcceleratorPool")
       .def(py::init<model::Engine::Specs, unsigned>())
       .def("evaluate", &AcceleratorPool::Evaluate,
            py::call_guard<py::scoped_ostream_redirect,
-                          py::scoped_estream_redirect>())
+                          py::scoped_estream_redirect>(),
+           py::arg(), py::arg(), py::arg(), py::arg("break_on_failure") = false)
       .def("get_result", &AcceleratorPool::GetResult);
 }
 }  // namespace model_bindings

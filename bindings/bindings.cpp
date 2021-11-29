@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "bindings/model/accelerator-pool.h"
+#include "bindings/model/accelerator.h"
 #include "bindings/model/bindings.h"
 #include "bindings/model/eval-result.h"
 
@@ -18,6 +19,7 @@ PYBIND11_MODULE(bindings, m) {
   BindMappingClasses(m);
   BindMapspaceClasses(m);
 
+  model_bindings::BindAccelerator(m);
   model_bindings::BindAcceleratorPool(m);
   model_bindings::BindEngine(m);
   model_bindings::BindEvaluationResult(m);

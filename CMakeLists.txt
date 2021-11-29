@@ -18,6 +18,7 @@ set(BINDINGS_SRC
     bindings/config.cpp
     bindings/mapping.cpp
     bindings/mapspace.cpp
+    bindings/model/accelerator.cpp
     bindings/model/accelerator-pool.cpp
     bindings/model/engine.cpp
     bindings/model/eval-result.cpp

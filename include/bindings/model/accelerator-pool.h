@@ -17,7 +17,7 @@
 namespace py = pybind11;
 
 namespace model_bindings {
-void BindAcceleratorPool(py::module &m);
+void BindAcceleratorPool(py::module& m);
 }  // namespace model_bindings
 
 class AcceleratorPool {
@@ -26,10 +26,9 @@ class AcceleratorPool {
 
   ~AcceleratorPool();
 
-  uint64_t Evaluate(Mapping mapping, const problem::Workload workload,
-                    const sparse::SparseOptimizationInfo sparse_optimizations,
-                    bool break_on_failure = false,
-                    bool auto_bypass_on_failure = true);
+  uint64_t Evaluate(Mapping& mapping, problem::Workload& workload,
+                    sparse::SparseOptimizationInfo& sparse_optimizations,
+                    bool break_on_failure = false);
 
   EvaluationResult GetResult();
 
@@ -40,7 +39,6 @@ class AcceleratorPool {
     problem::Workload workload;
     sparse::SparseOptimizationInfo sparse_optimizations;
     bool break_on_failure;
-    bool auto_bypass_on_failure;
   };
 
   model::Engine::Specs arch_specs_;
