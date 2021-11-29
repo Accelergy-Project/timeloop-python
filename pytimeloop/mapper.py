@@ -141,7 +141,7 @@ class Mapper:
             result = accelerator_pool.get_result()
             for idx, search_task in enumerate(outstanding_tasks):
                 if (not self.terminate[idx]
-                        and search_task.task_id == result.task_id):
+                        and search_task.task_id == result.id):
                     self._search_report(idx, result, search_task)
                     outstanding_tasks[idx] = self._search_send_next(
                         idx,
@@ -150,8 +150,7 @@ class Mapper:
 
         engine = Accelerator(self.arch_specs)
         eval_stat = engine.evaluate(self.best_mapping, self.workload,
-                                    self.sparse_optimizations,
-                                    log_level=log_level)
+                                    self.sparse_optimizations)
         return eval_stat, self.best_mapping
 
     def _search_send_next(self, i, accelerator_pool):
@@ -208,24 +207,24 @@ class Mapper:
     def _search_report(self, i, result, search_task):
         if result.eval_status is None:  # Failed in pre-evaluation
             if self.penalize_consecutive_bypass_fails\
-                    or not search_task.only_bypass_changed:
-                self.invalid_maps_eval[i] += 1
-            self.search[i].report(SearchStatus.EvalFailure)
+                    or not search_task.only_bypass:
+                self.invld_maps_eval[i] += 1
+            self.search[i].report(SearchStatus.EvalFailure, 0)
             return
 
         # Evaluated
         success = reduce(lambda acc, x: acc and x.success, result.eval_status)
         if not success:
             if self.penalize_consecutive_bypass_fails\
-                    or not search_task.only_bypass_changed:
+                    or not search_task.only_bypass:
                 self.invalid_maps_eval[i] += 1
             self.search[i].report(SearchStatus.EvalFailure)
             return
 
         # Success!
         self.valid_maps[i] += 1
-        self.invalid_maps_mapcnstr = 0
-        self.invalid_maps_eval = 0
+        self.invld_maps_mapcnstr[i] = 0
+        self.invld_maps_eval[i] = 0
         self.search[i].report(SearchStatus.Success,
                               Mapper._cost(result, self.metrics[0]))
         # missing: log_stats, log_suboptimal
