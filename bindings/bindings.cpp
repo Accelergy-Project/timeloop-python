@@ -3,6 +3,7 @@
 #include <variant>
 #include <vector>
 
+#include "bindings/mapper/decoupled-mapper.h"
 #include "bindings/model/bindings.h"
 
 #define STRINGIFY(x) #x
@@ -13,11 +14,15 @@ PYBIND11_MODULE(bindings, m) {
 
   BindAccelergyInterface(m);
   BindConfigClasses(m);
-  BindMapperClasses(m);
+
+  mapper_bindings::BindDecoupledMapper(m);
+
   BindMappingClasses(m);
   BindMapspaceClasses(m);
 
+  model_bindings::BindAcceleratorPool(m);
   model_bindings::BindEngine(m);
+  model_bindings::BindEvaluationResult(m);
   model_bindings::BindLevel(m);
   model_bindings::BindSparseOptimizationInfo(m);
   model_bindings::BindTopology(m);

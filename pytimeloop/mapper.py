@@ -25,7 +25,7 @@ class SearchTask:
     def __init__(self, task_id, mapping, only_bypass_changed):
         self.task_id = task_id
         self.mapping = mapping
-        self.only_bypass = only_bypass_changed
+        self.only_bypass_changed = only_bypass_changed
 
 
 class Mapper:
@@ -73,8 +73,8 @@ class Mapper:
             an invalid mapping. Defaults to False.
     """
 
-    def __init__(self, arch_specs, workload, arch_constraints, mapspaces,
-                 search_algs, sparse_opts_info, metrics=['edp'],
+    def __init__(self, arch_specs, workload, mapspaces, search_algs,
+                 sparse_opts_info, metrics=['edp'],
                  accelerator_pool_num_threads=mp.cpu_count(), search_size=0,
                  timeout=1000, victory_condition=500,
                  penalize_consecutive_bypass_fails=False):
@@ -94,12 +94,9 @@ class Mapper:
         if self.search_size > 0:
             self.search_size = 1 + (self.search_size - 1) / len(search_algs)
 
-        self.victory_condition = 500
+        self.victory_condition = victory_condition
         self.penalize_consecutive_bypass_fails = \
             penalize_consecutive_bypass_fails
-
-        # Architecture constraints
-        self.constraints = arch_constraints
 
         # Mapspace configuration
         self.split_mapspaces = mapspaces
@@ -148,11 +145,7 @@ class Mapper:
                         accelerator_pool)
                     break
 
-        engine = Accelerator(self.arch_specs)
-        eval_stat = engine.evaluate(self.best_mapping, self.workload,
-                                    self.sparse_optimizations,
-                                    log_level=log_level)
-        return eval_stat, self.best_mapping
+        return self.best_mapping
 
     def _search_send_next(self, i, accelerator_pool):
         if self.search_size > 0 and self.valid_maps[i] == self.search_size:
@@ -168,8 +161,10 @@ class Mapper:
             self.terminate = True
 
         # Get next mapping from search algorithm
+        print('getting next')
         map_id = self.search[i].next()
         if map_id is None:
+            print(f'{i} terminated')
             self.terminate[i] = True
 
         if self.terminate[i]:
@@ -200,6 +195,7 @@ class Mapper:
             return None
 
         # Stage 2 & 3: pre-evaluation and evaluation
+        print('calling evaluate')
         task_id = accelerator_pool.evaluate(mapping, self.workload,
                                             self.sparse_optimizations, False)
 
@@ -209,8 +205,8 @@ class Mapper:
         if result.eval_status is None:  # Failed in pre-evaluation
             if self.penalize_consecutive_bypass_fails\
                     or not search_task.only_bypass_changed:
-                self.invalid_maps_eval[i] += 1
-            self.search[i].report(SearchStatus.EvalFailure)
+                self.invld_maps_eval[i] += 1
+            self.search[i].report(SearchStatus.EvalFailure, 0)
             return
 
         # Evaluated
@@ -218,14 +214,14 @@ class Mapper:
         if not success:
             if self.penalize_consecutive_bypass_fails\
                     or not search_task.only_bypass_changed:
-                self.invalid_maps_eval[i] += 1
-            self.search[i].report(SearchStatus.EvalFailure)
+                self.invld_maps_eval[i] += 1
+            self.search[i].report(SearchStatus.EvalFailure, 0)
             return
 
         # Success!
         self.valid_maps[i] += 1
         self.invalid_maps_mapcnstr = 0
-        self.invalid_maps_eval = 0
+        self.invld_maps_eval[i] = 0
         self.search[i].report(SearchStatus.Success,
                               Mapper._cost(result, self.metrics[0]))
         # missing: log_stats, log_suboptimal

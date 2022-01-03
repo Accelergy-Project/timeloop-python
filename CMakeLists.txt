@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.4)
 project(timeloop_python)
 
+find_package(benchmark REQUIRED)
+
 if(DEFINED ENV{LIBTIMELOOP_PATH})
     set(LIBTIMELOOP_PATH $ENV{LIBTIMELOOP_PATH})
 else()
@@ -16,10 +18,14 @@ set(BINDINGS_SRC
     bindings/accelergy_interface.cpp
     bindings/bindings.cpp
     bindings/config.cpp
-    bindings/mapper.cpp
+#    bindings/mapper/strategy/timeloop_mapper.cpp
+    bindings/mapper/decoupled-mapper.cpp
     bindings/mapping.cpp
     bindings/mapspace.cpp
+    bindings/model/accelerator.cpp
+    bindings/model/accelerator-pool.cpp
     bindings/model/engine.cpp
+    bindings/model/eval-result.cpp
     bindings/model/sparse_optimization_info.cpp
     bindings/problem.cpp
     bindings/search.cpp)

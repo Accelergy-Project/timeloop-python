@@ -101,14 +101,14 @@ class Accelerator(NativeEngine):
 
 class AcceleratorPool(NativeAcceleratorPool):
     """A pool of accelerators."""
+
     def __init__(self, specs: ArchSpecs, num_workers: int):
         super().__init__(specs, num_workers)
 
     def evaluate(self, mapping: Mapping, workload: Workload,
-                 sparse_opts: SparseOptimizationInfo, break_on_failure=False,
-                 auto_bypass_on_failure=True):
+                 sparse_opts: SparseOptimizationInfo, break_on_failure=False):
         return super().evaluate(mapping, workload, sparse_opts,
-                                break_on_failure, auto_bypass_on_failure)
+                                break_on_failure)
 
     def get_result(self):
         res = super().get_result()
@@ -141,7 +141,7 @@ class AcceleratorEvalResult:
 
     def __init__(self, eval_status, pre_eval_status, utilization=None,
                  energy=None, area=None, cycles=None, algorithmic_compute=None,
-                 actual_compute=None, last_level_accesses = None,
+                 actual_compute=None, last_level_accesses=None,
                  tile_sizes=None, pretty_printed_stats='',
                  pretty_printed_mapping='', task_id=None):
         self.eval_status = eval_status

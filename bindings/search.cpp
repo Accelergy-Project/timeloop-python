@@ -21,46 +21,46 @@ class PySearchAlgorithm : public search::SearchAlgorithm {
 };
 
 void BindSearchClasses(py::module& m) {
-  py::enum_<search::Status>(m, "SearchStatus")
-      .value("Success", search::Status::Success)
-      .value("MappingConstructionFailure",
-             search::Status::MappingConstructionFailure)
-      .value("EvalFailure", search::Status::EvalFailure);
+  using namespace search;
 
-  py::class_<search::SearchAlgorithm, PySearchAlgorithm>(
-      m, "NativeSearchAlgorithm")
-      .def_static("parse_and_construct", &search::ParseAndConstruct);
+  py::enum_<Status>(m, "SearchStatus")
+      .value("Success", Status::Success)
+      .value("MappingConstructionFailure", Status::MappingConstructionFailure)
+      .value("EvalFailure", Status::EvalFailure);
 
-  py::class_<search::HybridSearch>(m, "HybridSearch")
+  py::class_<SearchAlgorithm, PySearchAlgorithm>(m, "NativeSearchAlgorithm")
+      .def_static("parse_and_construct", &ParseAndConstruct);
+
+  py::class_<HybridSearch, SearchAlgorithm>(m, "HybridSearch")
       .def(
           py::init<config::CompoundConfigNode, mapspace::MapSpace*, unsigned>())
       .def("next",
-           [](search::HybridSearch& s) -> std::optional<mapspace::ID> {
+           [](HybridSearch& s) -> std::optional<mapspace::ID> {
              mapspace::ID id;
              if (!s.Next(id)) return std::nullopt;
              return id;
            })
-      .def("report", &search::HybridSearch::Report);
+      .def("report", &HybridSearch::Report);
 
-  py::class_<search::LinearPrunedSearch>(m, "LinearPrunedSearch")
+  py::class_<LinearPrunedSearch, SearchAlgorithm>(m, "LinearPrunedSearch")
       .def(
           py::init<config::CompoundConfigNode, mapspace::MapSpace*, unsigned>())
       .def("next",
-           [](search::LinearPrunedSearch& s) -> std::optional<mapspace::ID> {
+           [](LinearPrunedSearch& s) -> std::optional<mapspace::ID> {
              mapspace::ID id;
              if (!s.Next(id)) return std::nullopt;
              return id;
            })
-      .def("report", &search::LinearPrunedSearch::Report);
+      .def("report", &LinearPrunedSearch::Report);
 
-  py::class_<search::RandomPrunedSearch>(m, "RandomPrunedSearch")
+  py::class_<RandomPrunedSearch, SearchAlgorithm>(m, "RandomPrunedSearch")
       .def(
           py::init<config::CompoundConfigNode, mapspace::MapSpace*, unsigned>())
       .def("next",
-           [](search::RandomPrunedSearch& s) -> std::optional<mapspace::ID> {
+           [](RandomPrunedSearch& s) -> std::optional<mapspace::ID> {
              mapspace::ID id;
              if (!s.Next(id)) return std::nullopt;
              return id;
            })
-      .def("report", &search::RandomPrunedSearch::Report);
+      .def("report", &RandomPrunedSearch::Report);
 }
