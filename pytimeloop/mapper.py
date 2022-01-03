@@ -161,10 +161,8 @@ class Mapper:
             self.terminate = True
 
         # Get next mapping from search algorithm
-        print('getting next')
         map_id = self.search[i].next()
         if map_id is None:
-            print(f'{i} terminated')
             self.terminate[i] = True
 
         if self.terminate[i]:
@@ -195,7 +193,6 @@ class Mapper:
             return None
 
         # Stage 2 & 3: pre-evaluation and evaluation
-        print('calling evaluate')
         task_id = accelerator_pool.evaluate(mapping, self.workload,
                                             self.sparse_optimizations, False)
 
