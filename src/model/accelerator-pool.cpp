@@ -1,4 +1,4 @@
-#include "bindings/model/accelerator-pool.h"
+#include "pytimeloop/model/accelerator-pool.h"
 
 AcceleratorPool::AcceleratorPool(const model::Engine::Specs& arch_specs,
                                  unsigned num_workers)
@@ -112,16 +112,3 @@ void AcceleratorPool::queue_result(int i, EvaluationResult eval_result) {
     std::this_thread::yield();
   }
 }
-
-namespace model_bindings {
-
-void BindAcceleratorPool(py::module& m) {
-  py::class_<AcceleratorPool>(m, "NativeAcceleratorPool")
-      .def(py::init<const model::Engine::Specs&, unsigned>())
-      .def("evaluate", &AcceleratorPool::Evaluate,
-           py::call_guard<py::scoped_ostream_redirect,
-                          py::scoped_estream_redirect>())
-      .def("get_result", &AcceleratorPool::GetResult);
-}
-
-}  // namespace model_bindings

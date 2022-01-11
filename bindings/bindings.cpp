@@ -1,10 +1,14 @@
-#include "bindings/bindings.h"
-
 #include <variant>
 #include <vector>
 
-#include "bindings/mapper/decoupled-mapper.h"
-#include "bindings/model/bindings.h"
+#include "pytimeloop/bindings/accelergy-interface.h"
+#include "pytimeloop/bindings/config.h"
+#include "pytimeloop/bindings/mapper.h"
+#include "pytimeloop/bindings/mapping.h"
+#include "pytimeloop/bindings/mapspace.h"
+#include "pytimeloop/bindings/model.h"
+#include "pytimeloop/bindings/problem.h"
+#include "pytimeloop/bindings/search.h"
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)

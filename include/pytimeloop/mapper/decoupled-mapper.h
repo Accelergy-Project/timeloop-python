@@ -9,22 +9,9 @@
 #include <model/engine.hpp>
 #include <search/search.hpp>
 
-#include "bindings/mapper/mapper-base.h"
-#include "bindings/model/accelerator-pool.h"
-#include "bindings/search/mapspace-search.h"
-
-// PyBind headers
-#include <pybind11/iostream.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-
-namespace py = pybind11;
-
-namespace mapper_bindings {
-
-void BindDecoupledMapper(py::module& m);
-
-}  // namespace mapper_bindings
+#include "pytimeloop/mapper/mapper-base.h"
+#include "pytimeloop/model/accelerator-pool.h"
+#include "pytimeloop/search/mapspace-search.h"
 
 class DecoupledMapper : public Mapper {
  public:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bindings/model/eval-result.h"
+#include "pytimeloop/model/eval-result.h"
 
 enum Betterness { Better, SlightlyBetter, SlightlyWorse, Worse };
 

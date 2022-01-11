@@ -1,5 +1,6 @@
-#include "bindings/bindings.h"
-#include "bindings/type_casters.h"
+#include "pytimeloop/bindings/search.h"
+
+#include "pytimeloop/bindings/type_casters.h"
 
 // Timeloop headers
 #include "mapspaces/mapspace-base.hpp"

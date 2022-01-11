@@ -8,7 +8,7 @@
 #include <model/engine.hpp>
 #include <search/search.hpp>
 
-#include "bindings/search/mapspace-search.h"
+#include "pytimeloop/search/mapspace-search.h"
 
 /**
  * Abstract base class of a Mapper.

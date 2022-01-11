@@ -1,7 +1,7 @@
+#include "pytimeloop/bindings/config.h"
+
 #include <optional>
 #include <variant>
-
-#include "bindings/bindings.h"
 
 // PyBind11 headers
 #include "pybind11/stl.h"

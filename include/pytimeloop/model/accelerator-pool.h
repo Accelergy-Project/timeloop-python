@@ -1,15 +1,13 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
 
-#include "bindings/model/eval-result.h"
-
-// PyBind11
-#include <pybind11/iostream.h>
-#include <pybind11/pybind11.h>
+#include "pytimeloop/model/eval-result.h"
 
 // Timeloop headers
 #include <mapping/mapping.hpp>
@@ -17,7 +15,7 @@
 #include <model/sparse-optimization-info.hpp>
 #include <workload/workload.hpp>
 
-namespace py = pybind11;
+const size_t CACHE_LINE = 64;
 
 struct EvaluationTask {
   uint64_t id;
@@ -26,6 +24,70 @@ struct EvaluationTask {
   sparse::SparseOptimizationInfo sparse_optimizations;
   bool break_on_failure;
   bool auto_bypass_on_failure;
+};
+
+template <typename T>
+struct Aligned {
+  T data;
+  std::array<char, ((sizeof(T) - 1) / CACHE_LINE + 1) * CACHE_LINE> padding;
+
+  Aligned() {}
+  Aligned(const T& val) : data(val) {}
+};
+
+template <typename T>
+class SpscQueue {
+ public:
+  SpscQueue(size_t capacity)
+      : cached_head_(0),
+        cached_tail_(0),
+        head_(0),
+        tail_(0),
+        capacity_(capacity) {
+    arr_ = std::make_unique<Aligned<T>[]>(capacity);
+  }
+
+  bool push(const T& val) {
+    auto h = head_.load(std::memory_order_relaxed);
+
+    if (((h + 1) % capacity_) == cached_tail_) {
+      auto t = tail_.load(std::memory_order_acquire);
+      if (t == cached_tail_) {
+        return false;
+      }
+      cached_tail_ = t;
+    }
+    arr_[h] = Aligned(val);
+    head_.store((h + 1) % capacity_, std::memory_order_release);
+    return true;
+  }
+
+  bool pop(T& val) {
+    auto t = tail_.load(std::memory_order_relaxed);
+
+    if (t == cached_head_) {
+      auto h = head_.load(std::memory_order_acquire);
+      if (h == cached_head_) {
+        return false;
+      }
+      cached_head_ = h;
+    }
+    val = arr_[t].data;
+    tail_.store((t + 1) % capacity_, std::memory_order_release);
+    return true;
+  }
+
+ private:
+  alignas(CACHE_LINE) std::unique_ptr<Aligned<T>[]> arr_;
+
+  alignas(CACHE_LINE) std::atomic_size_t head_;
+  size_t cached_tail_;
+
+  alignas(CACHE_LINE) std::atomic_size_t tail_;
+
+  alignas(CACHE_LINE) size_t cached_head_;
+
+  const size_t capacity_;
 };
 
 template <typename T>

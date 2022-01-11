@@ -1,4 +1,4 @@
-#include "bindings/bindings.h"
+#include "pytimeloop/bindings/problem.h"
 
 // Timeloop headers
 #include "workload/shape-models/problem-shape.hpp"

@@ -2,11 +2,7 @@
 
 #include <optional>
 
-#include "bindings/model/eval-result.h"
-
-// PyBind11
-#include <pybind11/iostream.h>
-#include <pybind11/pybind11.h>
+#include "pytimeloop/model/eval-result.h"
 
 // Timeloop headers
 #include <mapping/mapping.hpp>
@@ -17,8 +13,6 @@
 class Accelerator {
  public:
   Accelerator(const model::Engine::Specs& arch_specs);
-
-  ~Accelerator();
 
   EvaluationResult Evaluate(
       Mapping mapping, problem::Workload& workload,

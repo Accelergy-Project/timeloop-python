@@ -1,12 +1,12 @@
-#include "bindings/bindings.h"
-#include "bindings/type_casters.h"
+#include "pytimeloop/bindings/mapping.h"
+
+#include "pytimeloop/bindings/type_casters.h"
 
 // Timeloop headers
 #include "mapping/arch-properties.hpp"
 #include "mapping/constraints.hpp"
 #include "mapping/mapping.hpp"
 #include "mapping/parser.hpp"
-
 
 using PerDataSpaceInt = problem::PerDataSpace<std::uint64_t>;
 

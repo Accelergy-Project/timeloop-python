@@ -1,4 +1,4 @@
-#include "bindings/bindings.h"
+#include "pytimeloop/bindings/accelergy-interface.h"
 
 // Timeloop headers
 #include "util/accelergy_interface.hpp"

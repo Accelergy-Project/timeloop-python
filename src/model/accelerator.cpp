@@ -1,6 +1,4 @@
-#include "bindings/model/accelerator.h"
-
-#include "bindings/model/bindings.h"
+#include "pytimeloop/model/accelerator.h"
 
 Accelerator::Accelerator(const model::Engine::Specs& arch_specs)
     : arch_specs_(arch_specs) {
@@ -49,15 +47,3 @@ EvaluationResult Accelerator::Evaluate(
     return EvaluationResult{0, pre_eval_status, std::nullopt};
   }
 }
-
-namespace model_bindings {
-
-void BindAccelerator(py::module& m) {
-  py::class_<Accelerator>(m, "NativeAccelerator")
-      .def(py::init<const model::Engine::Specs&>())
-      .def("evaluate", &Accelerator::Evaluate,
-           py::call_guard<py::scoped_ostream_redirect,
-                          py::scoped_estream_redirect>());
-}
-
-}  // namespace model_bindings
