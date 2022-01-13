@@ -56,7 +56,7 @@ class FakeAcceleratorBenchmarks_1000Iter : public benchmark::Fixture {
     pool = std::make_unique<FakeAcceleratorPool>(state.range(0));
   }
 
-  void TearDown(const ::benchmark::State& state) { pool->Terminate(); }
+  void TearDown(const ::benchmark::State&) { pool->Terminate(); }
 };
 
 BENCHMARK_DEFINE_F(FakeAcceleratorBenchmarks_1000Iter, FakeAcceleratorPool)
