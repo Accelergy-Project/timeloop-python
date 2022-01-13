@@ -18,4 +18,19 @@ struct EvaluationResult {
   uint64_t algorithmic_computes;
   uint64_t actual_computes;
   uint64_t last_level_accesses;
+
+ public:
+  static EvaluationResult FailedEvaluation(
+      const std::vector<model::EvalStatus>& pre_eval_status, uint64_t id = 0) {
+    return EvaluationResult{.id = id,
+                            .pre_eval_status = pre_eval_status,
+                            .eval_status = std::nullopt,
+                            .utilization = 0,
+                            .energy = 0,
+                            .area = 0,
+                            .cycles = 0,
+                            .algorithmic_computes = 0,
+                            .actual_computes = 0,
+                            .last_level_accesses = 0};
+  }
 };

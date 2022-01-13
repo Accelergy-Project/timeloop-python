@@ -18,8 +18,7 @@ EvaluationResult Accelerator::Evaluate(
                         return cur && status.success;
                       });
   if (!success) {
-    return EvaluationResult{.pre_eval_status = pre_eval_status,
-                            .eval_status = std::nullopt};
+    return EvaluationResult::FailedEvaluation(pre_eval_status);
   }
 
   auto eval_status = engine_.Evaluate(mapping, workload, &sparse_optimizations,
@@ -44,6 +43,6 @@ EvaluationResult Accelerator::Evaluate(
                             topology.ActualComputes(),
                             topology.LastLevelAccesses()};
   } else {
-    return EvaluationResult{0, pre_eval_status, std::nullopt};
+    return EvaluationResult::FailedEvaluation(pre_eval_status);
   }
 }

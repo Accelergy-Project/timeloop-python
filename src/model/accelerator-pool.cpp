@@ -7,7 +7,7 @@ AcceleratorPool::AcceleratorPool(const model::Engine::Specs& arch_specs,
       cur_id_(0),
       task_q_(num_workers),
       result_q_(num_workers) {
-  for (int i = 0; i < num_workers; i++) {
+  for (unsigned i = 0; i < num_workers; i++) {
     workers_.push_back(std::thread(&AcceleratorPool::worker_loop, this, i));
   }
 };
@@ -33,7 +33,7 @@ uint64_t AcceleratorPool::Evaluate(
 EvaluationResult AcceleratorPool::GetResult() {
   while (true) {
     EvaluationResult result;
-    for (int i = 0; i < workers_.size(); i++) {
+    for (unsigned i = 0; i < workers_.size(); i++) {
       bool success = result_q_.at(i).pop(result);
       if (success) {
         return result;
@@ -46,7 +46,7 @@ EvaluationResult AcceleratorPool::GetResult() {
 void AcceleratorPool::Terminate() {
   terminate_.store(true);
 
-  for (int i = 0; i < workers_.size(); i++) {
+  for (unsigned i = 0; i < workers_.size(); i++) {
     workers_[i].join();
   }
 
@@ -79,7 +79,8 @@ void AcceleratorPool::worker_loop(int i) {
                           return cur && status.success;
                         });
     if (!success) {
-      queue_result(i, EvaluationResult{task.id, pre_eval_status, std::nullopt});
+      queue_result(
+          i, EvaluationResult::FailedEvaluation(pre_eval_status, task.id));
       continue;
     }
 
@@ -102,7 +103,8 @@ void AcceleratorPool::worker_loop(int i) {
                                        topology.ActualComputes(),
                                        topology.LastLevelAccesses()});
     } else {
-      queue_result(i, EvaluationResult{task.id, pre_eval_status, std::nullopt});
+      queue_result(
+          i, EvaluationResult::FailedEvaluation(pre_eval_status, task.id));
     }
   }
 }
