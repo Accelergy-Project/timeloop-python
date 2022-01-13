@@ -23,7 +23,6 @@ struct EvaluationTask {
   problem::Workload workload;
   sparse::SparseOptimizationInfo sparse_optimizations;
   bool break_on_failure;
-  bool auto_bypass_on_failure;
 };
 
 template <typename T>
