@@ -14,6 +14,10 @@ find_library(LIBTIMELOOP timeloop-model HINTS ${LIBTIMELOOP_PATH}/lib REQUIRED)
 
 add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
 set(PYTIMELOOP_SRC
     src/mapper/decoupled-mapper.cpp
     src/model/accelerator.cpp
