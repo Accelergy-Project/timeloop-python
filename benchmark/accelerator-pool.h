@@ -64,7 +64,7 @@ BENCHMARK_DEFINE_F(FakeAcceleratorBenchmarks_1000Iter, FakeAcceleratorPool)
   for (auto _ : state) {
     for (int i = 0; i < N; i++) {
       pool->Evaluate(i);
-      auto res = pool->GetResult();
+      [[maybe_unused]] auto res = pool->GetResult();
     }
   }
 }

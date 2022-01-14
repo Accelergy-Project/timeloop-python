@@ -12,7 +12,7 @@ class ConcurrentQueueFixture : public benchmark::Fixture {
   ConcurrentQueue<int> queue_;
   std::queue<int> seq_queue_;
 
-  void SetUp(const ::benchmark::State& state) {
+  void SetUp(const ::benchmark::State&) {
     spsc_queue_ = std::make_unique<SpscQueue<int>>(16);
   }
 };
@@ -39,7 +39,7 @@ BENCHMARK_F(ConcurrentQueueFixture, ReferenceTest)(benchmark::State& state) {
   for (auto _ : state) {
     seq_queue_.push(0);
 
-    auto res = seq_queue_.front();
+    [[maybe_unused]] auto res = seq_queue_.front();
     seq_queue_.pop();
   }
 }

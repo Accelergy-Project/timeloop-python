@@ -18,7 +18,7 @@ class OneLevelArch : public benchmark::Fixture {
   Mapping mapping;
   sparse::SparseOptimizationInfo sparse_opts;
 
-  void SetUp(const ::benchmark::State& state) {
+  void SetUp(const ::benchmark::State&) {
     config = std::make_unique<config::CompoundConfig>(config_yaml_, "yaml");
     auto root_node = config->getRoot();
 
@@ -125,8 +125,7 @@ BENCHMARK_F(OneLevelArch, PreEvaluation)(benchmark::State& state) {
                           return cur && status.success;
                         });
     if (!success) {
-      auto res = EvaluationResult{.pre_eval_status = pre_eval_status,
-                                  .eval_status = std::nullopt};
+      auto res = EvaluationResult::FailedEvaluation(pre_eval_status);
     }
   }
 }
@@ -136,11 +135,6 @@ BENCHMARK_F(OneLevelArch, Evaluation)(benchmark::State& state) {
   engine.Spec(arch_specs);
   auto pre_eval_status =
       engine.PreEvaluationCheck(mapping, workload, &sparse_opts, false);
-  bool success =
-      std::accumulate(pre_eval_status.begin(), pre_eval_status.end(), true,
-                      [](bool cur, const model::EvalStatus& status) {
-                        return cur && status.success;
-                      });
 
   for (auto _ : state) {
     auto eval_status = engine.Evaluate(mapping, workload, &sparse_opts);
@@ -157,11 +151,6 @@ BENCHMARK_F(OneLevelArch, ReturnResult)(benchmark::State& state) {
   engine.Spec(arch_specs);
   auto pre_eval_status =
       engine.PreEvaluationCheck(mapping, workload, &sparse_opts, false);
-  bool success =
-      std::accumulate(pre_eval_status.begin(), pre_eval_status.end(), true,
-                      [](bool cur, const model::EvalStatus& status) {
-                        return cur && status.success;
-                      });
 
   auto eval_status = engine.Evaluate(mapping, workload, &sparse_opts);
 
@@ -179,7 +168,7 @@ BENCHMARK_F(OneLevelArch, ReturnResult)(benchmark::State& state) {
                                   topology.ActualComputes(),
                                   topology.LastLevelAccesses()};
     } else {
-      auto res = EvaluationResult{0, pre_eval_status, std::nullopt};
+      auto res = EvaluationResult::FailedEvaluation(pre_eval_status);
     }
   }
 }
