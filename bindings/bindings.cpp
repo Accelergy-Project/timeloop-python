@@ -24,6 +24,7 @@ PYBIND11_MODULE(bindings, m) {
   BindMappingClasses(m);
   BindMapspaceClasses(m);
 
+  model_bindings::BindAccelerator(m);
   model_bindings::BindAcceleratorPool(m);
   model_bindings::BindEngine(m);
   model_bindings::BindEvaluationResult(m);
