@@ -15,8 +15,6 @@
 #include <model/sparse-optimization-info.hpp>
 #include <workload/workload.hpp>
 
-const size_t CACHE_LINE = 64;
-
 struct EvaluationTask {
   uint64_t id;
   Mapping mapping;
@@ -26,82 +24,18 @@ struct EvaluationTask {
 };
 
 template <typename T>
-struct Aligned {
-  T data;
-  std::array<char, ((sizeof(T) - 1) / CACHE_LINE + 1) * CACHE_LINE> padding;
-
-  Aligned() {}
-  Aligned(const T& val) : data(val) {}
-};
-
-template <typename T>
-class SpscQueue {
- public:
-  SpscQueue(size_t capacity)
-      : cached_head_(0),
-        cached_tail_(0),
-        head_(0),
-        tail_(0),
-        capacity_(capacity) {
-    arr_ = std::make_unique<Aligned<T>[]>(capacity);
-  }
-
-  bool push(const T& val) {
-    auto h = head_.load(std::memory_order_relaxed);
-
-    if (((h + 1) % capacity_) == cached_tail_) {
-      auto t = tail_.load(std::memory_order_acquire);
-      if (t == cached_tail_) {
-        return false;
-      }
-      cached_tail_ = t;
-    }
-    arr_[h] = Aligned(val);
-    head_.store((h + 1) % capacity_, std::memory_order_release);
-    return true;
-  }
-
-  bool pop(T& val) {
-    auto t = tail_.load(std::memory_order_relaxed);
-
-    if (t == cached_head_) {
-      auto h = head_.load(std::memory_order_acquire);
-      if (h == cached_head_) {
-        return false;
-      }
-      cached_head_ = h;
-    }
-    val = arr_[t].data;
-    tail_.store((t + 1) % capacity_, std::memory_order_release);
-    return true;
-  }
-
- private:
-  alignas(CACHE_LINE) std::unique_ptr<Aligned<T>[]> arr_;
-
-  alignas(CACHE_LINE) std::atomic_size_t head_;
-  size_t cached_tail_;
-
-  alignas(CACHE_LINE) std::atomic_size_t tail_;
-
-  alignas(CACHE_LINE) size_t cached_head_;
-
-  const size_t capacity_;
-};
-
-template <typename T>
 class ConcurrentQueue {
  public:
   ConcurrentQueue() {}
 
-  bool push(const T& val) {
+  bool Push(const T& val) {
     std::lock_guard<std::mutex> enq_lock(m_);
     q_.push(val);
     cv_.notify_all();
     return true;
   }
 
-  bool pop(T& val) {
+  bool Pop(T& val) {
     std::unique_lock<std::mutex> deq_lock(m_);
     if (q_.empty()) {
       return false;
@@ -112,7 +46,7 @@ class ConcurrentQueue {
   }
 
   template <typename Predicate>
-  bool pop(T& val, Predicate stop_waiting) {
+  bool Pop(T& val, Predicate stop_waiting) {
     std::unique_lock<std::mutex> deq_lock(m_);
     while (q_.empty() && !stop_waiting()) {
       cv_.wait(deq_lock);
@@ -125,6 +59,8 @@ class ConcurrentQueue {
     return true;
   }
 
+  void NotifyAll() { cv_.notify_all(); }
+
  private:
   std::queue<T> q_;
   std::mutex m_;
@@ -133,9 +69,22 @@ class ConcurrentQueue {
 
 class AcceleratorPool {
  public:
-  AcceleratorPool(const model::Engine::Specs& arch_specs, unsigned num_workers);
+  virtual uint64_t Evaluate(
+      Mapping mapping, const problem::Workload& workload,
+      const sparse::SparseOptimizationInfo& sparse_optimizations,
+      bool break_on_failure = false) = 0;
 
-  ~AcceleratorPool();
+  virtual EvaluationResult GetResult() = 0;
+
+  virtual void Terminate() = 0;
+};
+
+class UnboundedQueueAcceleratorPool : public AcceleratorPool {
+ public:
+  UnboundedQueueAcceleratorPool(const model::Engine::Specs& arch_specs,
+                                unsigned num_workers);
+
+  ~UnboundedQueueAcceleratorPool();
 
   uint64_t Evaluate(Mapping mapping, const problem::Workload& workload,
                     const sparse::SparseOptimizationInfo& sparse_optimizations,
@@ -158,5 +107,45 @@ class AcceleratorPool {
 
   void worker_loop(int i);
 
-  void queue_result(int i, EvaluationResult eval_result);
+  void queue_result(int i, const EvaluationResult& eval_result);
+};
+
+class BoundedQueueAcceleratorPool : public AcceleratorPool {
+ public:
+  BoundedQueueAcceleratorPool(const model::Engine::Specs& arch_specs,
+                              size_t num_workers, size_t num_threads);
+
+  ~BoundedQueueAcceleratorPool();
+
+  uint64_t Evaluate(Mapping mapping, const problem::Workload& workload,
+                    const sparse::SparseOptimizationInfo& sparse_optimizations,
+                    bool break_on_failure = false);
+
+  size_t WorkersAvailable() const;
+
+  EvaluationResult GetResult();
+
+  void Terminate();
+
+ private:
+  struct Worker {
+    unsigned idx;
+    EvaluationTask task;
+    EvaluationResult res;
+
+    bool started;
+    std::atomic_bool idle;
+
+    Worker() : idx(0), task(), res(), started(false), idle(true) {}
+  };
+
+  const model::Engine::Specs& arch_specs_;
+
+  std::atomic_bool terminate_;
+  const size_t num_workers_;
+  const size_t num_threads_;
+  std::vector<Worker> workers_;
+  std::vector<std::thread> threads_;
+
+  void WorkerLoop(size_t i);
 };

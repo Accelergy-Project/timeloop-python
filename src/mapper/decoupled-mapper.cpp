@@ -56,7 +56,8 @@ DecoupledMapper::DecoupledMapper(
 }
 
 Mapping DecoupledMapper::Run() {
-  AcceleratorPool pool(arch_spec_, pool_nthreads_);
+  BoundedQueueAcceleratorPool pool(arch_spec_, pool_nthreads_,
+                                   2 * pool_nthreads_);
 
   std::vector<std::optional<SearchTask>> outstanding_tasks;
   for (auto& alg : search_algs_) {

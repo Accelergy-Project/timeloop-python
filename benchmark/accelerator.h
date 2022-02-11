@@ -172,3 +172,262 @@ BENCHMARK_F(OneLevelArch, ReturnResult)(benchmark::State& state) {
     }
   }
 }
+
+BENCHMARK_F(OneLevelArch, UnboundedQueueAcceleratorPool_OneEval_1Thread)
+(benchmark::State& state) {
+  const unsigned NTHREADS = 1;
+  UnboundedQueueAcceleratorPool pool(arch_specs, NTHREADS);
+  const int WARM_UP_N = 15;
+
+  // Warm up
+  for (int i = 0; i < WARM_UP_N; i++) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+
+  for (auto _ : state) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+}
+
+BENCHMARK_F(OneLevelArch, UnboundedQueueAcceleratorPool_OneEval_4Threads)
+(benchmark::State& state) {
+  const unsigned NTHREADS = 4;
+  UnboundedQueueAcceleratorPool pool(arch_specs, NTHREADS);
+  const int WARM_UP_N = 15;
+
+  // Warm up
+  for (int i = 0; i < WARM_UP_N; i++) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+
+  for (auto _ : state) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+}
+
+BENCHMARK_F(OneLevelArch, UnboundedQueueAcceleratorPool_100Tasks_1Thread)
+(benchmark::State& state) {
+  const unsigned NTHREADS = 1;
+  UnboundedQueueAcceleratorPool pool(arch_specs, NTHREADS);
+  const int WARM_UP_N = 15;
+  const unsigned NTASKS = 100;
+
+  // Warm up
+  for (int i = 0; i < WARM_UP_N; i++) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+
+  for (auto _ : state) {
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch, UnboundedQueueAcceleratorPool_100Tasks_4Thread)
+(benchmark::State& state) {
+  const unsigned NTHREADS = 4;
+  UnboundedQueueAcceleratorPool pool(arch_specs, NTHREADS);
+  const int WARM_UP_N = 15;
+  const unsigned NTASKS = 100;
+
+  // Warm up
+  for (int i = 0; i < WARM_UP_N; i++) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+
+  for (auto _ : state) {
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch, BoundedQueueAcceleratorPool_100Tasks_1Thread_1Worker)
+(benchmark::State& state) {
+  const size_t NTHREADS = 1;
+  const size_t NWORKERS = 1;
+  BoundedQueueAcceleratorPool pool(arch_specs, NWORKERS, NTHREADS);
+  const int WARM_UP_N = 15;
+  const unsigned NTASKS = 100;
+
+  // Warm up
+  for (int i = 0; i < WARM_UP_N; i++) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+
+  for (auto _ : state) {
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch, BoundedQueueAcceleratorPool_100Tasks_1Thread_8Worker)
+(benchmark::State& state) {
+  const size_t NTHREADS = 1;
+  const size_t NWORKERS = 8;
+  BoundedQueueAcceleratorPool pool(arch_specs, NWORKERS, NTHREADS);
+  const int WARM_UP_N = 15;
+  const unsigned NTASKS = 100;
+
+  // Warm up
+  for (int i = 0; i < WARM_UP_N; i++) {
+    pool.Evaluate(mapping, workload, sparse_opts);
+    [[maybe_unused]] auto res = pool.GetResult();
+  }
+
+  for (auto _ : state) {
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch, BoundedQueueAcceleratorPool_100Tasks_4Thread_4Workers)
+(benchmark::State& state) {
+  const size_t NTHREADS = 4;
+  const size_t NWORKERS = 4;
+  BoundedQueueAcceleratorPool pool(arch_specs, NWORKERS, NTHREADS);
+  const unsigned NTASKS = 100;
+
+  for (auto _ : state) {
+    state.PauseTiming();
+    while (pool.WorkersAvailable() < NTHREADS) {
+    }
+    state.ResumeTiming();
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch, BoundedQueueAcceleratorPool_100Tasks_4Thread_8Workers)
+(benchmark::State& state) {
+  const size_t NTHREADS = 4;
+  const size_t NWORKERS = 8;
+  BoundedQueueAcceleratorPool pool(arch_specs, NWORKERS, NTHREADS);
+  const unsigned NTASKS = 100;
+
+  for (auto _ : state) {
+    state.PauseTiming();
+    while (pool.WorkersAvailable() < NTHREADS) {
+    }
+    state.ResumeTiming();
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch, BoundedQueueAcceleratorPool_100Tasks_8Thread_8Workers)
+(benchmark::State& state) {
+  const size_t NTHREADS = 8;
+  const size_t NWORKERS = 8;
+  BoundedQueueAcceleratorPool pool(arch_specs, NWORKERS, NTHREADS);
+  const unsigned NTASKS = 100;
+
+  for (auto _ : state) {
+    state.PauseTiming();
+    while (pool.WorkersAvailable() < NTHREADS) {
+    }
+    state.ResumeTiming();
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+    }
+  }
+}
+
+BENCHMARK_F(OneLevelArch,
+            BoundedQueueAcceleratorPool_100Tasks_8Thread_16Workers)
+(benchmark::State& state) {
+  const size_t NTHREADS = 8;
+  const size_t NWORKERS = 16;
+  BoundedQueueAcceleratorPool pool(arch_specs, NWORKERS, NTHREADS);
+  const unsigned NTASKS = 100;
+
+  for (auto _ : state) {
+    state.PauseTiming();
+    while (pool.WorkersAvailable() < NTHREADS) {
+    }
+    state.ResumeTiming();
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTASKS - NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+      pool.Evaluate(mapping, workload, sparse_opts);
+    }
+
+    for (unsigned i = 0; i < NTHREADS; i++) {
+      [[maybe_unused]] auto res = pool.GetResult();
+    }
+  }
+}

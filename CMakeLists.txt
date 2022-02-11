@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.4)
 project(timeloop_python)
 
-find_package(benchmark REQUIRED)
+find_package(benchmark)
 
 if(DEFINED ENV{LIBTIMELOOP_PATH})
     set(LIBTIMELOOP_PATH $ENV{LIBTIMELOOP_PATH})
@@ -21,7 +21,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(PYTIMELOOP_SRC
     src/mapper/decoupled-mapper.cpp
     src/model/accelerator.cpp
-    src/model/accelerator-pool.cpp)
+    src/model/unbounded-queue-accelerator-pool.cpp
+    src/model/bounded-queue-accelerator-pool.cpp)
 set(PYTIMELOOP_HDR
     include/pytimeloop/mapper/decoupled-mapper.h
     include/pytimeloop/mapper/mapper-base.h

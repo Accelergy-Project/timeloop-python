@@ -12,11 +12,11 @@ class FakeAcceleratorPool {
     }
   }
 
-  void Evaluate(int x) { task_q_.push(x); }
+  void Evaluate(int x) { task_q_.Push(x); }
 
   int GetResult() {
     int res;
-    res_q_.pop(res);
+    res_q_.Pop(res);
     return res;
   }
 
@@ -40,9 +40,9 @@ class FakeAcceleratorPool {
   void worker_loop() {
     while (!terminate_) {
       int task;
-      task_q_.pop(task);
+      task_q_.Pop(task);
 
-      res_q_.push(task);
+      res_q_.Push(task);
     }
   }
 };
