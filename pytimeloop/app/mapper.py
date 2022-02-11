@@ -161,12 +161,12 @@ class MapperApp:
 
     def run(self):
         print(self.metrics)
-        mapper = DecoupledMapper(self.arch_specs, self.workload,
-                                 self.split_mapspaces, self.search,
-                                 self.sparse_optimizations, self.metrics,
-                                 self.num_threads, self.search_size, self.timeout,
-                                 self.victory_condition,
-                                 self.penalize_consecutive_bypass_fails)
+        mapper = Mapper(self.arch_specs, self.workload,
+                        self.split_mapspaces, self.search,
+                        self.sparse_optimizations, self.metrics,
+                        self.num_threads, self.search_size, self.timeout,
+                        self.victory_condition,
+                        self.penalize_consecutive_bypass_fails)
 
         mapping = mapper.run()
 

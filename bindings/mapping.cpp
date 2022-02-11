@@ -15,7 +15,7 @@ void BindMappingClasses(py::module& m) {
       .def(py::init<>())
       .def(py::init<const model::Engine::Specs&>());
 
-  py::class_<mapping::Constraints>(m, "NativeArchConstraints")
+  py::class_<mapping::Constraints>(m, "ArchConstraints")
       .def(py::init<const ArchProperties&, const problem::Workload&>(),
            "Construct ArchConstraints. ArchConstraints.parse has to be called "
            "later with the configs.")
@@ -32,11 +32,11 @@ void BindMappingClasses(py::module& m) {
       .def("satisfied_by", &mapping::Constraints::SatisfiedBy,
            "Checks if the given mapping satisfies this constraint.");
 
-  py::class_<Mapping>(m, "NativeMapping")
+  py::class_<Mapping>(m, "Mapping")
       .def(py::init(&mapping::ParseAndConstruct))
       .def_static("parse_and_construct", &mapping::ParseAndConstruct)
       .def("datatype_bypass_nest",
-           [](Mapping& m) { return &Mapping::datatype_bypass_nest; })
+           [](Mapping& m) { return m.datatype_bypass_nest; })
       .def(
           "pretty_print",
           [](Mapping& m, const std::vector<std::string>& storage_level_names,

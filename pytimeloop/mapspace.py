@@ -1,4 +1,5 @@
-from bindings import NativeMapSpace, Dimension, ID
+import bindings
+from bindings import Dimension, ID
 from .config import Config
 from .model import ArchSpecs
 from .problem import Workload
@@ -8,7 +9,7 @@ import logging
 import sys
 
 
-class MapSpace(NativeMapSpace):
+class MapSpace(bindings.MapSpace):
     @staticmethod
     def parse_and_construct(config: Config, arch_constraints: Config,
                             arch_specs: ArchSpecs, workload: Workload,
@@ -24,7 +25,7 @@ class MapSpace(NativeMapSpace):
         try:
             sys.stdout = captured_stdout = StringIO()
             sys.stderr = captured_stderr = StringIO()
-            mapspace = NativeMapSpace.parse_and_construct(
+            mapspace = bindings.MapSpace.parse_and_construct(
                 native_config_node, native_arch_const_node, arch_specs,
                 workload)
         finally:

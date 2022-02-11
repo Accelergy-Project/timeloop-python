@@ -29,7 +29,7 @@ void BindSearchClasses(py::module& m) {
       .value("MappingConstructionFailure", Status::MappingConstructionFailure)
       .value("EvalFailure", Status::EvalFailure);
 
-  py::class_<SearchAlgorithm, PySearchAlgorithm>(m, "NativeSearchAlgorithm")
+  py::class_<SearchAlgorithm, PySearchAlgorithm>(m, "SearchAlgorithm")
       .def_static("parse_and_construct", &ParseAndConstruct);
 
   py::class_<HybridSearch, SearchAlgorithm>(m, "HybridSearch")

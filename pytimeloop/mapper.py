@@ -1,6 +1,6 @@
 from bindings import ArchProperties
 from pytimeloop.config import Config
-from pytimeloop.engine import Accelerator, AcceleratorPool
+from pytimeloop.engine import Accelerator, UnboundedAcceleratorPool
 from pytimeloop.mapspace import MapSpace, Dimension
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
 from pytimeloop.mapping import ArchConstraints, Mapping
@@ -123,7 +123,8 @@ class Mapper:
         logger = logging.getLogger(__name__ + '.' + __class__.__name__)
         logger.setLevel(log_level)
 
-        accelerator_pool = AcceleratorPool(self.arch_specs, self.num_threads)
+        accelerator_pool = UnboundedAcceleratorPool(
+            self.arch_specs, self.num_threads)
 
         self.best_result = None
         # Maps search algorithm index to outstanding SearchTask
@@ -138,7 +139,7 @@ class Mapper:
             result = accelerator_pool.get_result()
             for idx, search_task in enumerate(outstanding_tasks):
                 if (not self.terminate[idx]
-                        and search_task.task_id == result.task_id):
+                        and search_task.task_id == result.id):
                     self._search_report(idx, result, search_task)
                     outstanding_tasks[idx] = self._search_send_next(
                         idx,

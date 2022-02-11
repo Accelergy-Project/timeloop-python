@@ -3,6 +3,9 @@
 #include "pytimeloop/model/accelerator-pool.h"
 #include "pytimeloop/model/accelerator.h"
 
+// PyBind11 headers
+#include <pybind11/stl.h>
+
 // Timeloop headers
 #include "model/engine.hpp"
 #include "model/level.hpp"
@@ -12,7 +15,7 @@
 namespace model_bindings {
 
 void BindAccelerator(py::module& m) {
-  py::class_<Accelerator>(m, "NativeAccelerator")
+  py::class_<Accelerator>(m, "Accelerator")
       .def(py::init<const model::Engine::Specs&>())
       .def("evaluate", &Accelerator::Evaluate,
            py::call_guard<py::scoped_ostream_redirect,
@@ -20,16 +23,23 @@ void BindAccelerator(py::module& m) {
 }
 
 void BindAcceleratorPool(py::module& m) {
-  py::class_<AcceleratorPool>(m, "NativeAcceleratorPool")
+  py::class_<UnboundedQueueAcceleratorPool>(m, "UnboundedAcceleratorPool")
       .def(py::init<const model::Engine::Specs&, unsigned>())
-      .def("evaluate", &AcceleratorPool::Evaluate,
+      .def("evaluate", &UnboundedQueueAcceleratorPool::Evaluate,
            py::call_guard<py::scoped_ostream_redirect,
                           py::scoped_estream_redirect>())
-      .def("get_result", &AcceleratorPool::GetResult);
+      .def("get_result", &UnboundedQueueAcceleratorPool::GetResult);
+
+  py::class_<BoundedQueueAcceleratorPool>(m, "BoundedAcceleratorPool")
+      .def(py::init<const model::Engine::Specs&, size_t, size_t>())
+      .def("evaluate", &BoundedQueueAcceleratorPool::Evaluate,
+           py::call_guard<py::scoped_ostream_redirect,
+                          py::scoped_estream_redirect>())
+      .def("get_result", &BoundedQueueAcceleratorPool::GetResult);
 }
 
 void BindEngine(py::module& m) {
-  py::class_<model::Engine::Specs>(m, "NativeArchSpecs")
+  py::class_<model::Engine::Specs>(m, "ArchSpecs")
       .def(py::init(&model::Engine::ParseSpecs))
       .def_static("parse_specs", &model::Engine::ParseSpecs,
                   "Parse architecture specifications.")
@@ -50,7 +60,7 @@ void BindEngine(py::module& m) {
         return s.topology.StorageLevelNames();
       });
 
-  py::class_<model::Engine>(m, "NativeEngine")
+  py::class_<model::Engine>(m, "Engine")
       .def(py::init<>(),
            "Construct wrapper over Timeloop's native Engine class. Consider "
            "using `pytimeloop.Accelerator` instead. \n"
@@ -109,7 +119,7 @@ void BindLevel(py::module& m) {
 }
 
 void BindSparseOptimizationInfo(py::module& m) {
-  py::class_<sparse::SparseOptimizationInfo>(m, "NativeSparseOptimizationInfo")
+  py::class_<sparse::SparseOptimizationInfo>(m, "SparseOptimizationInfo")
       .def(py::init(&sparse::ParseAndConstruct))
       .def_static("parse_and_construct", &sparse::ParseAndConstruct,
                   py::call_guard<py::scoped_ostream_redirect,
