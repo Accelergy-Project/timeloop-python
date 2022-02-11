@@ -23,12 +23,6 @@ EvaluationResult Accelerator::Evaluate(
 
   auto eval_status = engine_.Evaluate(mapping, workload, &sparse_optimizations,
                                       break_on_failure);
-  for (unsigned level = 0; level < eval_status.size(); level++) {
-    if (!eval_status[level].success) {
-      std::cerr << "ERROR: couldn't map level " << level_names_.at(level)
-                << ": " << eval_status[level].fail_reason << std::endl;
-    }
-  }
 
   if (engine_.IsEvaluated()) {
     auto topology = engine_.GetTopology();
