@@ -1,7 +1,7 @@
+#include "pytimeloop/bindings/config.h"
+
 #include <optional>
 #include <variant>
-
-#include "bindings/bindings.h"
 
 // PyBind11 headers
 #include "pybind11/stl.h"
@@ -14,7 +14,7 @@ typedef std::variant<bool, long long, unsigned long long, double, std::string,
     CompoundConfigLookupReturn;
 
 void BindConfigClasses(py::module& m) {
-  py::class_<config::CompoundConfig>(m, "NativeConfig")
+  py::class_<config::CompoundConfig>(m, "Config")
       .def(py::init<>())
       .def(py::init<char*>())
       .def(py::init<std::vector<std::string>>())
@@ -23,7 +23,7 @@ void BindConfigClasses(py::module& m) {
       .def("get_root", &config::CompoundConfig::getRoot)
       .def("get_variable_root", &config::CompoundConfig::getVariableRoot);
 
-  py::class_<config::CompoundConfigNode>(m, "NativeConfigNode")
+  py::class_<config::CompoundConfigNode>(m, "ConfigNode")
       .def(py::init<>())
       .def("__getitem__",
            [](config::CompoundConfigNode& n,

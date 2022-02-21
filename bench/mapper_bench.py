@@ -31,7 +31,7 @@ def mapper_bench_1thread(bench_dir, bench_fname):
 
     app = MapperApp(config, str(bench_dir))
     eval_stats = None
-    cProfile.runctx('eval_stats, _ = app.run()', {
+    cProfile.runctx('_ = app.run()', {
                     'app': app, 'eval_stats': eval_stats}, {}, bench_fname)
 
     p = pstats.Stats(str(bench_fname))

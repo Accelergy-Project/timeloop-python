@@ -1,5 +1,6 @@
-#include "bindings/bindings.h"
-#include "bindings/type_casters.h"
+#include "pytimeloop/bindings/mapspace.h"
+
+#include "pytimeloop/bindings/type_casters.h"
 
 // Timeloop headers
 #include "mapspaces/mapspace-base.hpp"
@@ -58,7 +59,7 @@ void BindMapspaceClasses(py::module& m) {
       .def_readonly("success", &mapspace::Status::success)
       .def_readonly("fail_reason", &mapspace::Status::fail_reason);
 
-  py::class_<mapspace::MapSpace, PyMapSpace>(m, "NativeMapSpace")
+  py::class_<mapspace::MapSpace, PyMapSpace>(m, "MapSpace")
       .def_static("parse_and_construct", &mapspace::ParseAndConstruct,
                   py::call_guard<py::scoped_ostream_redirect,
                                  py::scoped_estream_redirect>());

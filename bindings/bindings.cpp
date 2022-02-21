@@ -1,12 +1,14 @@
-#include "bindings/bindings.h"
-
 #include <variant>
 #include <vector>
 
-#include "bindings/model/accelerator-pool.h"
-#include "bindings/model/accelerator.h"
-#include "bindings/model/bindings.h"
-#include "bindings/model/eval-result.h"
+#include "pytimeloop/bindings/accelergy-interface.h"
+#include "pytimeloop/bindings/config.h"
+#include "pytimeloop/bindings/mapper.h"
+#include "pytimeloop/bindings/mapping.h"
+#include "pytimeloop/bindings/mapspace.h"
+#include "pytimeloop/bindings/model.h"
+#include "pytimeloop/bindings/problem.h"
+#include "pytimeloop/bindings/search.h"
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -16,6 +18,9 @@ PYBIND11_MODULE(bindings, m) {
 
   BindAccelergyInterface(m);
   BindConfigClasses(m);
+
+  mapper_bindings::BindDecoupledMapper(m);
+
   BindMappingClasses(m);
   BindMapspaceClasses(m);
 

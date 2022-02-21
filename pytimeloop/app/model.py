@@ -61,6 +61,5 @@ class ModelApp:
 
         eval_stat = engine.evaluate(self.mapping,
                                     self.workload,
-                                    self.sparse_optimizations,
-                                    log_level=self.log_level)
+                                    self.sparse_optimizations)
         return eval_stat

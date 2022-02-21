@@ -1,11 +1,11 @@
-#include "bindings/bindings.h"
+#include "pytimeloop/bindings/problem.h"
 
 // Timeloop headers
 #include "workload/shape-models/problem-shape.hpp"
 #include "workload/workload.hpp"
 
 void BindProblemClasses(py::module& m) {
-  py::class_<problem::Workload>(m, "NativeWorkload")
+  py::class_<problem::Workload>(m, "Workload")
       .def(py::init<>())
       .def(py::init([](config::CompoundConfigNode& config) {
         auto w = std::make_unique<problem::Workload>();

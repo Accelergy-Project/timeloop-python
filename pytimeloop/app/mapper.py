@@ -1,16 +1,14 @@
-from bindings import ArchProperties
+from bindings import ArchProperties, DecoupledMapper
 from pytimeloop.config import Config
-from pytimeloop.engine import Accelerator, AcceleratorPool
-from pytimeloop.mapspace import MapSpace, Dimension
+from pytimeloop.engine import Accelerator
+from pytimeloop.mapspace import MapSpace
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
 from pytimeloop.mapper import Mapper
-from pytimeloop.mapping import ArchConstraints, Mapping
+from pytimeloop.mapping import ArchConstraints
 from pytimeloop.problem import Workload
-from pytimeloop.search import SearchAlgorithm, SearchStatus
+from pytimeloop.search import SearchAlgorithm
 
 from enum import Enum
-from functools import reduce
-import operator
 import logging
 import multiprocessing
 
@@ -139,8 +137,8 @@ class MapperApp:
             mapspace_cfg = cfg['mapspace_constraints']
 
         self.mapspace = MapSpace.parse_and_construct(
-                mapspace_cfg, cfg['architecture_constraints'], self.arch_specs,
-                self.workload, log_level)
+            mapspace_cfg, cfg['architecture_constraints'], self.arch_specs,
+            self.workload, log_level)
         self.split_mapspaces = self.mapspace.split(self.num_threads)
         self.logger.info('Mapspace construction complete.')
 
@@ -162,12 +160,18 @@ class MapperApp:
         # TODO: characterize workload on whether it has metadata
 
     def run(self):
-        mapper = Mapper(self.arch_specs, self.workload, self.constraints,
+        print(self.metrics)
+        mapper = Mapper(self.arch_specs, self.workload,
                         self.split_mapspaces, self.search,
                         self.sparse_optimizations, self.metrics,
                         self.num_threads, self.search_size, self.timeout,
                         self.victory_condition,
                         self.penalize_consecutive_bypass_fails)
 
-        eval_stats, mapping = mapper.run()
+        mapping = mapper.run()
+
+        accelerator = Accelerator(self.arch_specs)
+        eval_stats = accelerator.evaluate(mapping, self.workload,
+                                          self.sparse_optimizations)
+
         return eval_stats, mapping

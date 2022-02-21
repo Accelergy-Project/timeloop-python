@@ -1,6 +1,6 @@
 from bindings import ArchProperties
 from pytimeloop.config import Config
-from pytimeloop.engine import Accelerator, AcceleratorPool
+from pytimeloop.engine import Accelerator, UnboundedAcceleratorPool
 from pytimeloop.mapspace import MapSpace, Dimension
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
 from pytimeloop.mapping import ArchConstraints, Mapping
@@ -25,7 +25,7 @@ class SearchTask:
     def __init__(self, task_id, mapping, only_bypass_changed):
         self.task_id = task_id
         self.mapping = mapping
-        self.only_bypass = only_bypass_changed
+        self.only_bypass_changed = only_bypass_changed
 
 
 class Mapper:
@@ -73,8 +73,8 @@ class Mapper:
             an invalid mapping. Defaults to False.
     """
 
-    def __init__(self, arch_specs, workload, arch_constraints, mapspaces,
-                 search_algs, sparse_opts_info, metrics=['edp'],
+    def __init__(self, arch_specs, workload, mapspaces, search_algs,
+                 sparse_opts_info, metrics=['edp'],
                  accelerator_pool_num_threads=mp.cpu_count(), search_size=0,
                  timeout=1000, victory_condition=500,
                  penalize_consecutive_bypass_fails=False):
@@ -94,12 +94,9 @@ class Mapper:
         if self.search_size > 0:
             self.search_size = 1 + (self.search_size - 1) / len(search_algs)
 
-        self.victory_condition = 500
+        self.victory_condition = victory_condition
         self.penalize_consecutive_bypass_fails = \
             penalize_consecutive_bypass_fails
-
-        # Architecture constraints
-        self.constraints = arch_constraints
 
         # Mapspace configuration
         self.split_mapspaces = mapspaces
@@ -126,7 +123,8 @@ class Mapper:
         logger = logging.getLogger(__name__ + '.' + __class__.__name__)
         logger.setLevel(log_level)
 
-        accelerator_pool = AcceleratorPool(self.arch_specs, self.num_threads)
+        accelerator_pool = UnboundedAcceleratorPool(
+            self.arch_specs, self.num_threads)
 
         self.best_result = None
         # Maps search algorithm index to outstanding SearchTask
@@ -148,10 +146,7 @@ class Mapper:
                         accelerator_pool)
                     break
 
-        engine = Accelerator(self.arch_specs)
-        eval_stat = engine.evaluate(self.best_mapping, self.workload,
-                                    self.sparse_optimizations)
-        return eval_stat, self.best_mapping
+        return self.best_mapping
 
     def _search_send_next(self, i, accelerator_pool):
         if self.search_size > 0 and self.valid_maps[i] == self.search_size:
@@ -207,7 +202,7 @@ class Mapper:
     def _search_report(self, i, result, search_task):
         if result.eval_status is None:  # Failed in pre-evaluation
             if self.penalize_consecutive_bypass_fails\
-                    or not search_task.only_bypass:
+                    or not search_task.only_bypass_changed:
                 self.invld_maps_eval[i] += 1
             self.search[i].report(SearchStatus.EvalFailure, 0)
             return
@@ -216,14 +211,14 @@ class Mapper:
         success = reduce(lambda acc, x: acc and x.success, result.eval_status)
         if not success:
             if self.penalize_consecutive_bypass_fails\
-                    or not search_task.only_bypass:
-                self.invalid_maps_eval[i] += 1
-            self.search[i].report(SearchStatus.EvalFailure)
+                    or not search_task.only_bypass_changed:
+                self.invld_maps_eval[i] += 1
+            self.search[i].report(SearchStatus.EvalFailure, 0)
             return
 
         # Success!
         self.valid_maps[i] += 1
-        self.invld_maps_mapcnstr[i] = 0
+        self.invalid_maps_mapcnstr = 0
         self.invld_maps_eval[i] = 0
         self.search[i].report(SearchStatus.Success,
                               Mapper._cost(result, self.metrics[0]))

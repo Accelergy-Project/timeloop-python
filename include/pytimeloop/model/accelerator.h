@@ -2,12 +2,7 @@
 
 #include <optional>
 
-#include "bindings/model/eval-result.h"
-
-// PyBind11 headers
-#include <pybind11/iostream.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include "pytimeloop/model/eval-result.h"
 
 // Timeloop headers
 #include <mapping/mapping.hpp>
@@ -15,18 +10,12 @@
 #include <model/sparse-optimization-info.hpp>
 #include <workload/workload.hpp>
 
-namespace py = pybind11;
-
-namespace model_bindings {
-void BindAccelerator(py::module& m);
-}  // namespace model_bindings
-
 class Accelerator {
  public:
   Accelerator(const model::Engine::Specs& arch_specs);
 
   EvaluationResult Evaluate(
-      Mapping& mapping, problem::Workload& workload,
+      Mapping mapping, problem::Workload& workload,
       sparse::SparseOptimizationInfo& sparse_optimizations,
       bool break_on_failure = false);
 
