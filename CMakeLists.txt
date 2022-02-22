@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.4)
 project(timeloop_python)
 
-find_package(benchmark)
-
 if(DEFINED ENV{LIBTIMELOOP_PATH})
     set(LIBTIMELOOP_PATH $ENV{LIBTIMELOOP_PATH})
 else()
@@ -61,12 +59,6 @@ target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_g
 # define (VERSION_INFO) here.
 target_compile_definitions(bindings PRIVATE VERSION_INFO=${VERSION_INFO})
 
-set(BENCHMARK_SRC
-    benchmark/bench-main.cpp)
-add_executable(pytimeloop_bench ${BENCHMARK_SRC})
-set_property(TARGET pytimeloop_bench PROPERTY CXX_STANDARD 17)
-target_include_directories(pytimeloop_bench PRIVATE
-    include
-    ${LIBTIMELOOP_PATH}/include
-    lib/pybind11/include)
-target_link_libraries(pytimeloop_bench PRIVATE benchmark::benchmark pytimeloop define_gterminate ${LIBTIMELOOP} config++ yaml-cpp)
+if (${BUILD_BENCHMARK})
+    add_subdirectory(benchmark)
+endif()
