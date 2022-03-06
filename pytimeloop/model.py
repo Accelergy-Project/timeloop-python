@@ -20,11 +20,11 @@ class ArchSpecs(bindings.ArchSpecs):
         root_node = native_root_cfg.get_root()
         if 'ERT' in root_node:
             logger.info('Found Accelergy ERT, replacing internal energy model')
-            self.parse_accelergy_ert(root_node['ert'])
+            self.parse_accelergy_ert(root_node['ERT'])
             if 'ART' in root_node:
                 logger.info(
                     'Found Accelergy ART, replacing internal area model')
-                self.parse_accelergy_art(root_node['art'])
+                self.parse_accelergy_art(root_node['ART'])
         else:
             _, native_arch_cfg = config['architecture'].get_native()
             if 'subtree' in native_arch_cfg or 'local' in native_arch_cfg:
