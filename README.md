@@ -1,5 +1,4 @@
-# timeloop-python
-Python wrapper for the timeloop project.
+# timeloop-python Python wrapper for the timeloop project.
 
 ## Dependencies
 Since building PyTimeloop requires building Timeloop, dependencies of
@@ -25,9 +24,10 @@ Update the git submodules using
 ```
 $ git submodule update
 ```
-Point to your Timeloop installation:
+Point to your Timeloop source and built libraries:
 ```
-export TIMELOOP_PATH=your/timeloop/path
+export TIMELOOP_INCLUDE_PATH=your/timeloop/path/include
+export TIMELOOP_LIB_PATH=directory/with/timeloop/libs
 ```
 Then, install PyTimeloop by running
 ```
