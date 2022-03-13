@@ -1,14 +1,19 @@
 cmake_minimum_required(VERSION 3.4)
 project(timeloop_python)
 
-if(DEFINED ENV{LIBTIMELOOP_PATH})
-    set(LIBTIMELOOP_PATH $ENV{LIBTIMELOOP_PATH})
+if(DEFINED ENV{TIMELOOP_INCLUDE_PATH})
+    message(STATUS "Using timeloop includes from: $ENV{TIMELOOP_INCLUDE_PATH}")
+    set(TIMELOOP_INCLUDE_PATH $ENV{TIMELOOP_INCLUDE_PATH})
 else()
-    set(LIBTIMELOOP_PATH ${PROJECT_SOURCE_DIR}/lib/timeloop)
+    message(FATAL_ERROR "Please point TIMELOOP_INCLUDE_PATH to your Timeloop headers.")
 endif()
-message(STATUS "Using Timeloop library from: ${LIBTIMELOOP_PATH}")
 
-find_library(LIBTIMELOOP timeloop-model HINTS ${LIBTIMELOOP_PATH}/lib REQUIRED)
+if(DEFINED ENV{TIMELOOP_LIB_PATH})
+    set(TIMELOOP_LIB_PATH $ENV{TIMELOOP_LIB_PATH})
+    find_library(LIBTIMELOOP timeloop-mapper HINTS ${TIMELOOP_LIB_PATH} REQUIRED)
+else()
+    find_library(LIBTIMELOOP timeloop-mapper REQUIRED)
+endif()
 
 add_library(define_gterminate SHARED bindings/gterminate.cpp)
 
@@ -32,7 +37,7 @@ add_library(pytimeloop SHARED ${PYTIMELOOP_SRC} ${PYTIMELOOP_HDR})
 set_property(TARGET pytimeloop PROPERTY CXX_STANDARD 17)
 target_include_directories(pytimeloop PRIVATE
     include
-    ${LIBTIMELOOP_PATH}/include
+    ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
 target_link_libraries(pytimeloop PRIVATE ${LIBTIMELOOP})
 
@@ -51,7 +56,7 @@ pybind11_add_module(bindings ${BINDINGS_SRC})
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)
 target_include_directories(bindings PRIVATE
     include
-    ${LIBTIMELOOP_PATH}/include
+    ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
 target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_gterminate pytimeloop)
 
