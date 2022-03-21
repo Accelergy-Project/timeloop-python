@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from glob import iglob
+from itertools import chain
 from typing import Union, IO
 
 import yaml
@@ -35,6 +37,39 @@ class Config(ABC):
             return ConfigDict(loaded_yaml)
         else:
             raise ValueError('Top-level config file is always dict-like.')
+
+    @classmethod
+    def load_yaml_files(cls, fname_patterns):
+        """Create config from YAML files.
+        
+        Args:
+            fname_patterns: an iterable of strings. Could be glob patterns.
+        """
+        def merge(config, next_config):
+            if isinstance(config, dict) and isinstance(next_config, dict):
+                for key in next_config:
+                    if key in config:
+                        merge(config[key], next_config[key])
+                    else:
+                        config[key] = next_config[key]
+            elif config == next_config:
+                pass
+            elif isinstance(config, list) and isinstance(next_config, list):
+                config.extend(next_config)
+            else:
+                print(config, next_config)
+                raise ValueError('Something wrong with the config')
+
+        config = {}
+        for path in chain(*(iglob(pattern) for pattern in fname_patterns)):
+            with open(path, 'r') as f:
+                next_config = yaml.load(f, Loader=Loader)
+            merge(config, next_config)
+
+        if isinstance(config, dict):
+            return ConfigDict(config)
+        else:
+            raise ValueError('Top-level config file is always dict-like')
 
     @abstractmethod
     def dump_yaml(self):
