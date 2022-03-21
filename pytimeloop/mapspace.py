@@ -13,6 +13,7 @@ class MapSpace(bindings.MapSpace):
     @staticmethod
     def parse_and_construct(config: Config, arch_constraints: Config,
                             arch_specs: ArchSpecs, workload: Workload,
+                            filter_spatial_fanout: bool=True,
                             log_level=logging.INFO):
         _, native_config_node = config.get_native()
         _, native_arch_const_node = arch_constraints.get_native()
@@ -27,7 +28,7 @@ class MapSpace(bindings.MapSpace):
             sys.stderr = captured_stderr = StringIO()
             mapspace = bindings.MapSpace.parse_and_construct(
                 native_config_node, native_arch_const_node, arch_specs,
-                workload)
+                workload, filter_spatial_fanout)
         finally:
             sys.stdout = old_stderr
             sys.stderr = old_stderr

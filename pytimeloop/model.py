@@ -6,9 +6,9 @@ import logging
 
 
 class ArchSpecs(bindings.ArchSpecs):
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, is_sparse_topology: bool=False):
         _, native_arch_node = config.get_native()
-        super().__init__(native_arch_node)
+        super().__init__(native_arch_node, is_sparse_topology)
 
     def generate_tables(self, config: Config, semi_qualified_prefix, out_dir,
                         out_prefix, log_level=logging.INFO):
