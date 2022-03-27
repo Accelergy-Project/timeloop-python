@@ -188,7 +188,7 @@ class Mapper:
         self.total_maps[i] += 1
 
         if not success:
-            self.invalid_maps_mapcnstr[i] += 1
+            self.invld_maps_mapcnstr[i] += 1
             # missing: diagnostics
             self.search[i].report(SearchStatus.MappingConstructionFailure)
             return None
@@ -218,7 +218,7 @@ class Mapper:
 
         # Success!
         self.valid_maps[i] += 1
-        self.invalid_maps_mapcnstr = 0
+        self.invld_maps_mapcnstr = 0
         self.invld_maps_eval[i] = 0
         self.search[i].report(SearchStatus.Success,
                               Mapper._cost(result, self.metrics[0]))
