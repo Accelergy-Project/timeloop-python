@@ -2,9 +2,11 @@
 
 #include "pytimeloop/mapper/decoupled-mapper.h"
 
-namespace mapper_bindings {
+namespace pytimeloop::mapper_bindings {
 
 void BindDecoupledMapper(py::module& m) {
+  using namespace pytimeloop::pymapper;
+
   py::class_<DecoupledMapper>(m, "DecoupledMapper")
       .def(py::init<const model::Engine::Specs&, problem::Workload&,
                     std::vector<mapspace::MapSpace*>&,
@@ -15,4 +17,4 @@ void BindDecoupledMapper(py::module& m) {
       .def("run", &DecoupledMapper::Run);
 }
 
-}  // namespace mapper_bindings
+}  // namespace pytimeloop::mapper_bindings

@@ -10,6 +10,8 @@
 
 #include "pytimeloop/search/mapspace-search.h"
 
+namespace pytimeloop::pymapper {
+
 /**
  * Abstract base class of a Mapper.
  *
@@ -25,3 +27,5 @@ class Mapper {
   typedef search::SearchAlgorithm SearchAlgorithm;
   typedef sparse::SparseOptimizationInfo SparseOptInfo;
 };
+
+}  // namespace pytimeloop::pymapper

@@ -2,6 +2,8 @@
 
 #include "util.h"
 
+namespace pytimeloop::pymapper {
+
 DecoupledMapper::DecoupledMapper(
     const ArchSpecs& arch_spec, const Workload& workload,
     std::vector<MapSpace*>& mapspaces,
@@ -162,3 +164,5 @@ void DecoupledMapper::SearchReport(MapperSearchAlgorithm& alg,
     }
   }
 }
+
+}  // namespace pytimeloop::pymapper

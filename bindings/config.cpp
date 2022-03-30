@@ -9,6 +9,8 @@
 // Timeloop headers
 #include "compound-config/compound-config.hpp"
 
+namespace pytimeloop::config_bindings {
+
 typedef std::variant<bool, long long, unsigned long long, double, std::string,
                      config::CompoundConfigNode>
     CompoundConfigLookupReturn;
@@ -70,3 +72,5 @@ void BindConfigClasses(py::module& m) {
         return all_keys;
       });
 }
+
+}  // namespace pytimeloop::config_bindings

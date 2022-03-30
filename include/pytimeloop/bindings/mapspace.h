@@ -9,4 +9,8 @@
 
 namespace py = pybind11;
 
+namespace pytimeloop::mapspace_bindings {
+
 void BindMapspaceClasses(py::module& m);
+
+}  // namespace pytimeloop::mapspace_bindings

@@ -9,8 +9,8 @@
 
 namespace py = pybind11;
 
-namespace mapper_bindings {
+namespace pytimeloop::mapper_bindings {
 
 void BindDecoupledMapper(py::module& m);
 
-}  // namespace mapper_bindings
+}  // namespace pytimeloop::mapper_bindings

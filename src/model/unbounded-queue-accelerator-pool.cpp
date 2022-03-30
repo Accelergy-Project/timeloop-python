@@ -1,6 +1,7 @@
 #include "pytimeloop/model/accelerator-pool.h"
-
 #include "pytimeloop/model/accelerator.h"
+
+namespace pytimeloop::pymodel {
 
 UnboundedQueueAcceleratorPool::UnboundedQueueAcceleratorPool(
     const model::Engine::Specs& arch_specs, unsigned num_workers)
@@ -83,8 +84,10 @@ void UnboundedQueueAcceleratorPool::worker_loop(int i) {
 }
 
 void UnboundedQueueAcceleratorPool::queue_result(
-        int i, const EvaluationResult& eval_result) {
+    int i, const EvaluationResult& eval_result) {
   while (!result_q_[i].Push(eval_result)) {
     std::this_thread::yield();
   }
 }
+
+}  // namespace pytimeloop::pymodel

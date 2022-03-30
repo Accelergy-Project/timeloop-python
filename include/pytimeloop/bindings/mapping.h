@@ -9,4 +9,8 @@
 
 namespace py = pybind11;
 
+namespace pytimeloop::mapping_bindings {
+
 void BindMappingClasses(py::module& m);
+
+}  // namespace pytimeloop::mapping_bindings

@@ -8,6 +8,8 @@
 #include "mapping/mapping.hpp"
 #include "mapping/parser.hpp"
 
+namespace pytimeloop::mapping_bindings {
+
 using PerDataSpaceInt = problem::PerDataSpace<std::uint64_t>;
 
 void BindMappingClasses(py::module& m) {
@@ -51,3 +53,4 @@ void BindMappingClasses(py::module& m) {
           py::arg() = {}, py::arg() = {}, py::arg() = {},
           py::arg("indent") = "");
 }
+}  // namespace pytimeloop::mapping_bindings

@@ -1,12 +1,15 @@
 #include "pytimeloop/bindings/mapspace.h"
 
 #include "pytimeloop/bindings/type_casters.h"
+#include "pytimeloop/mapspace/status.h"
 
 // Timeloop headers
 #include "mapspaces/mapspace-base.hpp"
 #include "mapspaces/mapspace-factory.hpp"
 #include "mapspaces/uber.hpp"
 #include "workload/workload.hpp"
+
+namespace pytimeloop::mapspace_bindings {
 
 class PyMapSpace : public mapspace::MapSpace {
  public:
@@ -30,6 +33,8 @@ class PyMapSpace : public mapspace::MapSpace {
 };
 
 void BindMapspaceClasses(py::module& m) {
+  using namespace pytimeloop::pymapspace;
+
   py::enum_<mapspace::Dimension>(m, "Dimension")
       .value("IndexFactorization", mapspace::Dimension::IndexFactorization)
       .value("LoopPermutation", mapspace::Dimension::LoopPermutation)
@@ -57,7 +62,9 @@ void BindMapspaceClasses(py::module& m) {
 
   py::class_<mapspace::Status>(m, "Status")
       .def_readonly("success", &mapspace::Status::success)
-      .def_readonly("fail_reason", &mapspace::Status::fail_reason);
+      .def_readonly("fail_reason", &mapspace::Status::fail_reason)
+      .def("__str__", &StatusRepr)
+      .def("__repr__", &StatusRepr);
 
   py::class_<mapspace::MapSpace, PyMapSpace>(m, "MapSpace")
       .def_static("parse_and_construct", &mapspace::ParseAndConstruct,
@@ -86,3 +93,5 @@ void BindMapspaceClasses(py::module& m) {
                       mapspace::Dimension dim) { return m.Size(dim); })
       .def("all_sizes", &mapspace::Uber::AllSizes);
 }
+
+}  // namespace pytimeloop::mapspace_bindings

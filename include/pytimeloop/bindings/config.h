@@ -9,4 +9,8 @@
 
 namespace py = pybind11;
 
+namespace pytimeloop::config_bindings {
+
 void BindConfigClasses(py::module& m);
+
+}

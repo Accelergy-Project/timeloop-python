@@ -15,6 +15,8 @@
 #include <model/sparse-optimization-info.hpp>
 #include <workload/workload.hpp>
 
+namespace pytimeloop::pymodel {
+
 struct EvaluationTask {
   uint64_t id;
   Mapping mapping;
@@ -149,3 +151,5 @@ class BoundedQueueAcceleratorPool : public AcceleratorPool {
 
   void WorkerLoop(size_t i);
 };
+
+}  // namespace pytimeloop::pymodel

@@ -14,22 +14,24 @@
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
 PYBIND11_MODULE(bindings, m) {
+  using namespace pytimeloop;
+
   m.doc() = "PyTimeloop bindings to C++ timeloop code ";
 
   auto accelergy_submodule = m.def_submodule("accelergy");
-  BindAccelergyInterface(accelergy_submodule);
+  accelergy_bindings::BindAccelergyInterface(accelergy_submodule);
 
   auto config_submodule = m.def_submodule("config");
-  BindConfigClasses(config_submodule);
+  config_bindings::BindConfigClasses(config_submodule);
 
   auto mapper_submodule = m.def_submodule("mapper");
   mapper_bindings::BindDecoupledMapper(mapper_submodule);
 
   auto mapping_submodule = m.def_submodule("mapping");
-  BindMappingClasses(mapping_submodule);
+  mapping_bindings::BindMappingClasses(mapping_submodule);
 
   auto mapspace_submodule = m.def_submodule("mapspace");
-  BindMapspaceClasses(mapspace_submodule);
+  mapspace_bindings::BindMapspaceClasses(mapspace_submodule);
 
   auto model_submodule = m.def_submodule("model");
   model_bindings::BindAccelerator(model_submodule);
@@ -41,10 +43,10 @@ PYBIND11_MODULE(bindings, m) {
   model_bindings::BindTopology(model_submodule);
 
   auto problem_submodule = m.def_submodule("problem");
-  BindProblemClasses(problem_submodule);
+  problem_bindings::BindProblemClasses(problem_submodule);
 
   auto search_submodule = m.def_submodule("search");
-  BindSearchClasses(search_submodule);
+  search_bindings::BindSearchClasses(search_submodule);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

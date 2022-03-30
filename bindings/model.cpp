@@ -12,7 +12,8 @@
 #include "model/sparse-optimization-info.hpp"
 #include "model/sparse-optimization-parser.hpp"
 
-namespace model_bindings {
+namespace pytimeloop::model_bindings {
+using namespace pytimeloop::pymodel;
 
 void BindAccelerator(py::module& m) {
   py::class_<Accelerator>(m, "Accelerator")
@@ -135,4 +136,4 @@ void BindTopology(py::module& m) {
       .def("utilized_capacities", &model::Topology::UtilizedCapacities);
 }
 
-}  // namespace model_bindings
+}  // namespace pytimeloop::model_bindings

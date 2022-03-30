@@ -1,6 +1,8 @@
 #include "pytimeloop/model/accelerator-pool.h"
 #include "pytimeloop/model/accelerator.h"
 
+namespace pytimeloop::pymodel {
+
 BoundedQueueAcceleratorPool::BoundedQueueAcceleratorPool(
     const model::Engine::Specs& arch_specs, size_t num_workers,
     size_t num_threads)
@@ -86,3 +88,5 @@ void BoundedQueueAcceleratorPool::WorkerLoop(size_t i) {
     i = (i + num_threads_) % num_workers_;
   }
 }
+
+}  // namespace pytimeloop::pymodel

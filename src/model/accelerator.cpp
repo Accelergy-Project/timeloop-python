@@ -1,5 +1,7 @@
 #include "pytimeloop/model/accelerator.h"
 
+namespace pytimeloop::pymodel {
+
 Accelerator::Accelerator(const model::Engine::Specs& arch_specs)
     : arch_specs_(arch_specs) {
   engine_.Spec(arch_specs_);
@@ -40,3 +42,5 @@ EvaluationResult Accelerator::Evaluate(
     return EvaluationResult::FailedEvaluation(pre_eval_status);
   }
 }
+
+}  // namespace pytimeloop::pymodel

@@ -23,6 +23,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(PYTIMELOOP_SRC
     src/mapper/decoupled-mapper.cpp
+    src/mapspace/status.cpp
     src/model/accelerator.cpp
     src/model/unbounded-queue-accelerator-pool.cpp
     src/model/bounded-queue-accelerator-pool.cpp)

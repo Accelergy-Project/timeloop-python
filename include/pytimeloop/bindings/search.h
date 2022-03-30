@@ -9,4 +9,8 @@
 
 namespace py = pybind11;
 
+namespace pytimeloop::search_bindings {
+
 void BindSearchClasses(py::module& m);
+
+}  // namespace pytimeloop::search_bindings

@@ -2,6 +2,8 @@
 
 #include "pytimeloop/model/eval-result.h"
 
+using namespace pytimeloop::pymodel;
+
 enum Betterness { Better, SlightlyBetter, SlightlyWorse, Worse };
 
 double Cost(const EvaluationResult& stats, const std::string metric) {

@@ -9,4 +9,8 @@
 
 namespace py = pybind11;
 
+namespace pytimeloop::problem_bindings {
+
 void BindProblemClasses(py::module& m);
+
+}  // namespace pytimeloop::problem_bindings

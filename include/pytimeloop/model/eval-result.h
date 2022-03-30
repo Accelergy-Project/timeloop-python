@@ -7,6 +7,8 @@
 // Timeloop library
 #include <model/level.hpp>
 
+namespace pytimeloop::pymodel {
+
 struct EvaluationResult {
   uint64_t id;
   std::vector<model::EvalStatus> pre_eval_status;
@@ -34,3 +36,5 @@ struct EvaluationResult {
                             .last_level_accesses = 0};
   }
 };
+
+}  // namespace pytimeloop::pymodel

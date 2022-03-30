@@ -8,6 +8,8 @@
 #include <mapspaces/mapspace-base.hpp>
 #include <search/search.hpp>
 
+namespace pytimeloop::pysearch {
+
 class MapSpaceSearchAlgorithm {
  public:
   typedef std::reference_wrapper<MapSpaceSearchAlgorithm> Ref;
@@ -66,3 +68,5 @@ class TimeloopSearchAlgorithm : public MapSpaceSearchAlgorithm {
   mapspace::MapSpace& mapspace_;
   mapspace::ID prev_mapping_id_;
 };
+
+}  // namespace pytimeloop::pysearch

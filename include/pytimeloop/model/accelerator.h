@@ -10,6 +10,8 @@
 #include <model/sparse-optimization-info.hpp>
 #include <workload/workload.hpp>
 
+namespace pytimeloop::pymodel {
+
 class Accelerator {
  public:
   Accelerator(const model::Engine::Specs& arch_specs);
@@ -24,3 +26,5 @@ class Accelerator {
   model::Engine engine_;
   std::vector<std::string> level_names_;
 };
+
+}  // namespace pytimeloop::pymodel

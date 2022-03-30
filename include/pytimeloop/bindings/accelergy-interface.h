@@ -9,4 +9,8 @@
 
 namespace py = pybind11;
 
+namespace pytimeloop::accelergy_bindings {
+
 void BindAccelergyInterface(py::module& m);
+
+}

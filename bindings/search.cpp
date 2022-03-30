@@ -10,6 +10,8 @@
 #include "search/search-factory.hpp"
 #include "search/search.hpp"
 
+namespace pytimeloop::search_bindings {
+
 class PySearchAlgorithm : public search::SearchAlgorithm {
  public:
   bool Next(mapspace::ID& mapping_id) override {
@@ -65,3 +67,5 @@ void BindSearchClasses(py::module& m) {
            })
       .def("report", &RandomPrunedSearch::Report);
 }
+
+}  // namespace pytimeloop::search_bindings

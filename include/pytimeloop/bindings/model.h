@@ -5,7 +5,7 @@
 
 namespace py = pybind11;
 
-namespace model_bindings {
+namespace pytimeloop::model_bindings {
 
 void BindAccelerator(py::module& m);
 void BindAcceleratorPool(py::module& m);
@@ -16,4 +16,4 @@ void BindSparseOptimizationInfo(py::module& m);
 void BindSparseOptimizationParser(py::module& m);
 void BindTopology(py::module& m);
 
-}  // namespace model_bindings
+}  // namespace pytimeloop::model_bindings

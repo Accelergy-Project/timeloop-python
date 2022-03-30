@@ -13,6 +13,11 @@
 #include "pytimeloop/model/accelerator-pool.h"
 #include "pytimeloop/search/mapspace-search.h"
 
+namespace pytimeloop::pymapper {
+
+using namespace pytimeloop::pymodel;
+using namespace pytimeloop::pysearch;
+
 class DecoupledMapper : public Mapper {
  public:
   DecoupledMapper(const ArchSpecs& arch_spec, const Workload& workload,
@@ -79,3 +84,5 @@ class DecoupledMapper : public Mapper {
   void SearchReport(MapperSearchAlgorithm& alg, EvaluationResult& result,
                     SearchTask& task);
 };
+
+}  // namespace pytimeloop::pymapper

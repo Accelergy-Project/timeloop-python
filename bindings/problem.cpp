@@ -4,6 +4,8 @@
 #include "workload/shape-models/problem-shape.hpp"
 #include "workload/workload.hpp"
 
+namespace pytimeloop::problem_bindings {
+
 void BindProblemClasses(py::module& m) {
   py::class_<problem::Workload>(m, "Workload")
       .def(py::init<>())
@@ -22,3 +24,5 @@ void BindProblemClasses(py::module& m) {
 
   m.def("get_problem_shape", &problem::GetShape);
 }
+
+}  // namespace pytimeloop::problem_bindings
