@@ -16,24 +16,35 @@
 PYBIND11_MODULE(bindings, m) {
   m.doc() = "PyTimeloop bindings to C++ timeloop code ";
 
-  BindAccelergyInterface(m);
-  BindConfigClasses(m);
+  auto accelergy_submodule = m.def_submodule("accelergy");
+  BindAccelergyInterface(accelergy_submodule);
 
-  mapper_bindings::BindDecoupledMapper(m);
+  auto config_submodule = m.def_submodule("config");
+  BindConfigClasses(config_submodule);
 
-  BindMappingClasses(m);
-  BindMapspaceClasses(m);
+  auto mapper_submodule = m.def_submodule("mapper");
+  mapper_bindings::BindDecoupledMapper(mapper_submodule);
 
-  model_bindings::BindAccelerator(m);
-  model_bindings::BindAcceleratorPool(m);
-  model_bindings::BindEngine(m);
-  model_bindings::BindEvaluationResult(m);
-  model_bindings::BindLevel(m);
-  model_bindings::BindSparseOptimizationInfo(m);
-  model_bindings::BindTopology(m);
+  auto mapping_submodule = m.def_submodule("mapping");
+  BindMappingClasses(mapping_submodule);
 
-  BindProblemClasses(m);
-  BindSearchClasses(m);
+  auto mapspace_submodule = m.def_submodule("mapspace");
+  BindMapspaceClasses(mapspace_submodule);
+
+  auto model_submodule = m.def_submodule("model");
+  model_bindings::BindAccelerator(model_submodule);
+  model_bindings::BindAcceleratorPool(model_submodule);
+  model_bindings::BindEngine(model_submodule);
+  model_bindings::BindEvaluationResult(model_submodule);
+  model_bindings::BindLevel(model_submodule);
+  model_bindings::BindSparseOptimizationInfo(model_submodule);
+  model_bindings::BindTopology(model_submodule);
+
+  auto problem_submodule = m.def_submodule("problem");
+  BindProblemClasses(problem_submodule);
+
+  auto search_submodule = m.def_submodule("search");
+  BindSearchClasses(search_submodule);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
