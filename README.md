@@ -20,6 +20,11 @@ cmake
 ```
 
 ## Installing
+Recrusively clone the repo
+```
+ git clone --recurse-submodules git@github.com:Accelergy-Project/timeloop-python.git
+```
+
 Update the git submodules using
 ```
 $ git submodule update
