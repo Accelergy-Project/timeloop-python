@@ -65,6 +65,8 @@ target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_g
 # define (VERSION_INFO) here.
 target_compile_definitions(bindings PRIVATE VERSION_INFO=${VERSION_INFO})
 
+add_subdirectory(cpp_tests)
+
 if (${BUILD_BENCHMARK})
     add_subdirectory(benchmark)
 endif()
