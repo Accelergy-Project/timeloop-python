@@ -4,6 +4,7 @@ from pytimeloop.app import ModelApp
 
 from .util import TEST_TMP_DIR, load_configs
 
+
 class ModelAppTest(unittest.TestCase):
     @staticmethod
     def make_model_app(config_dir, paths, tmp_path):
@@ -23,7 +24,7 @@ class ModelAppTest(unittest.TestCase):
         self.check_model_app('00-model-conv1d-1level',
                              ['arch/*.yaml', 'map/*.yaml',
                               'prob/*.yaml'],
-                             1220.1, 100.8, 48,
+                             1220.1, 100.87, 48,
                              TEST_TMP_DIR / 'model-conv1d-1level')
 
     def test_conv1d_2level(self):

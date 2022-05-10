@@ -2,14 +2,16 @@ import logging
 from pathlib import Path
 import unittest
 
+from bindings.model import BoundedAcceleratorPool, UnboundedAcceleratorPool
+
 from pytimeloop.config import Config
-from pytimeloop.engine import (Accelerator, BoundedAcceleratorPool,
-                               UnboundedAcceleratorPool)
+from pytimeloop.engine import Accelerator
 from pytimeloop.mapping import Mapping
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
 from pytimeloop.problem import Workload
 
 from .util import load_configs, TEST_TMP_DIR
+
 
 class AcceleratorTest(unittest.TestCase):
     def setUp(self):

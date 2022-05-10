@@ -1,11 +1,10 @@
 import bindings
-from bindings import get_problem_shape, UnboundedAcceleratorPool,\
-                     BoundedAcceleratorPool
-from .model import ArchSpecs, SparseOptimizationInfo
-from .problem import Workload
 from .mapping import Mapping
+from .problem import Workload
+from .model import ArchSpecs, SparseOptimizationInfo
 
-class Accelerator(bindings.Accelerator):
+
+class Accelerator(bindings.model.Accelerator):
     def __init__(self, arch_specs: ArchSpecs):
         super().__init__(arch_specs)
 

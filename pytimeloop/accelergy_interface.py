@@ -1,5 +1,5 @@
 from typing import List
-from bindings import native_invoke_accelergy
+from bindings.accelergy import native_invoke_accelergy
 
 from io import StringIO
 import logging

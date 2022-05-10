@@ -1,4 +1,4 @@
-from bindings import ArchProperties
+from bindings.mapping import ArchProperties
 from pytimeloop.config import Config
 from pytimeloop.engine import Accelerator
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
