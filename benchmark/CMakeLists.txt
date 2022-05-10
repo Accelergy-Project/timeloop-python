@@ -9,4 +9,3 @@ target_include_directories(pytimeloop_bench PRIVATE
     ${TIMELOOP_INCLUDE_PATH}
     ${CMAKE_SOURCE_DIR}/lib/pybind11/include)                                                   
 target_link_libraries(pytimeloop_bench PRIVATE benchmark::benchmark pytimeloop define_gterminate ${LIBTIMELOOP} config++ yaml-cpp)
-
