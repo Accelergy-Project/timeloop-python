@@ -1,5 +1,4 @@
 import bindings
-from bindings import Dimension, ID
 from .config import Config
 from .model import ArchSpecs
 from .problem import Workload
@@ -9,11 +8,11 @@ import logging
 import sys
 
 
-class MapSpace(bindings.MapSpace):
+class MapSpace(bindings.mapspace.MapSpace):
     @staticmethod
     def parse_and_construct(config: Config, arch_constraints: Config,
                             arch_specs: ArchSpecs, workload: Workload,
-                            filter_spatial_fanout: bool=True,
+                            filter_spatial_fanout: bool = True,
                             log_level=logging.INFO):
         _, native_config_node = config.get_native()
         _, native_arch_const_node = arch_constraints.get_native()
@@ -26,7 +25,7 @@ class MapSpace(bindings.MapSpace):
         try:
             sys.stdout = captured_stdout = StringIO()
             sys.stderr = captured_stderr = StringIO()
-            mapspace = bindings.MapSpace.parse_and_construct(
+            mapspace = bindings.mapspace.MapSpace.parse_and_construct(
                 native_config_node, native_arch_const_node, arch_specs,
                 workload, filter_spatial_fanout)
         finally:
@@ -38,4 +37,3 @@ class MapSpace(bindings.MapSpace):
             logger.error(captured_stderr.getvalue())
 
         return mapspace
-

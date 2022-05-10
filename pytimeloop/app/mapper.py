@@ -1,9 +1,9 @@
-from bindings import ArchProperties, DecoupledMapper
+from bindings.mapping import ArchProperties
+from bindings.mapper import DecoupledMapper
 from pytimeloop.config import Config
 from pytimeloop.engine import Accelerator
 from pytimeloop.mapspace import MapSpace
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
-from pytimeloop.mapper import Mapper
 from pytimeloop.mapping import ArchConstraints
 from pytimeloop.problem import Workload
 from pytimeloop.search import SearchAlgorithm
@@ -161,12 +161,12 @@ class MapperApp:
 
     def run(self):
         print(self.metrics)
-        mapper = Mapper(self.arch_specs, self.workload,
-                        self.split_mapspaces, self.search,
-                        self.sparse_optimizations, self.metrics,
-                        self.num_threads, self.search_size, self.timeout,
-                        self.victory_condition,
-                        self.penalize_consecutive_bypass_fails)
+        mapper = DecoupledMapper(self.arch_specs, self.workload,
+                                 self.split_mapspaces, self.search,
+                                 self.sparse_optimizations, self.metrics,
+                                 self.num_threads, self.search_size, self.timeout,
+                                 self.victory_condition,
+                                 self.penalize_consecutive_bypass_fails)
 
         mapping = mapper.run()
 

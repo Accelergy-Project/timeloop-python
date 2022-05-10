@@ -41,7 +41,7 @@ class Config(ABC):
     @classmethod
     def load_yaml_files(cls, fname_patterns):
         """Create config from YAML files.
-        
+
         Args:
             fname_patterns: an iterable of strings. Could be glob patterns.
         """
@@ -104,7 +104,8 @@ class Config(ABC):
         """Returns a `bindings.Config` representing the root of this config and 
         `bindings.ConfigNode` of this config.
         """
-        self.native_config = bindings.Config(self.root.dump_yaml(), 'yaml')
+        self.native_config = bindings.config.Config(
+            self.root.dump_yaml(), 'yaml')
         self.native_config_node = self.native_config.get_root()
         for key in self.root_key:
             self.native_config_node = self.native_config_node[key]
