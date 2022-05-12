@@ -1,5 +1,6 @@
-#define BOOST_TEST_MODULE Test Accelerator
-#include <boost/test/included/unit_test.hpp>
+#pragma once
+
+#include <boost/test/unit_test.hpp>
 
 // Timeloop
 #include <mapping/parser.hpp>
@@ -67,9 +68,6 @@ BOOST_AUTO_TEST_CASE(test_accelerator_3level) {
   problem::Workload workload;
   problem::ParseWorkload(root_node.lookup("problem"), workload);
 
-  for (auto& [key, value] : workload.GetShape()->FactorizedDimensionIDToName) {
-    std::cout << value << " " << workload.GetFactorizedBound(key) << std::endl;
-  }
   auto mapping = mapping::ParseAndConstruct(root_node.lookup("mapping"),
                                             arch_specs, workload);
 
@@ -79,6 +77,6 @@ BOOST_AUTO_TEST_CASE(test_accelerator_3level) {
   Accelerator acc(arch_specs);
   auto result = acc.Evaluate(mapping, workload, sparse_opts);
 
-  BOOST_TEST_REQUIRE(result.cycles == 48);
+  BOOST_TEST_REQUIRE(result.cycles == 3072);
   BOOST_TEST_REQUIRE(result.utilization == 1.00);
 };
