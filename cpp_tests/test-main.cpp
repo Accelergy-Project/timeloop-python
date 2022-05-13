@@ -3,3 +3,4 @@
 
 #include "test-accelerator.h"
 #include "test-concurrent-queue.h"
+#include "test-worker-pool.h"
