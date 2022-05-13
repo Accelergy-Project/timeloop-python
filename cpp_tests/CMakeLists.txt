@@ -14,6 +14,7 @@ target_link_libraries(pytimeloop_cpptest PRIVATE
     ${LIBTIMELOOP}
     config++
     yaml-cpp
+    rt
     define_gterminate
     pytimeloop)
 

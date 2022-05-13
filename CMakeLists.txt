@@ -59,7 +59,7 @@ target_include_directories(bindings PRIVATE
     include
     ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
-target_link_libraries(bindings PRIVATE config++ yaml-cpp ${LIBTIMELOOP} define_gterminate pytimeloop)
+target_link_libraries(bindings PRIVATE config++ yaml-cpp rt ${LIBTIMELOOP} define_gterminate pytimeloop)
 
 # VERSION_INFO is defined by setup.py and passed into the C++ code as a
 # define (VERSION_INFO) here.
