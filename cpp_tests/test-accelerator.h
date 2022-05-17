@@ -8,26 +8,8 @@
 #include <workload/workload.hpp>
 
 #include "pytimeloop/model/accelerator.h"
-#include "test-configs.h"
 
 using namespace boost::unit_test;
-
-struct TestConfig {
-  TestConfig() {
-    BOOST_TEST_REQUIRE(boost::unit_test::framework::master_test_suite().argc ==
-                       2);
-  }
-
-  void setup() {
-    config_gen = std::make_unique<TimeloopExerciseConfigGenerator>(
-        TimeloopExerciseConfigGenerator::CreateFromPath(
-            framework::master_test_suite().argv[1]));
-  }
-
-  static inline std::unique_ptr<TimeloopExerciseConfigGenerator> config_gen;
-};
-
-BOOST_TEST_GLOBAL_FIXTURE(TestConfig);
 
 // Two tests with different workloads cannot pass at the same time.
 // Issue with Timeloop's global workload setup.

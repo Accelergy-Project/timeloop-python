@@ -21,7 +21,7 @@ class WorkerPool {
 
  public:
   template <typename WorkerFactory>
-  WorkerPool(int n_workers, WorkerFactory& factory)
+  WorkerPool(int n_workers, WorkerFactory&& factory)
       : terminated_(false), task_q_(), result_q_() {
     for (int i = 0; i < n_workers; ++i) {
       threads_.push_back(
@@ -32,6 +32,12 @@ class WorkerPool {
   uint64_t PushTask(Task& task) {
     auto task_id = cur_id_.fetch_add(1);
     task_q_.Push(WithId<Task>{.id = task_id, .val = task});
+    task_q_.NotifyAll();
+    return task_id;
+  }
+  uint64_t PushTask(Task&& task) {
+    auto task_id = cur_id_.fetch_add(1);
+    task_q_.Push(WithId<Task>{.id = task_id, .val = std::move(task)});
     task_q_.NotifyAll();
     return task_id;
   }

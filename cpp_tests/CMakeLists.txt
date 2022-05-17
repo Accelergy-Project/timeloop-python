@@ -4,6 +4,7 @@ set(TEST_SRC
 set(TEST_HDR
     test-accelerator.h
     test-concurrent-queue.h
+    test-mapper.h
     test-worker-pool.h)
 
 add_executable(pytimeloop_cpptest ${TEST_SRC} ${TEST_HDR})
