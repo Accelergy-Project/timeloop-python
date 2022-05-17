@@ -1,10 +1,11 @@
-#pragma once
+#include "pytimeloop/model/util.h"
 
-#include "pytimeloop/model/eval-result.h"
+namespace pytimeloop::pymodel {
 
-using namespace pytimeloop::pymodel;
-
-enum Betterness { Better, SlightlyBetter, SlightlyWorse, Worse };
+Betterness IsBetterRecursive_(
+    const EvaluationResult& candidate, const EvaluationResult& incumbent,
+    const std::vector<std::string>::const_iterator metric,
+    const std::vector<std::string>::const_iterator end);
 
 double Cost(const EvaluationResult& stats, const std::string metric) {
   if (metric == "delay")
@@ -17,6 +18,14 @@ double Cost(const EvaluationResult& stats, const std::string metric) {
     assert(metric == "edp");
     return stats.energy * stats.cycles;
   }
+}
+
+bool IsBetter(const EvaluationResult& candidate,
+              const EvaluationResult& incumbent,
+              const std::vector<std::string>& metrics) {
+  auto b =
+      IsBetterRecursive_(candidate, incumbent, metrics.begin(), metrics.end());
+  return (b == Betterness::Better || b == Betterness::SlightlyBetter);
 }
 
 Betterness IsBetterRecursive_(
@@ -61,10 +70,4 @@ Betterness IsBetterRecursive_(
   }
 }
 
-static inline bool IsBetter(const EvaluationResult& candidate,
-                            const EvaluationResult& incumbent,
-                            const std::vector<std::string>& metrics) {
-  auto b =
-      IsBetterRecursive_(candidate, incumbent, metrics.begin(), metrics.end());
-  return (b == Betterness::Better || b == Betterness::SlightlyBetter);
-}
+}  // namespace pytimeloop::pymodel

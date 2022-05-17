@@ -22,17 +22,19 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(PYTIMELOOP_SRC
-    src/mapper/decoupled-mapper.cpp
+    src/mapper/coupled-mapper.cpp
     src/mapspace/status.cpp
     src/model/accelerator.cpp
+    src/model/bounded-queue-accelerator-pool.cpp
     src/model/unbounded-queue-accelerator-pool.cpp
-    src/model/bounded-queue-accelerator-pool.cpp)
+    src/model/util.cpp)
 set(PYTIMELOOP_HDR
-    include/pytimeloop/mapper/decoupled-mapper.h
+    include/pytimeloop/mapper/coupled-mapper.h
     include/pytimeloop/mapper/mapper-base.h
     include/pytimeloop/model/accelerator-pool.h
     include/pytimeloop/model/accelerator.h
     include/pytimeloop/model/eval-result.h
+    include/pytimeloop/model/util.h
     include/pytimeloop/search/mapspace-search.h)
 add_library(pytimeloop SHARED ${PYTIMELOOP_SRC} ${PYTIMELOOP_HDR})
 set_property(TARGET pytimeloop PROPERTY CXX_STANDARD 17)
