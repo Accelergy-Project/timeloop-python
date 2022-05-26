@@ -1,5 +1,5 @@
 from bindings.mapping import ArchProperties
-from bindings.mapper import DecoupledMapper
+from bindings.mapper import CoupledMapper
 from pytimeloop.config import Config
 from pytimeloop.engine import Accelerator
 from pytimeloop.mapspace import MapSpace
@@ -160,18 +160,14 @@ class MapperApp:
         # TODO: characterize workload on whether it has metadata
 
     def run(self):
-        print(self.metrics)
-        mapper = DecoupledMapper(self.arch_specs, self.workload,
-                                 self.split_mapspaces, self.search,
-                                 self.sparse_optimizations, self.metrics,
-                                 self.num_threads, self.search_size, self.timeout,
-                                 self.victory_condition,
-                                 self.penalize_consecutive_bypass_fails)
+        mapper = CoupledMapper(self.arch_specs, self.workload,
+                               [(self.split_mapspaces[i], self.search[i])
+                                for i in range(len(self.search))],
+                               self.sparse_optimizations, self.metrics,
+                               self.search_size, self.timeout,
+                               self.victory_condition,
+                               self.penalize_consecutive_bypass_fails)
 
-        mapping = mapper.run()
-
-        accelerator = Accelerator(self.arch_specs)
-        eval_stats = accelerator.evaluate(mapping, self.workload,
-                                          self.sparse_optimizations)
+        mapping, eval_stats = mapper.run()
 
         return eval_stats, mapping
