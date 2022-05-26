@@ -1,13 +1,13 @@
 #pragma once
 
-#include <memory>
-#include <vector>
+#include <utility>
 
 // Timeloop library
 #include <mapping/mapping.hpp>
 #include <model/engine.hpp>
 #include <search/search.hpp>
 
+#include "pytimeloop/model/eval-result.h"
 #include "pytimeloop/search/mapspace-search.h"
 
 namespace pytimeloop::pymapper {
@@ -18,7 +18,7 @@ namespace pytimeloop::pymapper {
  */
 class Mapper {
  public:
-  virtual Mapping Run() = 0;
+  virtual std::pair<Mapping, pytimeloop::pymodel::EvaluationResult> Run() = 0;
 
  protected:
   typedef model::Engine::Specs ArchSpecs;

@@ -1,7 +1,13 @@
 set(TEST_SRC
-    test-accelerator.cpp)
+    test-main.cpp)
 
-add_executable(pytimeloop_cpptest ${TEST_SRC})
+set(TEST_HDR
+    test-accelerator.h
+    test-concurrent-queue.h
+    test-mapper.h
+    test-worker-pool.h)
+
+add_executable(pytimeloop_cpptest ${TEST_SRC} ${TEST_HDR})
 
 set_property(TARGET pytimeloop_cpptest PROPERTY CXX_STANDARD 17)
 

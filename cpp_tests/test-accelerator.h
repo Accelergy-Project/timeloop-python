@@ -1,5 +1,6 @@
-#define BOOST_TEST_MODULE Test Accelerator
-#include <boost/test/included/unit_test.hpp>
+#pragma once
+
+#include <boost/test/unit_test.hpp>
 
 // Timeloop
 #include <mapping/parser.hpp>
@@ -7,26 +8,8 @@
 #include <workload/workload.hpp>
 
 #include "pytimeloop/model/accelerator.h"
-#include "test-configs.h"
 
 using namespace boost::unit_test;
-
-struct TestConfig {
-  TestConfig() {
-    BOOST_TEST_REQUIRE(boost::unit_test::framework::master_test_suite().argc ==
-                       2);
-  }
-
-  void setup() {
-    config_gen = std::make_unique<TimeloopExerciseConfigGenerator>(
-        TimeloopExerciseConfigGenerator::CreateFromPath(
-            framework::master_test_suite().argv[1]));
-  }
-
-  static inline std::unique_ptr<TimeloopExerciseConfigGenerator> config_gen;
-};
-
-BOOST_TEST_GLOBAL_FIXTURE(TestConfig);
 
 // Two tests with different workloads cannot pass at the same time.
 // Issue with Timeloop's global workload setup.
@@ -67,9 +50,6 @@ BOOST_AUTO_TEST_CASE(test_accelerator_3level) {
   problem::Workload workload;
   problem::ParseWorkload(root_node.lookup("problem"), workload);
 
-  for (auto& [key, value] : workload.GetShape()->FactorizedDimensionIDToName) {
-    std::cout << value << " " << workload.GetFactorizedBound(key) << std::endl;
-  }
   auto mapping = mapping::ParseAndConstruct(root_node.lookup("mapping"),
                                             arch_specs, workload);
 
@@ -79,6 +59,6 @@ BOOST_AUTO_TEST_CASE(test_accelerator_3level) {
   Accelerator acc(arch_specs);
   auto result = acc.Evaluate(mapping, workload, sparse_opts);
 
-  BOOST_TEST_REQUIRE(result.cycles == 48);
+  BOOST_TEST_REQUIRE(result.cycles == 3072);
   BOOST_TEST_REQUIRE(result.utilization == 1.00);
 };
