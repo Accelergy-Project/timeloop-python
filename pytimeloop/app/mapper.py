@@ -75,7 +75,7 @@ class MapperApp:
         if 'search_size' in mapper_cfg:  # backwards compat.
             self.search_size = mapper_cfg['search_size']
         if self.search_size > 0:
-            self.search_size = 1 + (self.search_size - 1) / self.num_threads
+            self.search_size = 1 + (self.search_size - 1) // self.num_threads
 
         # Num. of consecutive invalid mappings to trigger termination
         self.timeout = 1000

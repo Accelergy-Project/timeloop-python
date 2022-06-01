@@ -62,9 +62,3 @@ if __name__ == '__main__':
     eval_stats, _ = app.run()
     logger.info(f'Evaluation status: {eval_stats.eval_status}')
     logger.info(f'Pre-evaluation status: {eval_stats.pre_eval_status}')
-
-    with open(out_stats_fname, 'w+') as f:
-        f.write(eval_stats.pretty_print_stats())
-
-    with open(out_mapping_fname, 'w+') as f:
-        f.write(eval_stats.pretty_print_mapping())
