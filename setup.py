@@ -50,16 +50,7 @@ class CMakeBuild(build_ext):
         ]
         build_args = []
 
-        if self.compiler.compiler_type != "msvc":
-            # Using Ninja-build since it a) is available as a wheel and b)
-            # multithreads automatically. MSVC would require all variables be
-            # exported for Ninja to pick it up, which is a little tricky to do.
-            # Users can override the generator with CMAKE_GENERATOR in CMake
-            # 3.15+.
-            if not cmake_generator:
-                cmake_args += ["-GNinja"]
-
-        else:
+        if self.compiler.compiler_type == "mscv":
 
             # Single config generators are handled "normally"
             single_config = any(
