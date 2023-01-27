@@ -103,7 +103,33 @@ void BindEvaluationResult(py::module& m) {
                     &EvaluationResult::algorithmic_computes)
       .def_readonly("actual_computes", &EvaluationResult::actual_computes)
       .def_readonly("last_level_accesses",
-                    &EvaluationResult::last_level_accesses);
+                    &EvaluationResult::last_level_accesses)
+      .def(py::pickle(
+        [](const EvaluationResult& e) {
+          return py::make_tuple(e.id,
+                                e.pre_eval_status,
+                                e.eval_status,
+                                e.utilization,
+                                e.energy,
+                                e.area,
+                                e.cycles,
+                                e.algorithmic_computes,
+                                e.actual_computes,
+                                e.last_level_accesses)
+        },
+        [](py::tuple t) {
+          return EvaluationResult{.id = t[0],
+                                  .pre_eval_status = t[1],
+                                  .eval_status = t[2],
+                                  .utilization = t[3],
+                                  .energy = t[4],
+                                  .area = t[5],
+                                  .cycles = t[6],
+                                  .algorithmic_computes = t[7],
+                                  .actual_computes = t[8],
+                                  .last_level_accesses = t[9]};
+        }
+      ));
 }
 
 void BindLevel(py::module& m) {

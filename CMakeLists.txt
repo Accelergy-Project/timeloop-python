@@ -15,9 +15,9 @@ else()
     find_library(LIBTIMELOOP timeloop-mapper REQUIRED)
 endif()
 
-add_library(define_gterminate SHARED bindings/gterminate.cpp)
+add_library(define_gterminate STATIC bindings/gterminate.cpp)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -g")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
@@ -42,9 +42,16 @@ target_include_directories(pytimeloop PRIVATE
     include
     ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
-target_link_libraries(pytimeloop PRIVATE ${LIBTIMELOOP})
+target_link_libraries(pytimeloop PRIVATE ${LIBTIMELOOP} define_gterminate)
 
 set(BINDINGS_SRC 
+    src/configurator/configurator.cpp
+    src/mapper/coupled-mapper.cpp
+    src/mapspace/status.cpp
+    src/model/accelerator.cpp
+    src/model/bounded-queue-accelerator-pool.cpp
+    src/model/unbounded-queue-accelerator-pool.cpp
+    src/model/util.cpp
     bindings/accelergy_interface.cpp
     bindings/bindings.cpp
     bindings/config.cpp
@@ -61,7 +68,7 @@ target_include_directories(bindings PRIVATE
     include
     ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
-target_link_libraries(bindings PRIVATE config++ yaml-cpp rt ${LIBTIMELOOP} define_gterminate pytimeloop)
+target_link_libraries(bindings PRIVATE config++ yaml-cpp rt ${LIBTIMELOOP} define_gterminate)
 
 # VERSION_INFO is defined by setup.py and passed into the C++ code as a
 # define (VERSION_INFO) here.

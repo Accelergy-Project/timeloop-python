@@ -1,65 +1,66 @@
-from bindings.mapping import ArchProperties
-from pytimeloop.config import Config
+from bindings.config import Configurator
 from pytimeloop.engine import Accelerator
-from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
-from pytimeloop.mapping import ArchConstraints, Mapping
-from pytimeloop.problem import Workload
 
 import logging
+import multiprocessing
 
 
 class ModelApp:
-    def __init__(self, cfg: Config, out_dir: str, auto_bypass_on_failure=False,
+    def __init__(self, yaml_str_cfg: str, out_dir: str,
+                 auto_bypass_on_failure=False,
                  out_prefix='', log_level=logging.INFO):
-        # Setup logger
         self.log_level = log_level
-        self.model_logger = logging.getLogger('pytimeloop.app.Model')
-        self.model_logger.setLevel(log_level)
+        self.yaml_str_cfg = yaml_str_cfg
 
-        # timeloop-model configurations
-        self.auto_bypass_on_failure = auto_bypass_on_failure
-        self.out_prefix = out_prefix
-        semi_qualified_prefix = 'timeloop-model'
-        self.out_prefix = out_dir + '/' + semi_qualified_prefix
+    def run_sandboxed(self):
+        def run_result_to_queue(self, q: multiprocessing.Queue):
+            result = self.run()
+            q.put(result)
+        q = multiprocessing.Queue()
+        p = multiprocessing.Process(target=run_result_to_queue,
+                                    args=(self, q))
+        p.start()
+        p.join()
+        return q.get()
 
-        # Architecture configuration
-        self.arch_specs = ArchSpecs(cfg['architecture'])
-        self.arch_specs.generate_tables(
-            cfg, semi_qualified_prefix, out_dir, self.out_prefix, log_level)
+    def run(self):
+        # Setup logger
+        model_logger = logging.getLogger('pytimeloop.app.Model')
+        model_logger.setLevel(self.log_level)
+
+        cfg = Configurator.from_yaml_str(self.yaml_str_cfg)
+
+        # # timeloop-model configurations
+        # self.auto_bypass_on_failure = auto_bypass_on_failure
+        # self.out_prefix = out_prefix
+        # semi_qualified_prefix = 'timeloop-model'
+        # self.out_prefix = out_dir + '/' + semi_qualified_prefix
+
+        arch_specs = cfg.get_arch_specs()
 
         # Problem configuration
-        self.workload = Workload(cfg['problem'])
-        self.model_logger.info('Problem configuration complete.')
+        workload = cfg.get_workload()
+        model_logger.info('Workload configuration complete.')
 
-        self.arch_props = ArchProperties(self.arch_specs)
-
-        # Architecture constraints
-        self.constraints = ArchConstraints(
-            self.arch_props, self.workload, cfg['architecture_constraints'])
-        self.model_logger.info('Architecture configuration complete.')
+        constraints = cfg.get_mapping_constraints()
+        model_logger.info('Architecture configuration complete.')
 
         # Mapping configuration
-        self.mapping = Mapping(cfg['mapping'], self.arch_specs, self.workload)
-        self.model_logger.info('Mapping construction complete.')
+        mapping = cfg.get_mapping()
+        model_logger.info('Mapping construction complete.')
 
         # Validate mapping against architecture constraints
-        if not self.constraints.satisfied_by(self.mapping):
-            self.model_logger.error(
+        if not constraints.satisfied_by(mapping):
+            model_logger.error(
                 'Mapping violates architecture constraints.')
             raise ValueError('Mapping violates architecture constraints.')
 
         # Sparse optimizations
-        if 'sparse_optimizations' in cfg:
-            sparse_opt_cfg = cfg['sparse_optimizations']
-        else:
-            sparse_opt_cfg = Config()
-        self.sparse_optimizations = SparseOptimizationInfo(
-            sparse_opt_cfg, self.arch_specs)
+        sparse_optimizations = cfg.get_sparse_opts()
 
-    def run(self):
-        engine = Accelerator(self.arch_specs)
+        engine = Accelerator(arch_specs)
 
-        eval_stat = engine.evaluate(self.mapping,
-                                    self.workload,
-                                    self.sparse_optimizations)
+        eval_stat = engine.evaluate(mapping,
+                                    workload,
+                                    sparse_optimizations)
         return eval_stat

@@ -1,7 +1,7 @@
 from pathlib import Path
 import glob
 
-from pytimeloop import Config
+from bindings.config import Config
 
 PROJECT_DIR = Path(__file__).parent.parent
 TIMELOOP_EXAMPLES_DIR  = (
@@ -9,17 +9,26 @@ TIMELOOP_EXAMPLES_DIR  = (
     / 'exercises/2020.ispass/timeloop')
 TEST_TMP_DIR = PROJECT_DIR / 'tests/tmp-files'
 
-def load_config_patterns(input_patterns):
+def gather_yaml_files(input_patterns):
     yaml_str = ''
     for pattern in input_patterns:
         for fname in glob.iglob(pattern):
             with open(fname, 'r') as f:
                 yaml_str += f.read()
             yaml_str += '\n'
-    return Config.load_yaml(yaml_str)
+    return yaml_str
+
+def load_config_patterns(input_patterns):
+    yaml_str = gather_yaml_files(input_patterns)
+    return Config(yaml_str, 'yaml')
 
 def load_configs(rel_config_dir, rel_paths):
     config_dir = TIMELOOP_EXAMPLES_DIR / rel_config_dir
     paths = map(lambda p: str(config_dir / p), rel_paths)
     config = load_config_patterns(paths)
     return config
+
+def gather_yaml_configs(rel_config_dir, rel_paths):
+    config_dir = TIMELOOP_EXAMPLES_DIR / rel_config_dir
+    paths = map(lambda p: str(config_dir / p), rel_paths)
+    return gather_yaml_files(paths)

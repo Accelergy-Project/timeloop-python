@@ -21,7 +21,6 @@ struct EvaluationResult {
   uint64_t actual_computes;
   uint64_t last_level_accesses;
 
- public:
   static EvaluationResult FailedEvaluation(
       const std::vector<model::EvalStatus>& pre_eval_status, uint64_t id = 0) {
     return EvaluationResult{.id = id,
