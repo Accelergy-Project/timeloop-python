@@ -15,6 +15,8 @@ else()
     find_library(LIBTIMELOOP timeloop-mapper REQUIRED)
 endif()
 
+find_package(Threads REQUIRED)
+
 add_library(define_gterminate STATIC bindings/gterminate.cpp)
 
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -g")

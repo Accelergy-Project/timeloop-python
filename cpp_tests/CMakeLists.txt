@@ -22,6 +22,7 @@ target_link_libraries(pytimeloop_cpptest PRIVATE
     yaml-cpp
     rt
     define_gterminate
-    pytimeloop)
+    pytimeloop
+    Threads::Threads)
 
 add_test(pytimeloop_cpptest pytimeloop_cpptest)
