@@ -1,5 +1,4 @@
 import bindings
-from .config import Config
 
 
 class Workload(bindings.problem.Workload):

@@ -1,6 +1,5 @@
 from typing import List
 from bindings.accelergy import native_invoke_accelergy
-from pytimeloop.config import Config
 
 import os
 import subprocess

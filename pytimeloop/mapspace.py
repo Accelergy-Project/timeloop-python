@@ -1,5 +1,4 @@
 import bindings
-from .config import Config
 from .model import ArchSpecs
 from .problem import Workload
 
@@ -10,7 +9,7 @@ import sys
 
 class MapSpace(bindings.mapspace.MapSpace):
     @staticmethod
-    def parse_and_construct(config: Config, arch_constraints: Config,
+    def parse_and_construct(config, arch_constraints,
                             arch_specs: ArchSpecs, workload: Workload,
                             filter_spatial_fanout: bool = True,
                             log_level=logging.INFO):

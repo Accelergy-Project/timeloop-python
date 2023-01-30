@@ -1,6 +1,5 @@
 import bindings
 from .accelergy_interface import invoke_accelergy
-from .config import Config
 
 import logging
 
@@ -9,7 +8,7 @@ class ArchSpecs(bindings.model.ArchSpecs):
     def __init__(self, config, is_sparse_topology: bool = False):
         super().__init__(config, is_sparse_topology)
 
-    def generate_tables(self, config: Config, semi_qualified_prefix, out_dir,
+    def generate_tables(self, config, semi_qualified_prefix, out_dir,
                         out_prefix, log_level=logging.INFO):
         # Setup logger
         logger = logging.getLogger(__name__ + '.' + __class__.__name__)
