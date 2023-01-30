@@ -115,19 +115,21 @@ void BindEvaluationResult(py::module& m) {
                                 e.cycles,
                                 e.algorithmic_computes,
                                 e.actual_computes,
-                                e.last_level_accesses)
+                                e.last_level_accesses);
         },
         [](py::tuple t) {
-          return EvaluationResult{.id = t[0],
-                                  .pre_eval_status = t[1],
-                                  .eval_status = t[2],
-                                  .utilization = t[3],
-                                  .energy = t[4],
-                                  .area = t[5],
-                                  .cycles = t[6],
-                                  .algorithmic_computes = t[7],
-                                  .actual_computes = t[8],
-                                  .last_level_accesses = t[9]};
+          return EvaluationResult{
+            .id = t[0].cast<uint64_t>(),
+            .pre_eval_status = t[1].cast<std::vector<model::EvalStatus>>(),
+            .eval_status =
+              t[2].cast<std::optional<std::vector<model::EvalStatus>>>(),
+            .utilization = t[3].cast<double>(),
+            .energy = t[4].cast<double>(),
+            .area = t[5].cast<double>(),
+            .cycles = t[6].cast<uint64_t>(),
+            .algorithmic_computes = t[7].cast<uint64_t>(),
+            .actual_computes = t[8].cast<uint64_t>(),
+            .last_level_accesses = t[9].cast<uint64_t>()};
         }
       ));
 }
