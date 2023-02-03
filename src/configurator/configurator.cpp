@@ -2,6 +2,7 @@
 
 #include "mapping/parser.hpp"
 #include "model/sparse-optimization-parser.hpp"
+#include "mapspaces/mapspace-factory.hpp"
 
 namespace pytimeloop::configurator {
 
@@ -100,6 +101,24 @@ void Configurator::ParseConfig() {
 
   mapping_ = std::make_unique<Mapping>(mapping::ParseAndConstruct(
       root_node.lookup("mapping"), *arch_specs_, *workload_));
+
+  config::CompoundConfigNode mapspace;
+  if (root_node.exists("mapspace")) {
+    mapspace = root_node.lookup("mapspace");
+  } else if (root_node.exists("mapspace_constraints")) {
+    mapspace = root_node.lookup("mapspace_constraints");
+  }
+
+  auto filter_spatial_fanout =
+    sparse_opts_->action_spatial_skipping_info.size() == 0;
+  mapspace_ =
+    std::unique_ptr<mapspace::MapSpace>(mapspace::ParseAndConstruct(
+      mapspace,
+      arch_constraints,
+      *arch_specs_,
+      *workload_,
+      filter_spatial_fanout
+    ));
 }
 
 };  // namespace pytimeloop::configurator

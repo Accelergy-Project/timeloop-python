@@ -3,6 +3,7 @@
 #include <compound-config/compound-config.hpp>
 #include <mapping/arch-properties.hpp>
 #include <mapping/constraints.hpp>
+#include <mapspaces/mapspace-base.hpp>
 #include <model/sparse-optimization-info.hpp>
 #include <optional>
 #include <string>
@@ -26,6 +27,7 @@ class Configurator {
   std::unique_ptr<model::Engine::Specs> arch_specs_;
   std::unique_ptr<Mapping> mapping_;
   std::unique_ptr<mapping::Constraints> mapping_constraints_;
+  std::unique_ptr<mapspace::MapSpace> mapspace_;
   std::unique_ptr<sparse::SparseOptimizationInfo> sparse_opts_;
   std::unique_ptr<problem::Workload> workload_;
 

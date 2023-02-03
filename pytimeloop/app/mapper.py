@@ -1,6 +1,5 @@
 from bindings.mapping import ArchProperties
 from bindings.mapper import CoupledMapper
-from pytimeloop.config import Config
 from pytimeloop.engine import Accelerator
 from pytimeloop.mapspace import MapSpace
 from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
