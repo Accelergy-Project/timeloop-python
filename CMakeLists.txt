@@ -19,7 +19,7 @@ find_package(Threads REQUIRED)
 
 add_library(define_gterminate STATIC bindings/gterminate.cpp)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -g")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
@@ -66,18 +66,12 @@ set(BINDINGS_SRC
 add_subdirectory(lib/pybind11)
 pybind11_add_module(bindings ${BINDINGS_SRC})
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)
-target_include_directories(bindings PRIVATE
+target_include_directories(bindings PUBLIC
     include
     ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
-target_link_libraries(bindings PRIVATE config++ yaml-cpp rt ${LIBTIMELOOP} define_gterminate)
+target_link_libraries(bindings PUBLIC config++ yaml-cpp rt ${LIBTIMELOOP} define_gterminate)
 
 # VERSION_INFO is defined by setup.py and passed into the C++ code as a
 # define (VERSION_INFO) here.
 target_compile_definitions(bindings PRIVATE VERSION_INFO=${VERSION_INFO})
-
-add_subdirectory(cpp_tests)
-
-if (${BUILD_BENCHMARK})
-    add_subdirectory(benchmark)
-endif()
