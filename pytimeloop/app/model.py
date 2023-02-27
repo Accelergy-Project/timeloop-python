@@ -1,14 +1,14 @@
 from bindings.config import Configurator
 from pytimeloop.engine import Accelerator
 
+import os
 import logging
 import multiprocessing
+import subprocess
 
 
 class ModelApp:
-    def __init__(self, yaml_str_cfg: str, out_dir: str,
-                 auto_bypass_on_failure=False,
-                 out_prefix='', log_level=logging.INFO):
+    def __init__(self, yaml_str_cfg: str, log_level=logging.INFO):
         self.log_level = log_level
         self.yaml_str_cfg = yaml_str_cfg
 
@@ -22,6 +22,19 @@ class ModelApp:
         p.start()
         p.join()
         return q.get()
+
+    def run_subprocess(self):
+        with open('tmp.yaml', 'w') as f:
+            f.write(self.yaml_str_cfg)
+        subprocess.run(['timeloop-model', 'tmp.yaml'])
+        os.remove('tmp.yaml')
+
+        path_to_stats = 'timeloop-model.stats.txt'
+        stats = ''
+        with open(path_to_stats, 'r') as f:
+            stats += f.read()
+        
+        return stats
 
     def run(self):
         # Setup logger
