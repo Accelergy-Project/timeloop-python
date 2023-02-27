@@ -57,6 +57,7 @@ Configurator::Configurator()
 void Configurator::ParseConfig() {
   auto root_node = config_->getRoot();
 
+  workload_ = std::make_unique<problem::Workload>();
   problem::ParseWorkload(root_node.lookup("problem"), *workload_);
 
   config::CompoundConfigNode arch;
