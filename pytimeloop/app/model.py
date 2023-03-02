@@ -27,6 +27,7 @@ class ModelApp:
 
     def run_subprocess(self):
         PATH_TO_STATS = 'timeloop-model.stats.txt'
+        PATH_TO_MAP = 'timeloop-model.map.txt'
         PATH_TO_TMP_INPUT = 'tmp.yaml'
 
         with open(PATH_TO_TMP_INPUT, 'w') as f:
@@ -34,15 +35,23 @@ class ModelApp:
         subprocess.run(['timeloop-model', PATH_TO_TMP_INPUT])
         os.remove(PATH_TO_TMP_INPUT)
 
+        stats = ''
         if os.path.isfile(PATH_TO_STATS):
-            stats = ''
             with open(PATH_TO_STATS, 'r') as f:
                 stats += f.read()
             os.remove(PATH_TO_STATS)
         else:
             logger.error('Could not find %s', PATH_TO_STATS)
+
+        mapping = ''
+        if os.path.isfile(PATH_TO_MAP):
+            with open(PATH_TO_MAP, 'r') as f:
+                mapping += f.read()
+            os.remove(PATH_TO_MAP)
+        else:
+            logger.error('Could not find %s', PATH_TO_MAP)
         
-        return stats
+        return stats, mapping
 
     def run(self):
         # Setup logger
