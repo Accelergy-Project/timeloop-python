@@ -12,15 +12,11 @@ class AccelergyInvocationResult:
                  ert_str: str,
                  stdout_msg: str,
                  stderr_msg: str,
-                 art_summary: str = '',
                  art_verbose: str = '',
-                 ert_summary: str = '',
                  ert_verbose: str = ''):
         self.art = art_str
-        self.art_summary = art_summary
         self.art_verbose = art_verbose
         self.ert = ert_str
-        self.ert_summary = ert_summary
         self.ert_verbose = ert_verbose
         self.stdout_msg = stdout_msg
         self.stderr_msg = stderr_msg
@@ -29,18 +25,17 @@ class AccelergyInvocationResult:
 def invoke_accelergy(input_files: List[str], out_prefix: str,
                      out_dir: str):
     result = subprocess.run(['accelergy', *input_files,
-                             '-f', 'ART', 'ERT',
                              '--oprefix', out_prefix + '.',
                              '-o', out_dir + '/',
                              '-v 1'],
                             capture_output=True)
 
     PATH_TO_ERT = os.path.join(out_dir, out_prefix + '.ERT.yaml')
-    PATH_TO_ERT_SUMMARY = os.path.join(out_dir, out_prefix + '.ERT.yaml')
-    PATH_TO_ERT_VERBOSE = os.path.join(out_dir, out_prefix + '.ERT.yaml')
+    PATH_TO_ERT_VERBOSE = os.path.join(out_dir,
+                                       out_prefix + '.ERT_summary_verbose.yaml')
     PATH_TO_ART = os.path.join(out_dir, out_prefix + '.ART.yaml')
-    PATH_TO_ART_SUMMARY = os.path.join(out_dir, out_prefix + '.ART.yaml')
-    PATH_TO_ART_VERBOSE = os.path.join(out_dir, out_prefix + '.ART.yaml')
+    PATH_TO_ART_VERBOSE = os.path.join(out_dir,
+                                       out_prefix + '.ART_summary_verbose.yaml')
 
     ert_str = ''
     if os.path.isfile(PATH_TO_ERT):
@@ -49,14 +44,6 @@ def invoke_accelergy(input_files: List[str], out_prefix: str,
         os.remove(PATH_TO_ERT)
     else:
         logger.error('Could not find ERT')
-
-    ert_summary = ''
-    if os.path.isfile(PATH_TO_ERT_SUMMARY):
-        with open(PATH_TO_ERT_SUMMARY, 'r') as f:
-            ert_summary = f.read()
-        os.remove(PATH_TO_ERT_SUMMARY)
-    else:
-        logger.warn('Could not find ERT_summary')
 
     ert_verbose = ''
     if os.path.isfile(PATH_TO_ERT_VERBOSE):
@@ -72,15 +59,7 @@ def invoke_accelergy(input_files: List[str], out_prefix: str,
             art_str = f.read()
         os.remove(PATH_TO_ART)
     else:
-        logger.error('Could not find art')
-
-    art_summary = ''
-    if os.path.isfile(PATH_TO_ART_SUMMARY):
-        with open(PATH_TO_ART_SUMMARY, 'r') as f:
-            art_summary = f.read()
-        os.remove(PATH_TO_ART_SUMMARY)
-    else:
-        logger.warn('Could not find art_summary')
+        logger.error('Could not find ART')
 
     art_verbose = ''
     if os.path.isfile(PATH_TO_ART_VERBOSE):
@@ -88,15 +67,13 @@ def invoke_accelergy(input_files: List[str], out_prefix: str,
             art_verbose = f.read()
         os.remove(PATH_TO_ART_VERBOSE)
     else:
-        logger.warn('Could not find art_verbose')
+        logger.warn('Could not find ART_verbose')
 
     return AccelergyInvocationResult(
         art_str,
         ert_str,
         result.stdout,
         result.stderr,
-        art_summary,
         art_verbose,
-        ert_summary,
         ert_verbose
     )
