@@ -3,6 +3,8 @@ import os
 import logging
 import subprocess
 
+logger = logging.getLogger(__name__)
+
 
 class Betterness(Enum):
     BETTER = 1
@@ -23,18 +25,33 @@ class MapperApp:
         self.yaml_str_cfg = yaml_str_cfg
 
     def run_subprocess(self):
-        with open('tmp.yaml', 'w') as f:
-            f.write(self.yaml_str_cfg)
-        
-        subprocess.run(['timeloop-mapper', 'tmp.yaml'])
-        os.remove('tmp.yaml')
-
         PATH_TO_STATS = 'timeloop-mapper.stats.txt'
+        PATH_TO_MAPPING = 'timeloop-mapper.map.txt'
+        PATH_TO_TMP_INPUT = 'tmp.yaml'
+
+        with open(PATH_TO_TMP_INPUT, 'w') as f:
+            f.write(self.yaml_str_cfg)
+
+        subprocess.run(['timeloop-mapper', PATH_TO_TMP_INPUT])
+        os.remove(PATH_TO_TMP_INPUT)
+
         stats = ''
-        with open(PATH_TO_STATS, 'r') as f:
-            stats += f.read()
-        
-        return stats
+        if os.path.isfile(PATH_TO_STATS):
+            with open(PATH_TO_STATS, 'r') as f:
+                stats += f.read()
+            os.remove(PATH_TO_STATS)
+        else:
+            logger.error('Could not find %s', PATH_TO_STATS)
+
+        mapping = ''
+        if os.path.isfile(PATH_TO_MAPPING):
+            with open(PATH_TO_MAPPING, 'r') as f:
+                mapping += f.read()
+            os.remove(PATH_TO_MAPPING)
+        else:
+            logger.error('Could not find %s', PATH_TO_MAPPING)
+
+        return stats, mapping
 
     def run(self):
         raise NotImplementedError('Disabled for now')

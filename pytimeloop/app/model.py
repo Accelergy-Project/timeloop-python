@@ -6,6 +6,8 @@ import logging
 import multiprocessing
 import subprocess
 
+logger = logging.getLogger(__name__)
+
 
 class ModelApp:
     def __init__(self, yaml_str_cfg: str, log_level=logging.INFO):
@@ -24,15 +26,21 @@ class ModelApp:
         return q.get()
 
     def run_subprocess(self):
-        with open('tmp.yaml', 'w') as f:
-            f.write(self.yaml_str_cfg)
-        subprocess.run(['timeloop-model', 'tmp.yaml'])
-        os.remove('tmp.yaml')
+        PATH_TO_STATS = 'timeloop-model.stats.txt'
+        PATH_TO_TMP_INPUT = 'tmp.yaml'
 
-        path_to_stats = 'timeloop-model.stats.txt'
-        stats = ''
-        with open(path_to_stats, 'r') as f:
-            stats += f.read()
+        with open(PATH_TO_TMP_INPUT, 'w') as f:
+            f.write(self.yaml_str_cfg)
+        subprocess.run(['timeloop-model', PATH_TO_TMP_INPUT])
+        os.remove(PATH_TO_TMP_INPUT)
+
+        if os.path.isfile(PATH_TO_STATS):
+            stats = ''
+            with open(PATH_TO_STATS, 'r') as f:
+                stats += f.read()
+            os.remove(PATH_TO_STATS)
+        else:
+            logger.error('Could not find %s', PATH_TO_STATS)
         
         return stats
 
