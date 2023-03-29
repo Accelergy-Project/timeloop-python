@@ -57,6 +57,7 @@ set(BINDINGS_SRC
     bindings/accelergy_interface.cpp
     bindings/bindings.cpp
     bindings/config.cpp
+    bindings/ir.cpp
     bindings/mapper.cpp
     bindings/mapping.cpp
     bindings/mapspace.cpp

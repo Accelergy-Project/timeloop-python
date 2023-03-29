@@ -3,6 +3,7 @@
 
 #include "pytimeloop/bindings/accelergy-interface.h"
 #include "pytimeloop/bindings/config.h"
+#include "pytimeloop/bindings/ir.h"
 #include "pytimeloop/bindings/mapper.h"
 #include "pytimeloop/bindings/mapping.h"
 #include "pytimeloop/bindings/mapspace.h"
@@ -47,6 +48,9 @@ PYBIND11_MODULE(bindings, m) {
 
   auto search_submodule = m.def_submodule("search");
   search_bindings::BindSearchClasses(search_submodule);
+
+  auto ir_submodule = m.def_submodule("ir");
+  ir_bindings::BindWorkloadIR(ir_submodule);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

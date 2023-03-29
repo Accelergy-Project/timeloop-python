@@ -91,3 +91,39 @@ class TestEinsumParse(unittest.TestCase):
                 Stride: 3
                 Dilation: 2
         """)
+
+    def test_conv1d_with_dspace_size(self):
+        e = Einsum.from_yaml("""
+            problem:
+              shape:
+                name: Conv1D_OC
+                dimensions: [ K, R, P ]
+                data-spaces:
+                - name: Weights
+                  size: [ 32, 3 ]
+                  projection:
+                  - [ [K] ]
+                  - [ [R] ]
+                - name: Inputs
+                  size: [ 16 ]
+                  projection:
+                  - [ [Dilation, R], [Stride, P] ]
+                - name: Outputs
+                  size: [ 16 ]
+                  projection:
+                  - [ [K] ]
+                  - [ [P] ]
+                read-write: True
+                coefficients:
+                - default: 1
+                  name: Stride
+                - default: 1
+                  name: Dilation
+
+              instance:
+                K: 32
+                R: 3
+                P: 16
+                Stride: 3
+                Dilation: 2
+        """)
