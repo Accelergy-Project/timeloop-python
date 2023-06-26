@@ -76,6 +76,9 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         truth: dict = self.yaml.safe_load(file)
                         # Load the truth into Config.
                         compound_config: Config = Config(file.read(), "yaml")
+                    
+                    # Pulls the Node (dict structure analog) from Config.
+                    node: ConfigNode = compound_config.getRoot()
 
 
 if __name__ == "__main__":
