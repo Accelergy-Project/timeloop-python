@@ -41,40 +41,53 @@ void BindConfigClasses(py::module& m) {
   using CompoundConfigNode = config::CompoundConfigNode;
   py::class_<CompoundConfigNode>(m, "ConfigNode")
       /// @brief Accession. Is used to traverse CCNs like a list or dict.
-      .def("__getitem__", [](CompoundConfigNode& self, const std::string& key) ->
-      CompoundConfigLookupReturn {
-        // Extracts value node from self.
-        const CompoundConfigNode& value = self.lookup(key);
-        // Extracts the YNode inside it.
-        const YAML::Node& YNode = value.getYNode();
-
-        // If the value node is not a Scalar, return itself.
-        switch (YNode.Type())
+      .def("__getitem__", [](CompoundConfigNode& self, 
+                             const std::variant<int, std::string> keyIn) ->
+                             CompoundConfigLookupReturn 
+      {
+        // Execution path if the key is a string (CCN is a Map).
+        if (std::holds_alternative<std::string>(keyIn))
         {
-          // If you're a Null node, you're the equivalent of a None.
-          case YAML::NodeType::Null:
-            return std::nullopt;
-            break;
-          // Attempts to resolve the scalar to one of Python's types.
-          case YAML::NodeType::Scalar:
-            // Attempts to resolve the scalar as a bool.
-            try { return YNode.as<bool>(); }
-            catch(const YAML::TypedBadConversion<bool>& e) {}
-            // Attempts to resolve the scalar as a double.
-            try { return YNode.as<double>();}
-            catch(const YAML::TypedBadConversion<double>& e) {}
-            // Attempts to resolve the scalar as a long long.
-            try { return YNode.as<long long>(); } 
-            catch(const YAML::TypedBadConversion<long long>& e) {}
-            // Attempts to resolve the scalar as a string.
-            try { return YNode.as<std::string>(); }
-            catch(const YAML::TypedBadConversion<std::string>& e) {}
-            // Error if we cannot resolve as any of the types above.
-            throw std::runtime_error("Could not resolve this node to a scalar.");
-            break;
-          default:
-            return value;
+          // Collapses value to string.
+          std::string key = std::get<std::string>(keyIn);
+          // Extracts value node from self.
+          const CompoundConfigNode& value = self.lookup(key);
+          // Extracts the YNode inside it.
+          const YAML::Node& YNode = value.getYNode();
+
+          // If the value node is not a Scalar, return itself.
+          switch (YNode.Type())
+          {
+            // If you're a Null node, you're the equivalent of a None.
+            case YAML::NodeType::Null:
+              return std::nullopt;
+              break;
+            // Attempts to resolve the scalar to one of Python's types.
+            case YAML::NodeType::Scalar:
+              // Attempts to resolve the scalar as a bool.
+              try { return YNode.as<bool>(); }
+              catch(const YAML::TypedBadConversion<bool>& e) {}
+              // Attempts to resolve the scalar as a double.
+              try { return YNode.as<double>();}
+              catch(const YAML::TypedBadConversion<double>& e) {}
+              // Attempts to resolve the scalar as a long long.
+              try { return YNode.as<long long>(); } 
+              catch(const YAML::TypedBadConversion<long long>& e) {}
+              // Attempts to resolve the scalar as a string.
+              try { return YNode.as<std::string>(); }
+              catch(const YAML::TypedBadConversion<std::string>& e) {}
+              // Error if we cannot resolve as any of the types above.
+              throw std::runtime_error("Could not resolve this node to a scalar.");
+              break;
+            default:
+              return value;
+          }
+        // Execution path if CCN is a int (CCN is a list)
+        } else
+        {
+          return self[std::get<int>(keyIn)];
         }
+
       })
       .def("resolve", &CompoundConfigNode::resolve);
 } 
