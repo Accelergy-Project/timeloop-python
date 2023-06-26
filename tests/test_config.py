@@ -97,15 +97,18 @@ class CompoundConfigNodeTest(unittest.TestCase):
                             truth_keys = truth.keys()
 
                         # Goes through all the keys in truth.
+                        key: typing.Union[int, str]
                         for key in truth_keys:
+                            # Ensures that node's keys are strings.
+                            node_key: str = str(key)
 
                             # If value is a scalar, compare.
                             if isinstance(truth[key], (bool, float, int, str)):
                                 print("test")
-                                self.assertEqual(truth[key], node[key])
+                                self.assertEqual(truth[key], node[node_key])
                             # Otherwise, it is a node, so recurse.
                             else:
-                                check_node(truth[key], node[key])
+                                check_node(truth[key], node[node_key])
                     
                     check_node(truth, node)
                     
