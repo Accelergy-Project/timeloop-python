@@ -28,38 +28,17 @@ void BindConfigClasses(py::module& m) {
            &Configurator::GetWorkload,
            py::return_value_policy::reference_internal);
 
-#ifdef NEW_CONFIG_INTERFACE
   using CompoundConfig = config::CompoundConfig;
   py::class_<CompoundConfig>(m, "Config")
-      .def(py::init([]() { return CompoundConfig(); }))
-      .def_static("from_yaml_str", [](const std::string& yaml_str) {
-        return CompoundConfig(yaml_str, "yaml");
-      })
-      .def("new_dict", &CompoundConfig::NewDict,
-           py::return_value_policy::reference_internal)
-      .def("new_list", &CompoundConfig::NewList,
-           py::return_value_policy::reference_internal)
-      .def("new_primitive", &CompoundConfig::NewPrimitive<std::string>,
-           py::return_value_policy::reference_internal)
-      .def("new_primitive", &CompoundConfig::NewPrimitive<int>,
-           py::return_value_policy::reference_internal)
-      .def("new_primitive", &CompoundConfig::NewPrimitive<double>,
-           py::return_value_policy::reference_internal)
-      .def("new_primitive", &CompoundConfig::NewPrimitive<bool>,
-           py::return_value_policy::reference_internal)
-      .def("insert", &CompoundConfig::Insert)
-      .def("append", &CompoundConfig::Append)
-      .def("lookup", &CompoundConfig::Lookup)
-      .def("lookup", &CompoundConfig::Lookup<std::string>)
-      .def("lookup", &CompoundConfig::Lookup<int>)
-      .def("lookup", &CompoundConfig::Lookup<double>)
-      .def("lookup", &CompoundConfig::Lookup<bool>)
-      .def("exists", &CompoundConfig::Exists)
-      .def("size", &CompoundConfig::Size);
-
+      .def(py::init<std::string &, std::string &>());
+  
+  /// @brief Creates an equivalent CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
-  py::class_<CompoundConfigNode>(m, "ConfigNode");
-#endif
-}
+  py::class_<CompoundConfigNode>(m, "ConfigNode")
+      .def_static("__item__", [](CompoundConfigNode & self, const std::string& key) {
+        return self.lookup(key.c_str());
+      })
+      .def("resolve", &CompoundConfigNode::resolve);
+} 
 
 }  // namespace pytimeloop::config_bindings

@@ -7,9 +7,10 @@ from pathlib import Path
 import unittest
 import typing
 
-# import bindings
+import bindings
 # from bindings.config import Configurator
-# from bindings.config import ConfigNode
+from bindings.config import Config
+from bindings.config import ConfigNode
 
 # from .util import TEST_TMP_DIR, gather_yaml_configs
 
@@ -47,14 +48,14 @@ class CompoundConfigNodeTest(unittest.TestCase):
     )
 
     def test_accession(self) -> None:
-        """Tests getting from CompoundConfigNode when loaded by CompoundConfig.
+        '''Tests getting from CompoundConfigNode when loaded by CompoundConfig.
 
         Returns test results only through print statements generated through the
         unittest module's assert functions.
 
         @param self The unit test instance, so it can access test specific vars
                     like file locations.
-        """
+        '''
 
         root: str
         directory: list[str]
@@ -73,9 +74,8 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     with open(filename, "r") as file:
                         # Load the truth we're using for comparison.
                         truth: dict = self.yaml.safe_load(file)
-                        # Close the stream.
-                        print(filename, truth)
-                        file.close()
+                        # Load the truth into Config.
+                        compound_config: Config = Config(file.read(), "yaml")
 
 
 if __name__ == "__main__":
