@@ -58,7 +58,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
         '''
 
         root: str
-        directory: list[str]
+        _: list[str]
         file: list[str]
         # Goes through all the files in the testing directory.
         for root, _, files in self.os.walk(self.root, topdown=False):
@@ -72,13 +72,45 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     
                     # Open the file.
                     with open(filename, "r") as file:
+                        # Reads the data as a string.
+                        data:str = file.read()
                         # Load the truth we're using for comparison.
-                        truth: dict = self.yaml.safe_load(file)
+                        truth: dict = self.yaml.safe_load(data)
                         # Load the truth into Config.
-                        compound_config: Config = Config(file.read(), "yaml")
+                        compound_config: Config = Config(data, "yaml")
                     
                     # Pulls the Node (dict structure analog) from Config.
                     node: ConfigNode = compound_config.getRoot()
+
+                    def check_node(truth: typing.Union[list, dict], node: ConfigNode):
+                        """
+                        Checks that a node is equal to its equivalent truth.
+                        """
+
+                        # Defines different behavior is truth is a dict vs list.
+                        truth_keys: list = None
+                        # List truth.
+                        if isinstance(truth, (list, tuple)):
+                            truth_keys = range(len(truth))
+                        # Dict truth.
+                        else:
+                            truth_keys = truth.keys()
+
+                        # Goes through all the keys in truth.
+                        for key in truth_keys:
+
+                            # If value is a scalar, compare.
+                            if isinstance(truth[key], (bool, float, int, str)):
+                                print("test")
+                                self.assertEqual(truth[key], node[key])
+                            # Otherwise, it is a node, so recurse.
+                            else:
+                                check_node(truth[key], node[key])
+                    
+                    check_node(truth, node)
+                    
+
+
 
 
 if __name__ == "__main__":

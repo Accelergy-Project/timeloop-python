@@ -40,8 +40,8 @@ void BindConfigClasses(py::module& m) {
   using CompoundConfigNode = config::CompoundConfigNode;
   py::class_<CompoundConfigNode>(m, "ConfigNode")
       /// @brief Accession. Is used to traverse CCNs like a list or dict.
-      .def_static("__item__", [](CompoundConfigNode & self, const std::string& key) {
-        return self.lookup(key.c_str());
+      .def("__getitem__", [](CompoundConfigNode& self, const std::string& key) {
+        return self.lookup(key);
       })
       .def("resolve", &CompoundConfigNode::resolve);
 } 
