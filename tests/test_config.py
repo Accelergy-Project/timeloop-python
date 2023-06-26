@@ -56,7 +56,6 @@ class CompoundConfigNodeTest(unittest.TestCase):
         @param self The unit test instance, so it can access test specific vars
                     like file locations.
         '''
-
         root: str
         _: list[str]
         file: list[str]
@@ -101,6 +100,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         for key in truth_keys:
                             # If value is a scalar, compare.
                             if isinstance(truth[key], (bool, float, int, str, type(None))):
+                                print(node[key])
                                 self.assertEqual(truth[key], node[key])
                             # Otherwise, it is a node, so recurse.
                             else:
