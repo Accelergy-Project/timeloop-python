@@ -28,13 +28,18 @@ void BindConfigClasses(py::module& m) {
            &Configurator::GetWorkload,
            py::return_value_policy::reference_internal);
 
+  /// @brief Creates an equivalent CompoundConfig class in Python.
   using CompoundConfig = config::CompoundConfig;
   py::class_<CompoundConfig>(m, "Config")
-      .def(py::init<std::string &, std::string &>());
+      /// @brief Initializer. Uses the CompoundConfig string + type constructor.
+      .def(py::init<std::string &, std::string &>())
+      /// @brief Fetches the root CompoundConfigNode.
+      .def("getRoot", &CompoundConfig::getRoot);
   
   /// @brief Creates an equivalent CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
   py::class_<CompoundConfigNode>(m, "ConfigNode")
+      /// @brief Accession. Is used to traverse CCNs like a list or dict.
       .def_static("__item__", [](CompoundConfigNode & self, const std::string& key) {
         return self.lookup(key.c_str());
       })
