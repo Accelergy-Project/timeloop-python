@@ -125,9 +125,16 @@ class CompoundConfigNodeTest(unittest.TestCase):
         Returns test results only through print statements generated through the
         unittest module's assert functions.
 
-        @self The unit test instance this test belongs to.
+        @param self The unit test instance this test belongs to.
         '''
-        pass
+        # Reference truth value.
+        truth: dict = {}
+        # Root CCN we're working with.
+        root: ConfigNode = ConfigNode()
+
+        # Runs this amount of fuzz tests.
+        for _ in range(self.tests):
+            pass
         
 
 
