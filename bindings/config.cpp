@@ -112,7 +112,9 @@ void BindConfigClasses(py::module& m) {
         const CompoundConfigNode& loc = 
           std::holds_alternative<std::string>(keyIn) ?
             self.lookup(std::get<std::string>(keyIn)):
-            self[std::get<int>(keyIn)];
+            self.isList() || self.isArray()?
+              self[std::get<int>(keyIn)]:
+              self.lookup(std::to_string(std::get<int>(keyIn)));
 
         
       })
