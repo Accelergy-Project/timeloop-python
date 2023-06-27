@@ -77,7 +77,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         truth: dict = self.yaml.safe_load(data)
                         # Load the truth into Config.
                         compound_config: Config = Config(data, "yaml")
-                    
+
                     # Pulls the Node (dict structure analog) from Config.
                     node: ConfigNode = compound_config.getRoot()
 
@@ -100,7 +100,6 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         for key in truth_keys:
                             # If value is a scalar, compare.
                             if isinstance(truth[key], (bool, float, int, str, type(None))):
-                                print(node[key])
                                 self.assertEqual(truth[key], node[key])
                             # Otherwise, it is a node, so recurse.
                             else:
