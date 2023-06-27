@@ -105,6 +105,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                             else:
                                 check_node(truth[key], node[key])
                     
+                    # Starts recursive test.
                     check_node(truth, node)
                     
 
