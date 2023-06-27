@@ -100,10 +100,15 @@ void BindConfigClasses(py::module& m) {
                              const std::variant<int, std::string>& keyIn,
                              CompoundConfigLookupReturn input)
       {
-        // Instantiates the key if it does not exist.
-        if (std::holds_alternative<std::string>(keyIn))
+        // Instantiates the key if it does not exist and is currently a Map or Null
+        if (std::holds_alternative<std::string>(keyIn) || 
+            self.isMap() || self.getYNode().IsNull())
         {
-          self.instantiateKey(std::get<std::string>(keyIn));
+          self.instantiateKey(
+            std::holds_alternative<std::string>(keyIn) ?
+              std::get<std::string>(keyIn):
+              std::to_string(std::get<int>(keyIn))
+          );
         /* Does nothing if it is not a key because then we expect the index to
          * already be there */
         }
@@ -112,7 +117,7 @@ void BindConfigClasses(py::module& m) {
         const CompoundConfigNode& loc = 
           std::holds_alternative<std::string>(keyIn) ?
             self.lookup(std::get<std::string>(keyIn)):
-            self.isList() || self.isArray()?
+            (self.isList() || self.isArray()) ?
               self[std::get<int>(keyIn)]:
               self.lookup(std::to_string(std::get<int>(keyIn)));
 

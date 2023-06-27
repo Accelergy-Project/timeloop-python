@@ -97,6 +97,8 @@ class CompoundConfigNodeTest(unittest.TestCase):
         @param self The unit test instance, so it can access test specific vars
                     like file locations.
         '''
+        print("Testing Accessions:\n-----------")
+
         root: str
         _: list[str]
         file: list[str]
@@ -132,6 +134,8 @@ class CompoundConfigNodeTest(unittest.TestCase):
 
         @param self The unit test instance this test belongs to.
         '''
+        print("\n\n\nTesting Setters (Fuzz):\n-----------")
+
         # Reference truth value.
         truth: dict = {}
         # Root CCN we're working with.
