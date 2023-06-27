@@ -121,10 +121,10 @@ void BindConfigClasses(py::module& m) {
               self.lookup(std::to_string(std::get<int>(keyIn)));
       })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
-      .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
-      {
-        self.push_back(val);
-      })
+      // .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
+      // {
+      //   self.push_back(val);
+      // })
 
       /// @brief Converts the Node to a string.
       .def("__str__", [](CompoundConfigNode& self) {
