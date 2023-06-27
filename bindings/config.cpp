@@ -41,7 +41,7 @@ void BindConfigClasses(py::module& m) {
   using CompoundConfigNode = config::CompoundConfigNode;
   py::class_<CompoundConfigNode>(m, "ConfigNode")
       /** @brief The default constructor. The only way you should get one with
-       * values is through Config s*/
+       * values is through Config */
       .def(py::init<>())
       /// @brief Accession. Is used to traverse CCNs like a list or dict.
       .def("__getitem__", [](CompoundConfigNode& self, 
@@ -94,6 +94,27 @@ void BindConfigClasses(py::module& m) {
           default:
             return value;
         }
+      })
+      /// @brief Setting. Is used to traverse CCNs like a list or dict.
+      .def("__setitem__", [](CompoundConfigNode& self,
+                             const std::variant<int, std::string>& keyIn,
+                             CompoundConfigLookupReturn input)
+      {
+        // Instantiates the key if it does not exist.
+        if (std::holds_alternative<std::string>(keyIn))
+        {
+          self.instantiateKey(std::get<std::string>(keyIn));
+        /* Does nothing if it is not a key because then we expect the index to
+         * already be there */
+        }
+
+        // Current location resolution based in input type of key.
+        const CompoundConfigNode& loc = 
+          std::holds_alternative<std::string>(keyIn) ?
+            self.lookup(std::get<std::string>(keyIn)):
+            self[std::get<int>(keyIn)];
+
+        
       })
 
       /// @brief Converts the Node to a string.
