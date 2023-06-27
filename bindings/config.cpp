@@ -49,14 +49,16 @@ void BindConfigClasses(py::module& m) {
                              CompoundConfigLookupReturn 
       {
 
-        // Value resolution based in input type of key.
-        const CompoundConfigNode& value = 
-          std::holds_alternative<std::string>(keyIn) ?
-            self.lookup(std::get<std::string>(keyIn)):
-            self[std::get<int>(keyIn)];
+        // Current location resolution based in input type of key and current input.
+        const CompoundConfigNode& loc =
+          (self.isList() || self.isArray()) ?
+            self[std::get<int>(keyIn)]:
+            std::holds_alternative<std::string>(keyIn) ?
+              self.lookup(std::get<std::string>(keyIn)):
+              self.lookup(std::to_string(std::get<int>(keyIn)));
 
         // Extracts the YNode inside it.
-        const YAML::Node& YNode = value.getYNode();
+        const YAML::Node& YNode = loc.getYNode();
 
         // If the value node is not a Scalar, return itself.
         switch (YNode.Type())
@@ -92,7 +94,7 @@ void BindConfigClasses(py::module& m) {
             throw std::runtime_error("Could not resolve this node to a scalar.");
             break;
           default:
-            return value;
+            return loc;
         }
       })
       /// @brief Setting. Is used to traverse CCNs like a list or dict.
