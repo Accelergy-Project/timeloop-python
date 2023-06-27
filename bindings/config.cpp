@@ -100,7 +100,7 @@ void BindConfigClasses(py::module& m) {
       /// @brief Setting. Is used to traverse CCNs like a list or dict.
       .def("__setitem__", [](CompoundConfigNode& self,
                              const std::variant<int, std::string>& keyIn,
-                             CompoundConfigLookupReturn input)
+                             CompoundConfigLookupReturn val)
       {
         // Instantiates the key if it does not exist and is currently a Map or Null
         if (self.isMap() || self.getYNode().IsNull())
@@ -121,6 +121,30 @@ void BindConfigClasses(py::module& m) {
             std::holds_alternative<std::string>(keyIn) ?
               self.lookup(std::get<std::string>(keyIn)):
               self.lookup(std::to_string(std::get<int>(keyIn)));
+
+        // Extracts the YNode.
+        YAML::Node YNode = loc.getYNode();
+
+        // If val is Null, set nothing.
+        if (val)
+        {
+          // Otherwise, unpack the value and assign.
+          if (std::holds_alternative<std::string>(*val))
+          {
+            YNode = std::get<std::string>(*val);
+          } else if (std::holds_alternative<double>(*val))
+          {
+            YNode = std::get<double>(*val);
+          } else if (std::holds_alternative<long long>(*val))
+          {
+            YNode = std::get<long long>(*val);
+          } else if (std::holds_alternative<bool>(*val))
+          {
+            YNode = std::get<bool>(*val);
+          } else {
+            throw std::runtime_error("Tried to set YAML to an invalid type.");
+          }
+        }
       })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
       // .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
