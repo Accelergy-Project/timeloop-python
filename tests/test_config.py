@@ -29,6 +29,8 @@ from bindings.config import ConfigNode
 #         self.mapping = configurator.get_mapping()
 #         self.sparse_opts = configurator.get_sparse_opts()
 
+## @var The testing seed.
+seed: int = 42
 
 class CompoundConfigNodeTest(unittest.TestCase):
     '''Tests the CompoundConfigNode class's reads and writes.
@@ -39,6 +41,15 @@ class CompoundConfigNodeTest(unittest.TestCase):
 
     ## @var The general file location of the tests we're going to run.
     import os
+
+    ## @var The entropy library we're using.
+    import random
+
+    ## @var The seeded RNG we're using.
+    rng: random.Random = random.Random(seed)
+
+    ## @var The number of cycles we expect fuzz tests to perform.
+    tests: int = 1000
 
     ## @var The location of all our YAML files.
     root: str = (
@@ -108,6 +119,17 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     # Starts recursive test.
                     check_node(truth, node)
                     
+    def test_setting_fuzz(self) -> None:
+        '''Tests setting to CompoundConfigNode when provided a random input.
+
+        Returns test results only through print statements generated through the
+        unittest module's assert functions.
+
+        @self The unit test instance this test belongs to.
+        '''
+        pass
+        
+
 
 
 
