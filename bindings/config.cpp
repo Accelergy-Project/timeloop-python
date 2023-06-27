@@ -45,20 +45,73 @@ void BindConfigClasses(py::module& m) {
       .def(py::init<>())
       /// @brief Accession. Is used to traverse CCNs like a list or dict.
       .def("__getitem__", [](CompoundConfigNode& self, 
-                             const std::variant<int, std::string>& keyIn) ->
-                             CompoundConfigLookupReturn 
+                             const std::variant<int, std::string>& keyIn)
       {
 
         // Current location resolution based in input type of key and current input.
-        const CompoundConfigNode& loc =
+        return (self.isList() || self.isArray()) ?
+            self[std::get<int>(keyIn)]:
+            std::holds_alternative<std::string>(keyIn) ?
+              self.lookup(std::get<std::string>(keyIn)):
+              self.lookup(std::to_string(std::get<int>(keyIn)));
+      })
+      /// @brief Setting. Is used to traverse CCNs like a list or dict.
+      .def("__setitem__", [](CompoundConfigNode& self,
+                             const std::variant<int, std::string>& keyIn,
+                             CompoundConfigLookupReturn val)
+      {
+        // Instantiates the key if it does not exist and is currently a Map or Null
+        if (self.isMap() || self.getYNode().IsNull())
+        {
+          self.instantiateKey(
+            std::holds_alternative<std::string>(keyIn) ?
+              std::get<std::string>(keyIn):
+              std::to_string(std::get<int>(keyIn))
+          );
+        /* Does nothing if it is not a key because then we expect the index to
+         * already be there */
+        }
+
+        // Current location resolution based in input type of key and current input.
+        CompoundConfigNode loc =
           (self.isList() || self.isArray()) ?
             self[std::get<int>(keyIn)]:
             std::holds_alternative<std::string>(keyIn) ?
               self.lookup(std::get<std::string>(keyIn)):
               self.lookup(std::to_string(std::get<int>(keyIn)));
 
+        // If val is Null, set nothing.
+        if (val)
+        {
+          // Otherwise, unpack the value and assign.
+          if (std::holds_alternative<std::string>(*val))
+          {
+            loc.setScalar(std::get<std::string>(*val));
+          } else if (std::holds_alternative<double>(*val))
+          {
+            loc.setScalar(std::get<double>(*val));
+          } else if (std::holds_alternative<long long>(*val))
+          {
+            loc.setScalar(std::get<long long>(*val));
+          } else if (std::holds_alternative<bool>(*val))
+          {
+            loc.setScalar(std::get<bool>(*val));
+          } else {
+            throw std::runtime_error("Tried to set YAML to an invalid type.");
+          }
+        }
+      })
+      /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
+      // .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
+      // {
+      //   self.push_back(val);
+      // })
+
+      /// @brief resolves a Node to a Scalar if possible.
+      .def("resolve", [](CompoundConfigNode& self) -> CompoundConfigLookupReturn 
+      {
         // Extracts the YNode inside it.
-        const YAML::Node& YNode = loc.getYNode();
+        const YAML::Node& YNode = self.getYNode();
 
         // If the value node is not a Scalar, return itself.
         switch (YNode.Type())
@@ -94,63 +147,9 @@ void BindConfigClasses(py::module& m) {
             throw std::runtime_error("Could not resolve this node to a scalar.");
             break;
           default:
-            return loc;
+            return self;
         }
       })
-      /// @brief Setting. Is used to traverse CCNs like a list or dict.
-      .def("__setitem__", [](CompoundConfigNode& self,
-                             const std::variant<int, std::string>& keyIn,
-                             CompoundConfigLookupReturn val)
-      {
-        // Instantiates the key if it does not exist and is currently a Map or Null
-        if (self.isMap() || self.getYNode().IsNull())
-        {
-          self.instantiateKey(
-            std::holds_alternative<std::string>(keyIn) ?
-              std::get<std::string>(keyIn):
-              std::to_string(std::get<int>(keyIn))
-          );
-        /* Does nothing if it is not a key because then we expect the index to
-         * already be there */
-        }
-
-        // Current location resolution based in input type of key and current input.
-        const CompoundConfigNode& loc =
-          (self.isList() || self.isArray()) ?
-            self[std::get<int>(keyIn)]:
-            std::holds_alternative<std::string>(keyIn) ?
-              self.lookup(std::get<std::string>(keyIn)):
-              self.lookup(std::to_string(std::get<int>(keyIn)));
-
-        // Extracts the YNode.
-        YAML::Node YNode = loc.getYNode();
-
-        // If val is Null, set nothing.
-        if (val)
-        {
-          // Otherwise, unpack the value and assign.
-          if (std::holds_alternative<std::string>(*val))
-          {
-            YNode = std::get<std::string>(*val);
-          } else if (std::holds_alternative<double>(*val))
-          {
-            YNode = std::get<double>(*val);
-          } else if (std::holds_alternative<long long>(*val))
-          {
-            YNode = std::get<long long>(*val);
-          } else if (std::holds_alternative<bool>(*val))
-          {
-            YNode = std::get<bool>(*val);
-          } else {
-            throw std::runtime_error("Tried to set YAML to an invalid type.");
-          }
-        }
-      })
-      /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
-      // .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
-      // {
-      //   self.push_back(val);
-      // })
 
       /// @brief Converts the Node to a string.
       .def("__str__", [](CompoundConfigNode& self) {

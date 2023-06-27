@@ -83,7 +83,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
         for key in truth_keys:
             # If value is a scalar, compare.
             if isinstance(truth[key], (bool, float, int, str, type(None))):
-                self.assertEqual(truth[key], node[key])
+                self.assertEqual(truth[key], node[key].resolve())
             # Otherwise, it is a node, so recurse.
             else:
                 self.check_node(truth[key], node[key])
@@ -163,6 +163,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     # If not a list here, make a list here.
                     if not key in truth or not isinstance(truth[key], list):
                         truth[key] = []
+                        root[key] = None
                     
                     truth[key].append(val)
                     root[key].append(val)
@@ -171,6 +172,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     # If not a map here, make a map here.
                     if not key in truth or not isinstance(truth[key], dict):
                         truth[key] = {}
+                        root[key] = None
                     
                     # Generates the subkey.
                     subkey: int = self.rng.randint(self.min_rng, self.max_rng / 100)
