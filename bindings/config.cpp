@@ -12,8 +12,8 @@
 
 namespace pytimeloop::config_bindings {
 
-typedef std::optional<std::variant<bool, long long, unsigned long long, double, std::string,
-config::CompoundConfigNode>>
+typedef std::optional<std::variant<bool, long long, unsigned long long, double, 
+char, std::string, config::CompoundConfigNode>>
     CompoundConfigLookupReturn;
 
 void BindConfigClasses(py::module& m) {
@@ -64,15 +64,24 @@ void BindConfigClasses(py::module& m) {
             break;
           // Attempts to resolve the scalar to one of Python's types.
           case YAML::NodeType::Scalar:
-            // Attempts to resolve the scalar as a bool.
-            try { return YNode.as<bool>(); }
-            catch(const YAML::TypedBadConversion<bool>& e) {}
+            /* Attempts to resolve the scalar as a long long. Long long before
+             * double to avoid FP issues where possible */
+            try { return YNode.as<long long>(); } 
+            catch(const YAML::TypedBadConversion<long long>& e) {}
             // Attempts to resolve the scalar as a double.
             try { return YNode.as<double>();}
             catch(const YAML::TypedBadConversion<double>& e) {}
-            // Attempts to resolve the scalar as a long long.
-            try { return YNode.as<long long>(); } 
-            catch(const YAML::TypedBadConversion<long long>& e) {}
+            /** @todo A workaround for https://github.com/jbeder/yaml-cpp/issues/1198
+             * Resolve via the following char emit for now, will open a PR in the
+             * YAML-CPP repo to resolve in the future. There are no single char
+             * things that map to values that are not strings, so this is only
+             * a fix.
+             */ 
+            try { return YNode.as<char>(); }
+            catch(const YAML::TypedBadConversion<char>& e) {}
+            // Attempts to resolve the scalar as a bool.
+            try { return YNode.as<bool>(); }
+            catch(const YAML::TypedBadConversion<bool>& e) {}
             // Attempts to resolve the scalar as a string.
             try { return YNode.as<std::string>(); }
             catch(const YAML::TypedBadConversion<std::string>& e) {}
