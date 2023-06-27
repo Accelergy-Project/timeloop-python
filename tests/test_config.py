@@ -150,6 +150,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
             
             # Determines what type we want to insert.
             yaml_type: int = self.rng.randint(0, 4)
+            print(key, val, yaml_type)
             match yaml_type:
                 # Null type.
                 case 1:
@@ -164,7 +165,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     # If not a list here, make a list here.
                     if (key not in truth) or not isinstance(truth[key], list):
                         truth[key] = []
-                        root[key] = None
+                        root[key] = ConfigNode()
                     
                     truth[key].append(val)
                     root[key].append(val)
@@ -173,7 +174,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     # If not a map here, make a map here.
                     if (key not in truth) or not isinstance(truth[key], dict):
                         truth[key] = {}
-                        root[key] = None
+                        root[key] = ConfigNode()
                     
                     # Generates the subkey.
                     subkey: int = self.rng.randint(self.min_rng, self.max_rng // 10)
