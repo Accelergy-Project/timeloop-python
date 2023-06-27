@@ -63,6 +63,7 @@ void BindConfigClasses(py::module& m) {
         // Instantiates the key if it does not exist and is currently a Map or Null
         if (self.isMap() || self.getYNode().IsNull())
         {
+          // Instantiates key if it doesn't exist.
           self.instantiateKey(
             std::holds_alternative<std::string>(keyIn) ?
               std::get<std::string>(keyIn):
@@ -96,9 +97,33 @@ void BindConfigClasses(py::module& m) {
           } else if (std::holds_alternative<bool>(*val))
           {
             loc.setScalar(std::get<bool>(*val));
+          } else if (std::holds_alternative<CompoundConfigNode>(*val))
+          {
+            /* Assigns new YNodes like this because we pass YAML::Nodes by reference
+             * Through novel CompoundConfigNodes, making editing loc bad since we
+             * want to replace the child in the parent, not assign a value to the
+             * child. */
+            YAML::Node YNode = self.getYNode();
+            YAML::Node child = std::get<CompoundConfigNode>(*val).getYNode();
+            if (YNode.IsSequence())
+            {
+              YNode[std::get<int>(keyIn)] = child;
+            } else
+            {
+              if (std::holds_alternative<int>(keyIn))
+              {
+                YNode[std::to_string(std::get<int>(keyIn))] = child;
+              } else
+              {
+                YNode[std::get<std::string>(keyIn)] = child;
+              }
+            }
           } else {
             throw std::runtime_error("Tried to set YAML to an invalid type.");
           }
+        } else
+        {
+          self.setScalar(YAML::Null);
         }
       })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
