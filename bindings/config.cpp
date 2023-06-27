@@ -101,8 +101,7 @@ void BindConfigClasses(py::module& m) {
                              CompoundConfigLookupReturn input)
       {
         // Instantiates the key if it does not exist and is currently a Map or Null
-        if (std::holds_alternative<std::string>(keyIn) || 
-            self.isMap() || self.getYNode().IsNull())
+        if (self.isMap() || self.getYNode().IsNull())
         {
           self.instantiateKey(
             std::holds_alternative<std::string>(keyIn) ?
@@ -113,15 +112,18 @@ void BindConfigClasses(py::module& m) {
          * already be there */
         }
 
-        // Current location resolution based in input type of key.
-        const CompoundConfigNode& loc = 
-          std::holds_alternative<std::string>(keyIn) ?
-            self.lookup(std::get<std::string>(keyIn)):
-            (self.isList() || self.isArray()) ?
-              self[std::get<int>(keyIn)]:
+        // Current location resolution based in input type of key and current input.
+        const CompoundConfigNode& loc =
+          (self.isList() || self.isArray()) ?
+            self[std::get<int>(keyIn)]:
+            std::holds_alternative<std::string>(keyIn) ?
+              self.lookup(std::get<std::string>(keyIn)):
               self.lookup(std::to_string(std::get<int>(keyIn)));
-
-        
+      })
+      /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
+      .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
+      {
+        self.push_back(val);
       })
 
       /// @brief Converts the Node to a string.
