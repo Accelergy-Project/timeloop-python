@@ -40,6 +40,9 @@ void BindConfigClasses(py::module& m) {
   /// @brief Creates an equivalent CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
   py::class_<CompoundConfigNode>(m, "ConfigNode")
+      /** @brief The default constructor. The only way you should get one with
+       * values is through Config s*/
+      .def(py::init<>())
       /// @brief Accession. Is used to traverse CCNs like a list or dict.
       .def("__getitem__", [](CompoundConfigNode& self, 
                              const std::variant<int, std::string>& keyIn) ->
