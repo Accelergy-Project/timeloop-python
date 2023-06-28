@@ -20,6 +20,8 @@ class ConfigTest(unittest.TestCase):
     def test_config(self):
         '''Tests that a loaded in Config can make a valid mapping.
         '''
+        print("\n\n\nTesting Integration:\n" + '-'*5)
+
         # Directory and path of all the config files.
         CONFIG_DIR = Path('01-model-conv1d-2level')
         PATHS = ['arch/*.yaml',
