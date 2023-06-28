@@ -214,7 +214,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
         # And at the end, just in case.
         self.check_node(truth, root)
 
-    def test_replication(self):
+    def test_replication(self) -> None:
         '''Tests ability to write in a Config from scratch by duplicating existing
         Configs that are known goods.
 
@@ -225,7 +225,53 @@ class CompoundConfigNodeTest(unittest.TestCase):
         '''
         print("\n\n\nTest Replication:\n---------")
 
-        self.rummage_files(lambda x: 1+1)
+        def replication_test(file: str) -> None:
+            '''Given a canonical YAML string, test if the string can be written
+            entirely in Python.
+
+            Error values are returned only through the unittest library's print
+            statements/asserts.
+            
+            @param file The canonical YAML string.
+            '''
+            # Loads in the reference value
+            truth: dict = self.yaml.safe_load(file)
+            # Creates the testing CompoundConfigNode
+            root: ConfigNode = ConfigNode()
+
+            def dupe_level(truth: typing.Union[dict, list], node: ConfigNode) -> None:
+                '''Deep copies this level of the tree. Recurses to copy the nested
+                levels.
+
+                We do not return anything; all copies go into node.
+
+                @param truth    The values we want to copy.
+                @param node     The place we want to copy the values to.
+                '''
+                match(truth):
+                    # Dictionary copy.
+                    case dict():
+                        # Goes through all keys in truth.
+                        key: str
+                        for key in truth:
+                            # Instantiates the value at key. 
+                            node[key] = ConfigNode()
+                            # Recurses down one layer for copying.
+                            dupe_level(truth[key], node[key])
+                    # List copy.
+                    case list():
+                        # Goes through all elements.
+                        index: int
+                        for index in range(len(truth)):
+                            # Instantiates the value at index.
+                            node.append(ConfigNode())
+                            # Recurses down one layer for copying.
+                            dupe_level(truth[index], node[index])
+                    # Scalar copy.
+                    case _:
+                        node = truth
+
+        self.rummage_files(replication_test)
 
 
 if __name__ == "__main__":
