@@ -254,10 +254,15 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         # Goes through all keys in truth.
                         key: str
                         for key in truth:
-                            # Instantiates the value at key. 
+                            # Instantiate the key.
                             node[key] = ConfigNode()
-                            # Recurses down one layer for copying.
-                            dupe_level(truth[key], node[key])
+                            # If this is a nested thing, recurse.
+                            if isinstance(truth[key], (dict, list)):
+                                # Recurses down one layer for copying.
+                                dupe_level(truth[key], node[key])
+                            # Otherwise, directly set.
+                            else:
+                                node[key] = truth[key]
                     # List copy.
                     case list():
                         # Goes through all elements.
@@ -265,13 +270,17 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         for index in range(len(truth)):
                             # Instantiates the value at index.
                             node.append(ConfigNode())
-                            # Recurses down one layer for copying.
-                            dupe_level(truth[index], node[index])
+                            # If this is a nested thing, recurse.
+                            if isinstance(truth[index], (dict, list)):
+                                # Recurses down one layer for copying.
+                                dupe_level(truth[index], node[index])
+                            # Otherwise, directly set.
+                            else:
+                                node[index] = truth[index]
                     # Scalar copy.
                     case _:
                         node = truth
 
-                print(truth, node)
                 # Checks equality at the end of duplicaiton.
                 self.check_node(truth, node)
             
