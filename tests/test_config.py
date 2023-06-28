@@ -150,7 +150,6 @@ class CompoundConfigNodeTest(unittest.TestCase):
             
             # Determines what type we want to insert.
             yaml_type: int = self.rng.randint(0, 4)
-            print(key, val, yaml_type, '\n', truth, '\n', root)
             match yaml_type:
                 # Null type.
                 case 1:
