@@ -271,9 +271,11 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     case _:
                         node = truth
 
+                print(truth, node)
                 # Checks equality at the end of duplicaiton.
                 self.check_node(truth, node)
             
+            dupe_level(truth, root)
             # Checks outside of recursion just in case.
             self.check_node(truth, root)
 
