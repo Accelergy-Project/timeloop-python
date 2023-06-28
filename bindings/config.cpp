@@ -97,12 +97,12 @@ void BindConfigClasses(py::module& m) {
           } else if (std::holds_alternative<bool>(*val))
           {
             loc.setScalar(std::get<bool>(*val));
+          /* Assigns new YNodes like this because we pass YAML::Nodes by reference
+            * Through novel CompoundConfigNodes, making editing loc bad since we
+            * want to replace the child in the parent, not assign a value to the
+            * child. */
           } else if (std::holds_alternative<CompoundConfigNode>(*val))
           {
-            /* Assigns new YNodes like this because we pass YAML::Nodes by reference
-             * Through novel CompoundConfigNodes, making editing loc bad since we
-             * want to replace the child in the parent, not assign a value to the
-             * child. */
             YAML::Node YNode = self.getYNode();
             YAML::Node child = std::get<CompoundConfigNode>(*val).getYNode();
             if (YNode.IsSequence())
@@ -123,7 +123,7 @@ void BindConfigClasses(py::module& m) {
           }
         } else
         {
-          self.setScalar(YAML::Null);
+          loc.setScalar(YAML::Null);
         }
       })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
