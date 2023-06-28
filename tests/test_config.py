@@ -271,6 +271,13 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     case _:
                         node = truth
 
+                # Checks equality at the end of duplicaiton.
+                self.check_node(truth, node)
+            
+            # Checks outside of recursion just in case.
+            self.check_node(truth, root)
+
+        # Does the replication test over all files we want in the tester.
         self.rummage_files(replication_test)
 
 
