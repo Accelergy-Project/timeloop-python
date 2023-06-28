@@ -127,10 +127,37 @@ void BindConfigClasses(py::module& m) {
         }
       })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
-      // .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
-      // {
-      //   self.push_back(val);
-      // })
+      .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
+      {
+        // If not Null resolve type.
+        if (val)
+        {
+          if (std::holds_alternative<std::string>(*val))
+          {
+            self.push_back(std::get<std::string>(*val));
+          } else if (std::holds_alternative<double>(*val))
+          {
+            self.push_back(std::get<double>(*val));
+          } else if (std::holds_alternative<long long>(*val))
+          {
+            self.push_back(std::get<long long>(*val));
+          } else if (std::holds_alternative<bool>(*val))
+          {
+            self.push_back(std::get<bool>(*val));
+          } else if (std::holds_alternative<CompoundConfigNode>(*val)) 
+          {
+            YAML::Node child = std::get<CompoundConfigNode>(*val).getYNode();
+            self.push_back(child);
+          } else
+          {
+            throw std::runtime_error("Tried to append an inbalid YAML type.");
+          }
+        // If Null, pushback Null.
+        } else
+        {
+          self.push_back(YAML::Node());
+        }
+      })
 
       /// @brief resolves a Node to a Scalar if possible.
       .def("resolve", [](CompoundConfigNode& self) -> CompoundConfigLookupReturn 
