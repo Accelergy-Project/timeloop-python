@@ -13,7 +13,7 @@
 namespace pytimeloop::config_bindings {
 
 typedef std::optional<std::variant<bool, long long, unsigned long long, double, 
-char, std::string, config::CompoundConfigNode>>
+std::string, config::CompoundConfigNode>>
     CompoundConfigLookupReturn;
 
 void BindConfigClasses(py::module& m) {
@@ -187,7 +187,7 @@ void BindConfigClasses(py::module& m) {
              * things that map to values that are not strings, so this is only
              * a fix.
              */ 
-            try { return YNode.as<char>(); }
+            try { return std::string(1, YNode.as<char>()); }
             catch(const YAML::TypedBadConversion<char>& e) {}
             // Attempts to resolve the scalar as a bool.
             try { return YNode.as<bool>(); }
@@ -211,8 +211,7 @@ void BindConfigClasses(py::module& m) {
         temp << self.getYNode();
 
         return std::string(temp.c_str());
-      })
-      .def("resolve", &CompoundConfigNode::resolve);
+      });
 } 
 
 }  // namespace pytimeloop::config_bindings

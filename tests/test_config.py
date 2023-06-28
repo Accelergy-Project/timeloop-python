@@ -254,10 +254,10 @@ class CompoundConfigNodeTest(unittest.TestCase):
                         # Goes through all keys in truth.
                         key: str
                         for key in truth:
-                            # Instantiate the key.
-                            node[key] = ConfigNode()
                             # If this is a nested thing, recurse.
                             if isinstance(truth[key], (dict, list)):
+                                # Instantiate the key.
+                                node[key] = ConfigNode()
                                 # Recurses down one layer for copying.
                                 dupe_level(truth[key], node[key])
                             # Otherwise, directly set.
