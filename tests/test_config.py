@@ -87,21 +87,20 @@ class CompoundConfigNodeTest(unittest.TestCase):
             # Otherwise, it is a node, so recurse.
             else:
                 self.check_node(truth[key], node[key])
-                    
-    def test_accession(self) -> None:
-        '''Tests getting from CompoundConfigNode when loaded by CompoundConfig.
 
-        Returns test results only through print statements generated through the
-        unittest module's assert functions.
+    def rummage_files(self, func: callable) -> None:
+        '''Goes through all files in the testing suite and runs a given test fxn
+        on the files, passing in the files as a string.
 
-        @param self The unit test instance, so it can access test specific vars
-                    like file locations.
+        All outputs are given through the unittest asserts and print statements.
+
+        @param self The testing suite environment.
+        @param func The testing function we want to do over all files in the
+                    testing suite environment.
         '''
-        print("Testing Accessions:\n-----------")
-
         root: str
         _: list[str]
-        file: list[str]
+        files: list[str]
         # Goes through all the files in the testing directory.
         for root, _, files in self.os.walk(self.root, topdown=False):
 
@@ -116,15 +115,39 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     with open(filename, "r") as file:
                         # Reads the data as a string.
                         data:str = file.read()
-                        # Load the truth we're using for comparison.
-                        truth: dict = self.yaml.safe_load(data)
-                        # Load the truth into Config.
-                        compound_config: Config = Config(data, "yaml")
+                        # Passes parsed data into testing fxn.
+                        func(data)
 
-                    # Pulls the Node (dict structure analog) from Config.
-                    node: ConfigNode = compound_config.getRoot()
-                    # Starts recursive test.
-                    self.check_node(truth, node)
+    def test_accession(self) -> None:
+        '''Tests getting from CompoundConfigNode when loaded by CompoundConfig.
+
+        Returns test results only through print statements generated through the
+        unittest module's assert functions.
+
+        @param self The unit test instance, so it can access test specific vars
+                    like file locations.
+        '''
+        print("Testing Accessions:\n-----------")
+
+        def accession_test(data: dict) -> None:
+            '''Given a string of a canonical YAML file, test that all accesses
+            are possible.
+
+            All errors are reported through print statements and the unittest
+            assert functions.
+
+            @param data The data in the canonical YAML file.
+            '''
+            # Load the truth we're using for comparison.
+            truth: dict = self.yaml.safe_load(data)
+            # Load the truth into Config.
+            compound_config: Config = Config(data, "yaml")
+            # Pulls the Node (dict structure analog) from Config.
+            node: ConfigNode = compound_config.getRoot()
+            # Starts recursive test.
+            self.check_node(truth, node)
+        
+        self.rummage_files(accession_test)
                     
     def test_setting_fuzz(self) -> None:
         '''Tests setting to CompoundConfigNode when provided a random input.
@@ -190,6 +213,19 @@ class CompoundConfigNodeTest(unittest.TestCase):
         
         # And at the end, just in case.
         self.check_node(truth, root)
+
+    def test_replication(self):
+        '''Tests ability to write in a Config from scratch by duplicating existing
+        Configs that are known goods.
+
+        Error values are returned only through the unittest library's print
+        statements/asserts.
+
+        @param self The testing suite environment we're running in.
+        '''
+        print("\n\n\nTest Replication:\n---------")
+
+        self.rummage_files(lambda x: 1+1)
 
 
 if __name__ == "__main__":
