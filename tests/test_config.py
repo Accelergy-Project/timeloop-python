@@ -66,7 +66,7 @@ class ConfigTest(unittest.TestCase):
         # Runs the evaluator.
         engine.evaluate(mapping, workload, sparse_info)
         
-        return engine
+        return engine.pretty_print_stats()
 
 
     def test_config_basic(self):
@@ -84,7 +84,7 @@ class ConfigTest(unittest.TestCase):
         PATHS = ['arch/*.yaml',
                  'map/conv1d-2level-os.map.yaml',
                  'prob/*.yaml']
-        print(self.run_evaluation(CONFIG_DIR, PATHS).pretty_print_stats())
+        print(self.run_evaluation(CONFIG_DIR, PATHS))
 
     def test_multiple_workloads(self):
         '''Tests for any errors when there exist multiple Timeloop Workload 
