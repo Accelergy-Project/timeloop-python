@@ -32,26 +32,38 @@ class ConfigTest(unittest.TestCase):
         PATHS = ['arch/*.yaml',
                  'map/conv1d-2level-os.map.yaml',
                  'prob/*.yaml']
+        # Combined YAML string of all the config files.
         yaml_str = gather_yaml_configs(CONFIG_DIR, PATHS)
+        
+        # Loads the YAML into Configuration settings.
         config: Config = Config(yaml_str, "yaml")
+        # Pulls out the Config root node, containing all the config info.
         root: ConfigNode = config.getRoot()
 
+        # Creates the workload specified by root.
         workload: Workload = Workload(root["problem"])
+        # Creates the architecture specified by root.
         arch_specs: ArchSpecs = ArchSpecs(root["architecture"], 
                                           "sparse_optimizations" in root)
         
+        # Does accelergy load-ins if present.
         if "ERT" in root:
             arch_specs.parse_accelergy_ert(root["ERT"])
         if "ART" in root:
             arch_specs.parse_accelergy_art(root["ART"])
 
-
+        # Creates the mapping off of the specifications and workload.
         mapping: Mapping = Mapping(root["mapping"], arch_specs, workload)
+        # Creates SparseOptimizations off of settings.
         sparse_info: SparseOptimizationInfo = SparseOptimizationInfo(root, arch_specs)
 
+        # Creates the evaluation engine.
         engine: Engine = Engine()
+        # Loads in the specs.
         engine.spec(arch_specs)
+        # Runs the evaluator.
         engine.evaluate(mapping, workload, sparse_info)
+        #prints out the stats
         print(engine.pretty_print_stats())
 
 ## @var The testing seed.
