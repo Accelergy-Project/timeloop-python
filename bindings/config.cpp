@@ -45,9 +45,9 @@ void BindConfigClasses(py::module& m) {
       .def(py::init<>())
       /// @brief Accession. Is used to traverse CCNs like a list or dict.
       .def("__getitem__", [](CompoundConfigNode& self, 
-                             const std::variant<int, std::string>& keyIn)
+                             const std::variant<int, std::string>& keyIn) ->
+                             CompoundConfigNode
       {
-
         // Current location resolution based in input type of key and current input.
         return (self.isList() || self.isArray()) ?
             self[std::get<int>(keyIn)]:
@@ -58,7 +58,7 @@ void BindConfigClasses(py::module& m) {
       /// @brief Setting. Is used to traverse CCNs like a list or dict.
       .def("__setitem__", [](CompoundConfigNode& self,
                              const std::variant<int, std::string>& keyIn,
-                             CompoundConfigLookupReturn val)
+                             CompoundConfigLookupReturn val) -> void
       {
         // Instantiates the key if it does not exist and is currently a Map or Null
         if (self.isMap() || self.getYNode().IsNull())
@@ -126,8 +126,22 @@ void BindConfigClasses(py::module& m) {
           loc.setScalar(YAML::Null);
         }
       })
+      /// @brief Makes it so the in command in Python works.
+      .def("__contains__", [](CompoundConfigNode& self, const CompoundConfigLookupReturn val)
+      -> bool
+      {
+        // Only returns true if self is a Map and the val we're matching is a key.
+        if (self.isMap())
+        {
+          return self.exists(std::get<std::string>(*val));
+        } else
+        {
+          return false;
+        }
+      })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
       .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
+      -> void
       {
         // If not Null resolve type.
         if (val)
@@ -204,7 +218,8 @@ void BindConfigClasses(py::module& m) {
       })
 
       /// @brief Converts the Node to a string.
-      .def("__str__", [](CompoundConfigNode& self) {
+      .def("__str__", [](CompoundConfigNode& self) -> std::string
+      {
         // Emitter is the intermediate layer to output strings.
         YAML::Emitter temp;
         // Loads Node into Emitter.

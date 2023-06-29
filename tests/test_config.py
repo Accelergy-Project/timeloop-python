@@ -11,7 +11,10 @@ import bindings
 from bindings.config import Configurator
 from bindings.config import Config
 from bindings.config import ConfigNode
+
 from bindings.problem import Workload
+from bindings.model import ArchSpecs
+from bindings.mapping import Mapping
 
 from util import TEST_TMP_DIR, gather_yaml_configs
 
@@ -29,8 +32,12 @@ class ConfigTest(unittest.TestCase):
                  'prob/*.yaml']
         yaml_str = gather_yaml_configs(CONFIG_DIR, PATHS)
         config: Config = Config(yaml_str, "yaml")
+        node: ConfigNode = config.getRoot()
 
-        self.workload: Workload = Workload(config.getRoot())
+        workload: Workload = Workload(node["problem"])
+        arch_specs: ArchSpecs = ArchSpecs(node["architecture"], 
+                                          "sparse_optimizations" in node)
+        mapping: Mapping = Mapping(config["mapping"], arch_specs, workload)
 
 ## @var The testing seed.
 seed: int = 42
