@@ -32,12 +32,19 @@ class ConfigTest(unittest.TestCase):
                  'prob/*.yaml']
         yaml_str = gather_yaml_configs(CONFIG_DIR, PATHS)
         config: Config = Config(yaml_str, "yaml")
-        node: ConfigNode = config.getRoot()
+        root: ConfigNode = config.getRoot()
 
-        workload: Workload = Workload(node["problem"])
-        arch_specs: ArchSpecs = ArchSpecs(node["architecture"], 
-                                          "sparse_optimizations" in node)
-        mapping: Mapping = Mapping(config["mapping"], arch_specs, workload)
+        workload: Workload = Workload(root["problem"])
+        arch_specs: ArchSpecs = ArchSpecs(root["architecture"], 
+                                          "sparse_optimizations" in root)
+        
+        if "ERT" in root:
+            arch_specs.parse_accelergy_ert(root["ERT"])
+        if "ART" in root:
+            arch_specs.parse_accelergy_art(root["ART"])
+
+
+        mapping: Mapping = Mapping(root["mapping"], arch_specs, workload)
 
 ## @var The testing seed.
 seed: int = 42
