@@ -15,6 +15,7 @@ from bindings.config import ConfigNode
 from bindings.problem import Workload
 from bindings.model import ArchSpecs
 from bindings.mapping import Mapping
+from bindings.model import Engine
 
 from util import TEST_TMP_DIR, gather_yaml_configs
 
@@ -45,6 +46,10 @@ class ConfigTest(unittest.TestCase):
 
 
         mapping: Mapping = Mapping(root["mapping"], arch_specs, workload)
+
+        engine: Engine = Engine()
+        engine.spec(arch_specs)
+        engine.evaluate(mapping, workload, "sparse_optimizations" in root)
 
 ## @var The testing seed.
 seed: int = 42
