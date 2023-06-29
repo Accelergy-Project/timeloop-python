@@ -52,6 +52,7 @@ class ConfigTest(unittest.TestCase):
         engine: Engine = Engine()
         engine.spec(arch_specs)
         engine.evaluate(mapping, workload, sparse_info)
+        print(engine.pretty_print_stats())
 
 ## @var The testing seed.
 seed: int = 42
