@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "pytimeloop/bindings/accelergy-interface.h"
+#include "pytimeloop/bindings/buffer.h"
 #include "pytimeloop/bindings/config.h"
 #include "pytimeloop/bindings/mapper.h"
 #include "pytimeloop/bindings/mapping.h"
