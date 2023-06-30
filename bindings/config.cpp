@@ -84,23 +84,28 @@ void BindConfigClasses(py::module& m) {
         // If val is Null, set nothing.
         if (val)
         {
-          // Otherwise, unpack the value and assign.
+          /* Otherwise, unpack the value and assign. */
+          // String assignment.
           if (std::holds_alternative<std::string>(*val))
           {
             loc.setScalar(std::get<std::string>(*val));
+          // FP assignment.
           } else if (std::holds_alternative<double>(*val))
           {
             loc.setScalar(std::get<double>(*val));
+          // Int assignment.
           } else if (std::holds_alternative<long long>(*val))
           {
             loc.setScalar(std::get<long long>(*val));
+          // Bool assignment.
           } else if (std::holds_alternative<bool>(*val))
           {
             loc.setScalar(std::get<bool>(*val));
-          /* Assigns new YNodes like this because we pass YAML::Nodes by reference
-            * Through novel CompoundConfigNodes, making editing loc bad since we
-            * want to replace the child in the parent, not assign a value to the
-            * child. */
+          /* YNode assignment. Assigns new YNodes like this because we pass 
+           * YAML::Nodes by reference through novel CompoundConfigNodes, making 
+           * editing loc bad since we want to replace the child in the parent, 
+           * not assign a value to the child which will then get immediately
+           * destructed without mutating the struct we want to mutate. */
           } else if (std::holds_alternative<CompoundConfigNode>(*val))
           {
             // Unpacks the current YNode in CompoundConfigNode.
@@ -120,9 +125,13 @@ void BindConfigClasses(py::module& m) {
                     std::to_string(std::get<int>(keyIn)):
                     std::get<std::string>(keyIn)] = child;
             }
-          } else {
+          /* Throws an error if we have a type not handled above. That means
+           * the Python invocation has some deep error. */
+          } else 
+          {
             throw std::runtime_error("Tried to set YAML to an invalid type.");
           }
+        // If val is Null, set it to Null.
         } else
         {
           loc.setScalar(YAML::Null);
@@ -133,13 +142,7 @@ void BindConfigClasses(py::module& m) {
       -> bool
       {
         // Only returns true if self is a Map and the val we're matching is a key.
-        if (self.isMap())
-        {
-          return self.exists(std::get<std::string>(*val));
-        } else
-        {
-          return false;
-        }
+        return self.isMap() && self.exists(std::get<std::string>(*val));
       })
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
       .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
