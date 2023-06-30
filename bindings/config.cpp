@@ -73,7 +73,7 @@ void BindConfigClasses(py::module& m) {
          * already be there */
         }
 
-        // Current location resolution based in input type of key and current input.
+        // Value location resolution based on input type of key and current location.
         CompoundConfigNode loc =
           (self.isList() || self.isArray()) ?
             self[std::get<int>(keyIn)]:
@@ -103,20 +103,22 @@ void BindConfigClasses(py::module& m) {
             * child. */
           } else if (std::holds_alternative<CompoundConfigNode>(*val))
           {
+            // Unpacks the current YNode in CompoundConfigNode.
             YAML::Node YNode = self.getYNode();
+            // Unpacks the child YAML::Node we want to assign to YNode.
             YAML::Node child = std::get<CompoundConfigNode>(*val).getYNode();
+
+            // If we are currently a Sequence, assign like a Sequence.
             if (YNode.IsSequence())
             {
               YNode[std::get<int>(keyIn)] = child;
+            // Otherwise, assign like a Map.
             } else
             {
-              if (std::holds_alternative<int>(keyIn))
-              {
-                YNode[std::to_string(std::get<int>(keyIn))] = child;
-              } else
-              {
-                YNode[std::get<std::string>(keyIn)] = child;
-              }
+              // We want all Map keys to be strings, so make the key a string.
+              YNode[std::holds_alternative<int>(keyIn)?
+                    std::to_string(std::get<int>(keyIn)):
+                    std::get<std::string>(keyIn)] = child;
             }
           } else {
             throw std::runtime_error("Tried to set YAML to an invalid type.");
