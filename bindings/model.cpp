@@ -76,7 +76,8 @@ void BindEngine(py::module& m) {
       .def("pre_evaluation_check", &model::Engine::PreEvaluationCheck)
       .def("evaluate", &model::Engine::Evaluate, py::arg("mapping"),
            py::arg("workload"), py::arg("sparse_optimizations"),
-           py::arg("break_on_failure") = true)
+           py::arg("break_on_failure") = true,
+           py::keep_alive<1, 2>(), py::keep_alive<1, 3>(), py::keep_alive<1, 4>())
       .def("is_evaluated", &model::Engine::IsEvaluated)
       .def("utilization", &model::Engine::Utilization)
       .def("energy", &model::Engine::Energy)
