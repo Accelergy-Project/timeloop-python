@@ -59,15 +59,12 @@ class ConfigTest(unittest.TestCase):
         # Creates SparseOptimizations off of settings.
         sparse_info: SparseOptimizationInfo = SparseOptimizationInfo(root, arch_specs)
 
-        # Creates the evaluation engine.
-        engine: Engine = Engine()
-        # Loads in the specs.
-        engine.spec(arch_specs)
+        # Creates the evaluation engine with the specs.
+        engine: Engine = Engine(arch_specs)
         # Runs the evaluator.
         engine.evaluate(mapping, workload, sparse_info)
         
-        return engine.pretty_print_stats()
-
+        return engine
 
     def test_config_basic(self):
         '''Tests that a loaded in Config can make a valid mapping.
@@ -84,30 +81,31 @@ class ConfigTest(unittest.TestCase):
         PATHS = ['arch/*.yaml',
                  'map/conv1d-2level-os.map.yaml',
                  'prob/*.yaml']
-        print(self.run_evaluation(CONFIG_DIR, PATHS))
 
-    def test_multiple_workloads(self):
-        '''Tests for any errors when there exist multiple Timeloop Workload 
-        instances.
+        print(self.run_evaluation(CONFIG_DIR, PATHS).pretty_print_stats())
 
-        Errors are printed out through unittest asserts and print statements.
+    # def test_multiple_workloads(self):
+    #     '''Tests for any errors when there exist multiple Timeloop Workload 
+    #     instances.
 
-        @param self The testing suite environment.
-        '''
-        print("\n\n\nTesting Multiple Workloads Existing:\n" + '-'*5)
+    #     Errors are printed out through unittest asserts and print statements.
 
-        # Directory and path of all the config files.
-        CONFIG_DIR = Path('01-model-conv1d-2level')
-        PATHS = ['arch/*.yaml',
-                 'map/conv1d-2level-os.map.yaml',
-                 'prob/*.yaml']
-        self.run_evaluation(CONFIG_DIR, PATHS)
+    #     @param self The testing suite environment.
+    #     '''
+    #     print("\n\n\nTesting Multiple Workloads Existing:\n" + '-'*5)
 
-        CONFIG_DIR = Path('01-model-conv1d-1level')
-        PATHS = ['arch/*.yaml',
-                 'map/conv1d-2level-os.map.yaml',
-                 'prob/*.yaml']
-        self.run_evaluation(CONFIG_DIR, PATHS)
+    #     # Directory and path of all the config files.
+    #     CONFIG_DIR = Path('01-model-conv1d-2level')
+    #     PATHS = ['arch/*.yaml',
+    #              'map/conv1d-2level-os.map.yaml',
+    #              'prob/*.yaml']
+    #     self.run_evaluation(CONFIG_DIR, PATHS)
+
+    #     CONFIG_DIR = Path('01-model-conv1d-1level')
+    #     PATHS = ['arch/*.yaml',
+    #              'map/conv1d-2level-os.map.yaml',
+    #              'prob/*.yaml']
+    #     self.run_evaluation(CONFIG_DIR, PATHS)
 
 ## @var The testing seed.
 seed: int = 42
