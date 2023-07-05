@@ -1,0 +1,6 @@
+[MAIN]
+
+extension-pkg-whitelist=
+    bindings,
+    bindings.buffer,
+    bindings.config,
