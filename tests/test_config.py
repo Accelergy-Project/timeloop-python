@@ -22,20 +22,20 @@ class ConfigTest(unittest.TestCase):
             run solely with Python.
     """
 
-    def run_evaluation(self, CONFIG_DIR: Path, PATHS: list[str]) -> Engine:
+    def run_evaluation(self, config_dir: Path, paths: list[str]) -> Engine:
         """Creates and runs Timeloop given a configuration directory and paths
         to the requisite YAML files.
 
         Outputs errors only through unittest asserts and print statements.
 
         @param self         The testing environment.
-        @param CONFIG_DIR   The directory containing the evaluation config settings.
-        @param PATHS        The paths of all the requisite files in the directory.
+        @param config_dir   The directory containing the evaluation config settings.
+        @param paths        The paths of all the requisite files in the directory.
 
         @return             The engine after it finished evaluation.
         """
         # Combined YAML string of all the config files.
-        yaml_str = gather_yaml_configs(CONFIG_DIR, PATHS)
+        yaml_str = gather_yaml_configs(config_dir, paths)
 
         # Loads the YAML into Configuration settings.
         config: Config = Config(yaml_str, "yaml")
@@ -78,10 +78,10 @@ class ConfigTest(unittest.TestCase):
         """
         print("\n\n\nTesting Integration:\n" + "-" * 5)
         # Directory and path of all the config files.
-        CONFIG_DIR = Path("01-model-conv1d-2level")
-        PATHS = ["arch/*.yaml", "map/conv1d-2level-os.map.yaml", "prob/*.yaml"]
+        config_dir = Path("01-model-conv1d-2level")
+        paths = ["arch/*.yaml", "map/conv1d-2level-os.map.yaml", "prob/*.yaml"]
 
-        print(self.run_evaluation(CONFIG_DIR, PATHS).pretty_print_stats())
+        print(self.run_evaluation(config_dir, paths).pretty_print_stats())
 
     # def test_multiple_workloads(self):
     #     '''Tests for any errors when there exist multiple Timeloop Workload
