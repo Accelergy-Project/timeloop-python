@@ -2,21 +2,18 @@
 Does unit/integration testing for the configuration/inputs of PyTimeloop.
 """
 
-import logging
 from pathlib import Path
 import unittest
 import typing
+
+from util import TEST_TMP_DIR, gather_yaml_configs
 
 from bindings.config import Config
 from bindings.config import ConfigNode
 
 from bindings.problem import Workload
-from bindings.model import ArchSpecs
+from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
 from bindings.mapping import Mapping
-from bindings.model import SparseOptimizationInfo
-from bindings.model import Engine
-
-from util import TEST_TMP_DIR, gather_yaml_configs
 
 
 class ConfigTest(unittest.TestCase):
