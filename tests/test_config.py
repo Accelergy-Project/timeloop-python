@@ -20,11 +20,12 @@ import typing
 # A parsed YAML file is used as the ground truth for our test cases.
 import yaml
 
-# Imports the necessary utility funcitons.
-from tests.util import run_evaluation
 
 # Imports the necessary binding classes we need to test.
 from bindings.config import Config, ConfigNode
+
+# Imports the necessary utility funcitons.
+from tests.util import run_evaluation
 
 
 class ConfigTest(unittest.TestCase):
@@ -33,7 +34,7 @@ class ConfigTest(unittest.TestCase):
             run solely with Python.
     """
 
-    def test_config_basic(self):
+    def test_config_basic(self) -> None:
         """Tests that a loaded in Config can make a valid mapping.
 
         Basic test that Python can run a Timeloop configuration from start to
@@ -96,7 +97,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
         + "workspace/exercises/2020.ispass/timeloop"
     )
 
-    def check_node(self, truth: typing.Union[list, dict], node: ConfigNode):
+    def check_node(self, truth: typing.Union[list, dict], node: ConfigNode) -> None:
         """Checks that a node is equal to its equivalent truth. Returns nothing.
         Values only arise from unittest printouts.
 
