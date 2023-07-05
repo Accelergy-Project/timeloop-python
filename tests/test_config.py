@@ -7,8 +7,6 @@ from pathlib import Path
 import unittest
 import typing
 
-import bindings
-from bindings.config import Configurator
 from bindings.config import Config
 from bindings.config import ConfigNode
 
