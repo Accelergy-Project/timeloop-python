@@ -4,6 +4,7 @@ import typing
 from bindings.buffer import Stats
 from util import gather_yaml_configs
 
+
 class StatsTest(unittest.TestCase):
     def evaluate_workload(self, config_dir: Path, paths: list[str]) -> Engine:
         """Creates and runs Timeloop given a configuration directory and paths

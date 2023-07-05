@@ -11,8 +11,9 @@ class MapperAppTest(unittest.TestCase):
         config = load_configs(config_dir, paths)
         return MapperApp(config, str(tmp_path))
 
-    def check_mapper_app(self, config_dir, paths, tmp_path, ref_area,
-                         ref_energy, ref_cycles):
+    def check_mapper_app(
+        self, config_dir, paths, tmp_path, ref_area, ref_energy, ref_cycles
+    ):
         mapper = self.make_mapper_app(config_dir, paths, tmp_path)
         eval_result, mapping = mapper.run()
 
@@ -20,10 +21,15 @@ class MapperAppTest(unittest.TestCase):
 
     def test_conv1d_3level(self):
         self.check_mapper_app(
-            '05-mapper-conv1d+oc-3level',
-            ['arch/3level.arch.yaml',
-             'mapper/exhaustive.mapper.yaml',
-             'constraints/conv1d+oc-3level-freebypass.constraints.yaml',
-             'prob/conv1d+oc.prob.yaml'],
-            TEST_TMP_DIR / 'mapper-conv1d-3level',
-            0, 0, 0)
+            "05-mapper-conv1d+oc-3level",
+            [
+                "arch/3level.arch.yaml",
+                "mapper/exhaustive.mapper.yaml",
+                "constraints/conv1d+oc-3level-freebypass.constraints.yaml",
+                "prob/conv1d+oc.prob.yaml",
+            ],
+            TEST_TMP_DIR / "mapper-conv1d-3level",
+            0,
+            0,
+            0,
+        )
