@@ -20,10 +20,11 @@ import typing
 # A parsed YAML file is used as the ground truth for our test cases.
 import yaml
 
-from tests.util import gather_yaml_configs
+# Imports the necessary utility funcitons.
+from tests.util import run_evaluation
 
-from bindings.config import Config
-from bindings.config import ConfigNode
+# Imports the necessary binding classes we need to test.
+from bindings.config import Config, ConfigNode
 
 
 class ConfigTest(unittest.TestCase):
@@ -46,7 +47,7 @@ class ConfigTest(unittest.TestCase):
         config_dir = Path("01-model-conv1d-2level")
         paths = ["arch/*.yaml", "map/conv1d-2level-os.map.yaml", "prob/*.yaml"]
 
-        print(self.run_evaluation(config_dir, paths).pretty_print_stats())
+        print(run_evaluation(config_dir, paths).pretty_print_stats())
 
     # def test_multiple_workloads(self):
     #     '''Tests for any errors when there exist multiple Timeloop Workload
