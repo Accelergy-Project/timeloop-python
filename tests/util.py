@@ -47,13 +47,16 @@ def gather_yaml_configs(rel_config_dir: Path, rel_paths: list[str]) -> str:
     return gather_yaml_files(paths)
 
 
+# Imports the necessary binding classes we need to test.
+from bindings.config import Config, ConfigNode
+
 # Imports we need to run an evaluation.
 from bindings.problem import Workload
 from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
 from bindings.mapping import Mapping
 
 
-def run_evaluation(self, config_dir: Path, paths: list[str]) -> Engine:
+def run_evaluation(config_dir: Path, paths: list[str]) -> Engine:
     """Creates and runs Timeloop given a configuration directory and paths
     to the requisite YAML files.
 
