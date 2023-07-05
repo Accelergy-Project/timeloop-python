@@ -45,8 +45,12 @@ class ConfigTest(unittest.TestCase):
         """
         print("\n\n\nTesting Integration:\n" + "-" * 5)
         # Directory and path of all the config files.
-        config_dir = Path("01-model-conv1d-2level")
-        paths = ["arch/*.yaml", "map/conv1d-2level-os.map.yaml", "prob/*.yaml"]
+        config_dir: Path = Path("01-model-conv1d-2level")
+        paths: list[str] = [
+            "arch/*.yaml",
+            "map/conv1d-2level-os.map.yaml",
+            "prob/*.yaml",
+        ]
 
         print(run_evaluation(config_dir, paths).pretty_print_stats())
 
@@ -97,7 +101,9 @@ class CompoundConfigNodeTest(unittest.TestCase):
         + "workspace/exercises/2020.ispass/timeloop"
     )
 
-    def check_node(self, truth: typing.Union[list, dict], node: ConfigNode) -> None:
+    def check_node(
+        self, truth: typing.Union[list[typing.Any], dict[typing.Any]], node: ConfigNode
+    ) -> None:
         """Checks that a node is equal to its equivalent truth. Returns nothing.
         Values only arise from unittest printouts.
 
@@ -165,7 +171,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
         """
         print("Testing Accessions:\n" + "-" * 5)
 
-        def accession_test(data: dict) -> None:
+        def accession_test(data: dict[str, typing.Any]) -> None:
             """Given a string of a canonical YAML file, test that all accesses
             are possible.
 
@@ -175,7 +181,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
             @param data The data in the canonical YAML file.
             """
             # Load the truth we're using for comparison.
-            truth: dict = yaml.safe_load(data)
+            truth: dict[str, typing.Any] = yaml.safe_load(data)
             # Load the truth into Config.
             compound_config: Config = Config(data, "yaml")
             # Pulls the Node (dict structure analog) from Config.

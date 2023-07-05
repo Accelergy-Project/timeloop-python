@@ -19,5 +19,8 @@ class StatsTest(unittest.TestCase):
     def test_accession(self) -> None:
         """Tests that we are able to read all member values of stat.
 
+        All results are printed out or logged through unittest assert statements.
+
         @param self The unittest environment we're running in.
         """
+        run_evaluation()
