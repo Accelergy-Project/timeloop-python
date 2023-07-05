@@ -5,7 +5,9 @@ output testing of engine evaluations.
 
 import unittest
 import typing
+from pathlib import Path
 
+from bindings.model import Engine, Topology
 from bindings.buffer import Stats
 from tests.util import run_evaluation
 
@@ -23,4 +25,32 @@ class StatsTest(unittest.TestCase):
 
         @param self The unittest environment we're running in.
         """
-        run_evaluation()
+        config_dir: Path = Path("01-model-conv1d-2level")
+        paths: list[str] = [
+            "arch/*.yaml",
+            "map/conv1d-2level-os.map.yaml",
+            "prob/*.yaml",
+        ]
+
+        # Runs evaluation.
+        engine: Engine = run_evaluation(config_dir, paths)
+        # Gets the topology.
+        topology: Topology = engine.get_topology()
+        # Fetches the stats of the topology.
+        stats: Topology.Stats = topology.get_stats()
+        
+        # Tests we're able to access everything from 
+        key: str
+        for key in dir(stats):
+            # Pulls the attribute from stats.
+            attr: typing.Any = getattr(stats, key)
+            # Makes sure if we pull a function we don't print that.
+            if callable(getattr(stats, key)):
+                continue
+
+            ## TODO:: Replace this at some point with a ground truth reference.
+            print(getattr(stats, key))
+        
+        
+if __name__ == "__main__":
+    unittest.main()

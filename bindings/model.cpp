@@ -157,12 +157,47 @@ void BindSparseOptimizationInfo(py::module& m) {
 }
 
 void BindTopology(py::module& m) {
-  py::class_<model::Topology>(m, "Topology")
+
+  /**
+   * @brief   Binds the model::Topology class to Python.
+   * @param m The module we're binding Topology to.
+   */
+  py::class_<model::Topology> topology(m, "Topology");
+
+  topology
       .def("algorithmic_computes", &model::Topology::AlgorithmicComputes)
       .def("actual_computes", &model::Topology::ActualComputes)
       .def("last_level_accesses", &model::Topology::LastLevelAccesses)
       .def("tile_sizes", &model::Topology::TileSizes)
-      .def("utilized_capacities", &model::Topology::UtilizedCapacities);
+      .def("utilized_capacities", &model::Topology::UtilizedCapacities)
+      .def("get_stats", &model::Topology::GetStats);
+
+  using Stats = model::Topology::Stats;
+  /** 
+   * @brief           Binds the stats of Topology to Python
+   * 
+   * @todo  Figure out if C++ has compile time Reflection (specifically 
+   *        Introspection) in order to make this less ugly and spaghetti code.
+   * 
+   * @param topology  Making Stats under the scope of Topology.
+   */
+  py::class_<Stats>(topology, "Stats")
+      /// @brief Converts the struct into a string.
+      .def_readonly("energy", &Stats::energy)
+      .def_readonly("area", &Stats::area)
+      .def_readonly("cycles", &Stats::cycles)
+      .def_readonly("utilization", &Stats::utilization)
+      /// @note BEGIN PerDataSpace INTERNALS
+      .def_readonly("tile_sizes", &Stats::tile_sizes)
+      .def_readonly("utilized_capacities", &Stats::utilized_capacities)
+      .def_readonly("utilized_instances", &Stats::utilized_instances)
+      /// @note END PerDataSpace INTERNALS
+      .def_readonly("algorithmic_computes", &Stats::algorithmic_computes)
+      .def_readonly("actual_computes", &Stats::actual_computes)
+      .def_readonly("last_level_accesses", &Stats::last_level_accesses)
+      .def_readonly("accesses", &Stats::accesses);
+
+  }  // namespace pytimeloop::model_bindings
+
 }
 
-}  // namespace pytimeloop::model_bindings
