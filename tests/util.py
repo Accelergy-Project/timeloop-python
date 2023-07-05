@@ -1,22 +1,98 @@
+"""
+Utility functions that most tests will need.
+"""
+
 from pathlib import Path
 import glob
 
+
+# The directory of the project we're in.
 PROJECT_DIR = Path(__file__).parent.parent
-TIMELOOP_EXAMPLES_DIR  = (
-    PROJECT_DIR / 'tests/timeloop-accelergy-exercises/workspace/'
-    / 'exercises/2020.ispass/timeloop')
-TEST_TMP_DIR = PROJECT_DIR / 'tests/tmp-files'
+# The directory of the timeloop examples.
+TIMELOOP_EXAMPLES_DIR = (
+    PROJECT_DIR
+    / "tests/timeloop-accelergy-exercises/workspace/"
+    / "exercises/2020.ispass/timeloop"
+)
+# The directory of the test temp files.
+TEST_TMP_DIR = PROJECT_DIR / "tests/tmp-files"
+
 
 def gather_yaml_files(input_patterns):
-    yaml_str = ''
+    """ """
+    yaml_str = ""
     for pattern in input_patterns:
         for fname in glob.iglob(pattern):
-            with open(fname, 'r') as f:
+            with open(fname, "r") as f:
                 yaml_str += f.read()
-            yaml_str += '\n'
+            yaml_str += "\n"
     return yaml_str
 
-def gather_yaml_configs(rel_config_dir, rel_paths):
-    config_dir = TIMELOOP_EXAMPLES_DIR / rel_config_dir
-    paths = map(lambda p: str(config_dir / p), rel_paths)
+
+def gather_yaml_configs(rel_config_dir: Path, rel_paths: list[str]) -> str:
+    """Combines together all the yaml config files into one string.
+
+    @param rel_config_dir   The relative directory of the configs we want to
+                            load in the Timeloop examples folder.
+    @param rel_paths        The relative paths of all the config files within
+                            the configs directory we specified.
+
+    @return                 The combined string of all the YAML config files.
+    """
+    # Constructs the absolute path of the config directory.
+    config_dir: Path = TIMELOOP_EXAMPLES_DIR / rel_config_dir
+    # Constructs the absolute path of all the config files.
+    paths: map = map(lambda p: str(config_dir / p), rel_paths)
+
     return gather_yaml_files(paths)
+
+
+# Imports we need to run an evaluation.
+from bindings.problem import Workload
+from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
+from bindings.mapping import Mapping
+
+
+def run_evaluation(self, config_dir: Path, paths: list[str]) -> Engine:
+    """Creates and runs Timeloop given a configuration directory and paths
+    to the requisite YAML files.
+
+    Outputs errors only through unittest asserts and print statements.
+
+    @param config_dir   The directory containing the evaluation config settings.
+    @param paths        The paths of all the requisite files in the directory.
+
+    @return             The engine after it finished evaluation.
+    """
+    # Combined YAML string of all the config files.
+    yaml_str = gather_yaml_configs(config_dir, paths)
+
+    # Loads the YAML into Configuration settings.
+    config: Config = Config(yaml_str, "yaml")
+    # Pulls out the Config root node, containing all the config info.
+    root: ConfigNode = config.getRoot()
+
+    # Creates the workload specified by root.
+    workload: Workload = Workload(root["problem"])
+    # Creates the architecture specified by root.
+    arch_specs: ArchSpecs = ArchSpecs(
+        root["architecture"], "sparse_optimizations" in root
+    )
+
+    # Does accelergy load-ins if present.
+    if "ERT" in root:
+        arch_specs.parse_accelergy_ert(root["ERT"])
+    if "ART" in root:
+        arch_specs.parse_accelergy_art(root["ART"])
+
+    # Creates the mapping off of the specifications and workload.
+    mapping: Mapping = Mapping(root["mapping"], arch_specs, workload)
+    # Creates SparseOptimizations off of settings.
+    sparse_info: SparseOptimizationInfo = SparseOptimizationInfo(root, arch_specs)
+
+    # Creates the evaluation engine with the specs.
+    engine: Engine = Engine(arch_specs)
+    # Runs the evaluator.
+    engine.evaluate(mapping, workload, sparse_info)
+
+    return engine
