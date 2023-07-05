@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 import typing
 
-from util import TEST_TMP_DIR, gather_yaml_configs
+from util import gather_yaml_configs
 
 from bindings.config import Config
 from bindings.config import ConfigNode
@@ -190,7 +190,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     filename: str = self.os.path.join(root, file)
 
                     # Open the file.
-                    with open(filename, "r") as file:
+                    with open(filename, "r", encoding="utf-8") as file:
                         # Reads the data as a string.
                         data: str = file.read()
                         # Passes parsed data into testing fxn.
@@ -345,16 +345,17 @@ class CompoundConfigNodeTest(unittest.TestCase):
                     case list():
                         # Goes through all elements.
                         index: int
-                        for index in range(len(truth)):
+                        item: typing.Union[dict, list, int, float, str, None]
+                        for index, item in enumerate(truth):
                             # Instantiates the value at index.
                             node.append(ConfigNode())
                             # If this is a nested thing, recurse.
-                            if isinstance(truth[index], (dict, list)):
+                            if isinstance(item, (dict, list)):
                                 # Recurses down one layer for copying.
-                                dupe_level(truth[index], node[index])
+                                dupe_level(item, node[index])
                             # Otherwise, directly set.
                             else:
-                                node[index] = truth[index]
+                                node[index] = item
                     # Scalar copy.
                     case _:
                         node = truth
