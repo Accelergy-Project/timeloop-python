@@ -2,9 +2,17 @@
 Does unit/integration testing for the configuration/inputs of PyTimeloop.
 """
 
+#  The general file location of the tests we're going to run.
+import os
+
+# The entropy library we're using.
+import random
 from pathlib import Path
 import unittest
 import typing
+
+# A parsed YAML file is used as the ground truth for our test cases.
+import yaml
 
 from util import gather_yaml_configs
 
@@ -114,15 +122,6 @@ seed: int = 42
 class CompoundConfigNodeTest(unittest.TestCase):
     """Tests the CompoundConfigNode class's reads and writes."""
 
-    ## @var A parsed YAML file is used as the ground truth for our test cases.
-    import yaml
-
-    ## @var The general file location of the tests we're going to run.
-    import os
-
-    ## @var The entropy library we're using.
-    import random
-
     ## @var The seeded RNG we're using.
     rng: random.Random = random.Random(seed)
     ## @var The number of cycles we expect fuzz tests to perform.
@@ -181,13 +180,13 @@ class CompoundConfigNodeTest(unittest.TestCase):
         _: list[str]
         files: list[str]
         # Goes through all the files in the testing directory.
-        for root, _, files in self.os.walk(self.root, topdown=False):
+        for root, _, files in os.walk(self.root, topdown=False):
             # Goes though all files.
             for file in files:
                 # Only runs test if we pulled in a YAML file.
                 if file.endswith(".yaml"):
                     # Constructs the file name.
-                    filename: str = self.os.path.join(root, file)
+                    filename: str = os.path.join(root, file)
 
                     # Open the file.
                     with open(filename, "r", encoding="utf-8") as file:
@@ -217,7 +216,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
             @param data The data in the canonical YAML file.
             """
             # Load the truth we're using for comparison.
-            truth: dict = self.yaml.safe_load(data)
+            truth: dict = yaml.safe_load(data)
             # Load the truth into Config.
             compound_config: Config = Config(data, "yaml")
             # Pulls the Node (dict structure analog) from Config.
@@ -313,7 +312,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
             @param file The canonical YAML string.
             """
             # Loads in the reference value
-            truth: dict = self.yaml.safe_load(file)
+            truth: dict = yaml.safe_load(file)
             # Creates the testing CompoundConfigNode
             root: ConfigNode = ConfigNode()
 
