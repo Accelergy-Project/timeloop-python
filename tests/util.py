@@ -18,12 +18,24 @@ TIMELOOP_EXAMPLES_DIR = (
 TEST_TMP_DIR = PROJECT_DIR / "tests/tmp-files"
 
 
-def gather_yaml_files(input_patterns):
-    """ """
-    yaml_str = ""
+def gather_yaml_files(input_patterns: map) -> str:
+    """Combines YAML files specified into one big string.
+
+    @param input_patterns   The absolute paths of the files we want to access.
+
+    @return                 The files we specified combined together.
+    """
+    # The return value namespace.
+    yaml_str: str = ""
+
+    # Iterates through all filepath patterns.
+    pattern: str
     for pattern in input_patterns:
+        # Calculates all files that match that pattern.
+        fname: str
         for fname in glob.iglob(pattern):
-            with open(fname, "r") as f:
+            # Concatenates the file onto the string.
+            with open(fname, "r", "utf-8") as f:
                 yaml_str += f.read()
             yaml_str += "\n"
     return yaml_str
