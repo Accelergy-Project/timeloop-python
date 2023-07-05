@@ -22,6 +22,11 @@ from util import TEST_TMP_DIR, gather_yaml_configs
 
 
 class ConfigTest(unittest.TestCase):
+    """
+    @brief  Tests the CompoundConfig bindings, ensuring a Timeloop workload can
+            run solely with Python.
+    """
+
     def run_evaluation(self, CONFIG_DIR: Path, PATHS: list[str]) -> Engine:
         """Creates and runs Timeloop given a configuration directory and paths
         to the requisite YAML files.
