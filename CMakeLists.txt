@@ -56,6 +56,7 @@ set(BINDINGS_SRC
     src/model/util.cpp
     bindings/accelergy_interface.cpp
     bindings/bindings.cpp
+    bindings/buffer.cpp
     bindings/config.cpp
     bindings/mapper.cpp
     bindings/mapping.cpp

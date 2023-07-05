@@ -11,5 +11,9 @@
 
 namespace pytimeloop::buffer_bindings
 {
-    
+    void BindBufferClasses(py::module& m)
+    {
+        using Stats = model::BufferLevel::Stats;
+        py::class_<Stats>(m, "Stats");
+    }
 }
