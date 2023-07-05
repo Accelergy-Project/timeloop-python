@@ -5,6 +5,12 @@ Utility functions that most tests will need.
 from pathlib import Path
 import glob
 
+# Imports we need to run an evaluation.
+from bindings.config import Config, ConfigNode
+from bindings.problem import Workload
+from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
+from bindings.mapping import Mapping
+
 
 # The directory of the project we're in.
 PROJECT_DIR = Path(__file__).parent.parent
@@ -35,9 +41,8 @@ def gather_yaml_files(input_patterns: map) -> str:
         fname: str
         for fname in glob.iglob(pattern):
             # Concatenates the file onto the string.
-            with open(fname, "r", "utf-8") as f:
-                yaml_str += f.read()
-            yaml_str += "\n"
+            with open(fname, "r", encoding="utf-8") as file:
+                yaml_str += file.read() + "\n"
     return yaml_str
 
 
@@ -57,15 +62,6 @@ def gather_yaml_configs(rel_config_dir: Path, rel_paths: list[str]) -> str:
     paths: map = map(lambda p: str(config_dir / p), rel_paths)
 
     return gather_yaml_files(paths)
-
-
-# Imports the necessary binding classes we need to test.
-from bindings.config import Config, ConfigNode
-
-# Imports we need to run an evaluation.
-from bindings.problem import Workload
-from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
-from bindings.mapping import Mapping
 
 
 def run_evaluation(config_dir: Path, paths: list[str]) -> Engine:
