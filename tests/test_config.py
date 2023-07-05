@@ -7,14 +7,20 @@ import os
 
 # The entropy library we're using.
 import random
+
+# Used to find OS paths.
 from pathlib import Path
+
+# The unittest library we're using.
 import unittest
+
+# Enables type hints.
 import typing
 
 # A parsed YAML file is used as the ground truth for our test cases.
 import yaml
 
-from util import gather_yaml_configs
+from tests.util import gather_yaml_configs
 
 from bindings.config import Config
 from bindings.config import ConfigNode
