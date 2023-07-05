@@ -22,6 +22,9 @@ PYBIND11_MODULE(bindings, m) {
   auto accelergy_submodule = m.def_submodule("accelergy");
   accelergy_bindings::BindAccelergyInterface(accelergy_submodule);
 
+  auto buffer_submodule = m.def_submodule("buffer");
+  buffer_bindings::BindBufferClasses(buffer_submodule);
+
   auto config_submodule = m.def_submodule("config");
   config_bindings::BindConfigClasses(config_submodule);
 
