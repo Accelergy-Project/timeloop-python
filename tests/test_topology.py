@@ -8,7 +8,6 @@ import typing
 from pathlib import Path
 
 from bindings.model import Engine, Topology
-from bindings.buffer import Stats
 from tests.util import run_evaluation
 
 
