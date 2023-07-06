@@ -41,7 +41,7 @@ class StatsTest(unittest.TestCase):
         
         # Tests we're able to access everything in Stats
         key: str
-        for key in dir(stats):
+        for key in set(dir(stats)).difference(("__doc__", "__module__")):
             # Pulls the attribute from stats.
             attr: typing.Any = getattr(stats, key)
 
@@ -50,7 +50,7 @@ class StatsTest(unittest.TestCase):
                 continue
 
             ## TODO:: Replace this at some point with a ground truth reference.
-            print(attr)
+            print(f"{key}: {attr}")
         
         # Ensures that the Reset function works for stats.
         stats.reset()
