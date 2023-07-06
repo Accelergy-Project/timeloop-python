@@ -9,6 +9,7 @@ from pathlib import Path
 
 # Imports the items we're testing; Engine is used to generate Topology.
 from bindings.model import Engine, Topology
+
 # Imports the test utility functions.
 from tests.util import run_evaluation
 
@@ -39,11 +40,13 @@ class StatsTest(unittest.TestCase):
         topology: Topology = engine.get_topology()
         # Fetches the stats of the topology.
         stats: Topology.Stats = topology.get_stats()
-        
+
         # Collects all instance variable names of stats.
-        var_names: list[str] = ({var_name for var_name in dir(stats) 
-                                if not callable(getattr(stats, var_name))} 
-                                - {"__doc__", "__module__"})
+        var_names: list[str] = {
+            var_name
+            for var_name in dir(stats)
+            if not callable(getattr(stats, var_name))
+        } - {"__doc__", "__module__"}
         # Tests we're able to access everything in Stats
         key: str
         for key in var_names:
@@ -52,7 +55,7 @@ class StatsTest(unittest.TestCase):
 
             ## TODO:: Replace this at some point with a ground truth reference.
             print(f"{key}: {attr}")
-        
+
         # Ensures that the Reset function works for stats.
         stats.reset()
 
@@ -61,9 +64,10 @@ class StatsTest(unittest.TestCase):
         for key in var_names:
             # Pulls the attribute from stats.
             attr: typing.Any = getattr(stats, key)
-            
+
             # Tests to make sure the function is cleared
             self.assertFalse(attr)
-        
+
+
 if __name__ == "__main__":
     unittest.main()
