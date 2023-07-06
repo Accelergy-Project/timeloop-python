@@ -39,15 +39,15 @@ class StatsTest(unittest.TestCase):
         # Fetches the stats of the topology.
         stats: Topology.Stats = topology.get_stats()
         
+        # Collects all instance variable names of stats.
+        var_names: list[str] = ({var_name for var_name in dir(stats) 
+                                if not callable(getattr(stats, var_name))} 
+                                - {"__doc__", "__module__"})
         # Tests we're able to access everything in Stats
         key: str
-        for key in set(dir(stats)).difference(("__doc__", "__module__")):
+        for key in var_names:
             # Pulls the attribute from stats.
             attr: typing.Any = getattr(stats, key)
-
-            # Makes sure if we pull a function we don't print that.
-            if callable(attr):
-                continue
 
             ## TODO:: Replace this at some point with a ground truth reference.
             print(f"{key}: {attr}")
@@ -57,13 +57,9 @@ class StatsTest(unittest.TestCase):
 
         # Tests everything we can access in Stats is cleared.
         key: str
-        for key in dir(stats):
+        for key in var_names:
             # Pulls the attribute from stats.
             attr: typing.Any = getattr(stats, key)
-
-            # Makes sure if we pull a function we don't test it.
-            if not callable(attr):
-                continue
             
             # Tests to make sure the function is cleared
             self.assertFalse(attr)
