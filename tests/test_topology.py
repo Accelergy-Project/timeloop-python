@@ -1,13 +1,15 @@
 """
-Does unit/integration testing for the buffer namespace of PyTimeloop, including
+Does unit/integration testing for model::Topology of PyTimeloop, including
 output testing of engine evaluations.
 """
-
+# Imports some convenience libraries for easier unittest management.
 import unittest
 import typing
 from pathlib import Path
 
+# Imports the items we're testing; Engine is used to generate Topology.
 from bindings.model import Engine, Topology
+# Imports the test utility functions.
 from tests.util import run_evaluation
 
 
