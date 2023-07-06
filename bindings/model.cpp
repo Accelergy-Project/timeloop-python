@@ -201,7 +201,8 @@ void BindTopology(py::module& m) {
       .def_readonly("algorithmic_computes", &Stats::algorithmic_computes)
       .def_readonly("actual_computes", &Stats::actual_computes)
       .def_readonly("last_level_accesses", &Stats::last_level_accesses)
-      .def_readonly("accesses", &Stats::accesses);
+      .def_readonly("accesses", &Stats::accesses)
+      .def_readonly("per_tensor_accesses", &Stats::per_tensor_accesses);
 
   /**
    * @brief   Binds PerDataSpace as used in Topology.Stats to Python under
@@ -209,7 +210,16 @@ void BindTopology(py::module& m) {
    * @warning May break once the global assumptions of PerDataSpace no longer
    *          are true.
    */
-  py::class_<problem::PerDataSpace<std::uint64_t>>(stats, "PerDataSpace");
+  py::class_<problem::PerDataSpace<std::uint64_t>>(stats, "PerDataSpace")
+      .def(py::init<>())
+      /** @brief Takes advantage of the built-in PerDataSpace streamer to output
+       * a string. */
+      .def("__str__", [](const problem::PerDataSpace<std::uint64_t>& self) 
+      {
+        std::stringstream stream;
+        stream << self;
+        return stream.str();
+      });
   }  // namespace pytimeloop::model_bindings
 
 }
