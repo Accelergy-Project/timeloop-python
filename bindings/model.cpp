@@ -210,11 +210,17 @@ void BindTopology(py::module& m) {
    * @warning May break once the global assumptions of PerDataSpace no longer
    *          are true.
    */
-  py::class_<problem::PerDataSpace<std::uint64_t>>(stats, "PerDataSpace")
+  using PerDataSpace = problem::PerDataSpace<std::uint64_t>;
+  py::class_<PerDataSpace>(stats, "PerDataSpace")
       .def(py::init<>())
+      /// @brief Index accession of the Array.
+      .def("__getitem__", [](const PerDataSpace& self, const long long& index)
+      {
+        return self[index];
+      })
       /** @brief Takes advantage of the built-in PerDataSpace streamer to output
        * a string. */
-      .def("__repr__", [](const problem::PerDataSpace<std::uint64_t>& self) 
+      .def("__repr__", [](const PerDataSpace& self) 
       {
         std::stringstream stream;
         stream << self;
