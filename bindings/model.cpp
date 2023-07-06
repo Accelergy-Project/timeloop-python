@@ -11,6 +11,7 @@
 #include "model/level.hpp"
 #include "model/sparse-optimization-info.hpp"
 #include "model/sparse-optimization-parser.hpp"
+#include "workload/util/per-data-space.hpp"
 
 namespace pytimeloop::model_bindings {
 using namespace pytimeloop::pymodel;
@@ -172,17 +173,22 @@ void BindTopology(py::module& m) {
       .def("utilized_capacities", &model::Topology::UtilizedCapacities)
       .def("get_stats", &model::Topology::GetStats);
 
+  // Shorthand of Stats for brevity.
   using Stats = model::Topology::Stats;
   /** 
-   * @brief           Binds the stats of Topology to Python
+   * @brief Binds the Stats of Topology to Python
    * 
    * @todo  Figure out if C++ has compile time Reflection (specifically 
    *        Introspection) in order to make this less ugly and spaghetti code.
    * 
    * @param topology  Making Stats under the scope of Topology.
    */
-  py::class_<Stats>(topology, "Stats")
-      /// @brief Converts the struct into a string.
+  py::class_<Stats> stats(topology, "Stats");
+      
+  stats
+      /// @brief The reset function built into the Stats struct.
+      .def("reset", &Stats::Reset)
+      /// @brief Read-only methods to access the fields of stats.
       .def_readonly("energy", &Stats::energy)
       .def_readonly("area", &Stats::area)
       .def_readonly("cycles", &Stats::cycles)
@@ -197,6 +203,13 @@ void BindTopology(py::module& m) {
       .def_readonly("last_level_accesses", &Stats::last_level_accesses)
       .def_readonly("accesses", &Stats::accesses);
 
+  /**
+   * @brief   Binds PerDataSpace as used in Topology.Stats to Python under
+   *          Topology.Stats.
+   * @warning May break once the global assumptions of PerDataSpace no longer
+   *          are true.
+   */
+  py::class_<problem::PerDataSpace<std::uint64_t>>(stats, "PerDataSpace");
   }  // namespace pytimeloop::model_bindings
 
 }

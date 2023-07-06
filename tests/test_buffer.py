@@ -39,18 +39,34 @@ class StatsTest(unittest.TestCase):
         # Fetches the stats of the topology.
         stats: Topology.Stats = topology.get_stats()
         
-        # Tests we're able to access everything from 
+        # Tests we're able to access everything in Stats
         key: str
         for key in dir(stats):
             # Pulls the attribute from stats.
             attr: typing.Any = getattr(stats, key)
+
             # Makes sure if we pull a function we don't print that.
-            if callable(getattr(stats, key)):
+            if callable(attr):
                 continue
 
             ## TODO:: Replace this at some point with a ground truth reference.
-            print(getattr(stats, key))
+            print(attr)
         
+        # Ensures that the Reset function works for stats.
+        stats.reset()
+
+        # Tests everything we can access in Stats is cleared.
+        key: str
+        for key in dir(stats):
+            # Pulls the attribute from stats.
+            attr: typing.Any = getattr(stats, key)
+
+            # Makes sure if we pull a function we don't test it.
+            if not callable(attr):
+                continue
+            
+            # Tests to make sure the function is cleared
+            self.assertFalse(attr)
         
 if __name__ == "__main__":
     unittest.main()
