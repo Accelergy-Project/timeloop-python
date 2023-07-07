@@ -17,6 +17,9 @@ std::string, config::CompoundConfigNode>>
     CompoundConfigLookupReturn;
 
 void BindConfigClasses(py::module& m) {
+  /// @brief Defines the docstring for the config module.
+  m.doc() = "The configuration classes needed to run Timeloop in Python.";
+
   using Configurator = pytimeloop::configurator::Configurator;
   py::class_<Configurator>(m, "Configurator")
       .def_static("from_yaml_str", &Configurator::FromYamlStr)
@@ -35,7 +38,8 @@ void BindConfigClasses(py::module& m) {
       /// @brief Initializer. Uses the CompoundConfig string + type constructor.
       .def(py::init<std::string &, std::string &>())
       /// @brief Fetches the root CompoundConfigNode.
-      .def("getRoot", &CompoundConfig::getRoot);
+      .def("getRoot", &CompoundConfig::getRoot,
+      "Returns the root ConfigNode of this Config.");
   
   /// @brief Creates an equivalent CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
@@ -54,7 +58,15 @@ void BindConfigClasses(py::module& m) {
             std::holds_alternative<std::string>(keyIn) ?
               self.lookup(std::get<std::string>(keyIn)):
               self.lookup(std::to_string(std::get<int>(keyIn)));
-      })
+      },
+      "Returns the value at the given key. Can accept both strings or ints, and "
+      "will resolve to different behavior depending on what type of ConfigNode "
+      "we are currently in. "
+      "\n\n"
+      "@param self   The current ConfigNode.\n"
+      "@param keyIn  The key/index we want to try to access.\n"
+      "\n"
+      "@return       The ConfigNode at the given key/index.")
       /// @brief Setting. Is used to traverse CCNs like a list or dict.
       .def("__setitem__", [](CompoundConfigNode& self,
                              const std::variant<int, std::string>& keyIn,
@@ -136,14 +148,24 @@ void BindConfigClasses(py::module& m) {
         {
           loc.setScalar(YAML::Null);
         }
-      })
-      /// @brief Makes it so the in command in Python works.
-      .def("__contains__", [](CompoundConfigNode& self, const CompoundConfigLookupReturn val)
+      },
+      "Sets the value at the given key. Can accept both strings or ints as keys. "
+      "Values can be any return type from __getitem__ (scalars or a ConfigNode). "
+      "\n\n"
+      "Like with Python dicts, if the key does not exist, it will be created. If "
+      "the ConfigNode is instead a list, if a index is not present, it will throw "
+      "an error."
+      "\n\n"
+      "@param self   The current ConfigNode.\n"
+      "@param keyIn  The key we would like to set.\n")
+      /// @brief Makes it so the in command in Python works; only for Maps.
+      .def("__contains__", [](CompoundConfigNode& self, const std::string& key)
       -> bool
       {
         // Only returns true if self is a Map and the val we're matching is a key.
-        return self.isMap() && self.exists(std::get<std::string>(*val));
-      })
+        return self.isMap() && self.exists(key);
+      }, 
+      "Returns true if the given key exists in the current ConfigNode.")
       /// @brief Pushes an object onto a CompoundConfigNode if Null or Sequence.
       .def("append", [](CompoundConfigNode& self, CompoundConfigLookupReturn val)
       -> void
@@ -176,8 +198,13 @@ void BindConfigClasses(py::module& m) {
         {
           self.push_back(YAML::Node());
         }
-      })
-
+      },
+      "Appends the given value to the end of the current ConfigNode if it's a " 
+      "list. If the current ConfigNode is Null, it will be converted to a list "
+      "and the value we are trying to append will be at index 0."
+      "\n\n"      
+      "@param self  The current ConfigNode.\n"
+      "@param val   The value we want to append.\n")
       /// @brief resolves a Node to a Scalar if possible.
       .def("resolve", [](CompoundConfigNode& self) -> CompoundConfigLookupReturn 
       {
@@ -220,7 +247,12 @@ void BindConfigClasses(py::module& m) {
           default:
             return self;
         }
-      })
+      },
+      "Attempts to resolve self to a scalar when possible."
+      "\n\n"      
+      "@param self   The current ConfigNode.\n"
+      "@return       The resolved scalar or the current ConfigNode if it cannot \n"
+      "              be resolved.")
 
       /// @brief Converts the Node to a string.
       .def("__str__", [](CompoundConfigNode& self) -> std::string
@@ -231,7 +263,8 @@ void BindConfigClasses(py::module& m) {
         temp << self.getYNode();
 
         return std::string(temp.c_str());
-      });
+      },
+      "Emits the current ConfigNode as a string.");
 } 
 
 }  // namespace pytimeloop::config_bindings
