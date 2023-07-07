@@ -166,6 +166,13 @@ void BindTopology(py::module& m) {
   py::class_<model::Topology> topology(m, "Topology");
 
   topology
+      /// @brief Uses the stream export of topology for the string representation.
+      .def("__str__", [](const model::Topology& self) 
+      {
+        std::stringstream stream;
+        stream << self;
+        return stream.str();
+      })
       .def("algorithmic_computes", &model::Topology::AlgorithmicComputes)
       .def("actual_computes", &model::Topology::ActualComputes)
       .def("last_level_accesses", &model::Topology::LastLevelAccesses)
