@@ -3,6 +3,10 @@
 #include "pytimeloop/model/accelerator-pool.h"
 #include "pytimeloop/model/accelerator.h"
 
+#include <array>
+#include <utility>
+#include <string>
+
 // PyBind11 headers
 #include <pybind11/stl.h>
 
@@ -178,7 +182,24 @@ void BindTopology(py::module& m) {
       .def("last_level_accesses", &model::Topology::LastLevelAccesses)
       .def("tile_sizes", &model::Topology::TileSizes)
       .def("utilized_capacities", &model::Topology::UtilizedCapacities)
-      .def("get_stats", &model::Topology::GetStats);
+      /// @brief Retrieves the stats from self.
+      .def("get_stats", &model::Topology::GetStats)
+      /// @brief Retrieves the buffer levels from self.
+      .def("get_buffer_levels", [](const model::Topology& self) {
+        /* Creates a vector of levels, as self.NumStorageLevels() cannot be used
+         * in constexpr, meaning we can't use it to initialize array sizes. */
+        std::vector<model::BufferLevel> levels(self.NumStorageLevels());
+
+        // Goes through all the levels and creates the pairs.
+        for (std::uint32_t index = 0; index < self.NumStorageLevels(); index++)
+        {
+          // Creates the pair of the level's name and the level itself.
+          levels[index] = self.ExposeStorageLevel(index);
+        }
+
+        // Returns the array of levels.
+        return levels;
+      });
 
   // Shorthand of Stats for brevity.
   using Stats = model::Topology::Stats;
