@@ -254,65 +254,6 @@ void BindTopology(py::module& m) {
         stream << self;
         return stream.str();
       });
-  /**
-   * @brief           Binds the BufferLevel class to Python under Topology
-   * @param topology  Making BufferLevel under the scope of Topology.
-   * @warning         May break once the global assumptions of Workload no
-   *                 longer are true.
-   */
-  py::class_<model::BufferLevel> buffer_level(topology, "BufferLevel");
-
-  buffer_level
-      .def(py::init<>())
-      /// @brief Uses BufferLevel's stream export for the string represntation.
-      .def("__str__", [](const model::BufferLevel& self) 
-      {
-        std::stringstream stream;
-        stream << self;
-        return stream.str();
-      })
-      /// @brief Read-only methods to access the fields of BufferLevel.
-      .def_property_readonly("name", &model::BufferLevel::Name)
-      .def_property_readonly("specs", &model::BufferLevel::GetSpecs)
-      .def_property_readonly("stats", &model::BufferLevel::GetStats);
-  
-  /**
-   * @brief               Binds the Specs of BufferLevel to Python under BufferLevel.
-   * @param buffer_level  Making Specs under the scope of BufferLevel.
-   * @warning             May break once the global assumptions of Workload no
-   *                     longer are true.
-   */
-  py::class_<model::BufferLevel::Specs> buffer_level_specs(buffer_level, "Specs");
-
-  buffer_level_specs
-      .def(py::init<>())
-      /// @brief Exposes all specs attributes as read-only to Python.
-      .def_readonly("name", &model::BufferLevel::Specs::name)
-      .def_readonly("technology", &model::BufferLevel::Specs::technology)
-      .def_readonly("size", &model::BufferLevel::Specs::size)
-      .def_readonly("md_size", &model::BufferLevel::Specs::md_size)
-      .def_readonly("md_size_bits", &model::BufferLevel::Specs::md_size_bits)
-      .def_readonly("word_bits", &model::BufferLevel::Specs::word_bits)
-      .def_readonly("addr_gen_bits", &model::BufferLevel::Specs::addr_gen_bits)
-      .def_readonly("block_size", &model::BufferLevel::Specs::block_size)
-      .def_readonly("cluster_size", &model::BufferLevel::Specs::cluster_size)
-      .def_readonly("instances", &model::BufferLevel::Specs::instances)
-      .def_readonly("meshX", &model::BufferLevel::Specs::meshX)
-      .def_readonly("meshY", &model::BufferLevel::Specs::meshY)
-      .def_readonly("shared_bandwidth", &model::BufferLevel::Specs::shared_bandwidth)
-      .def_readonly("read_bandwidth", &model::BufferLevel::Specs::read_bandwidth)
-      .def_readonly("write_bandwidth", &model::BufferLevel::Specs::write_bandwidth)
-      .def_readonly("multiple_buffering", &model::BufferLevel::Specs::multiple_buffering)
-      .def_readonly("effective_size", &model::BufferLevel::Specs::effective_size)
-      .def_readonly("effective_md_size", &model::BufferLevel::Specs::effective_md_size)
-      .def_readonly("effective_md_size_bits", &model::BufferLevel::Specs::effective_md_size_bits)
-      .def_readonly("min_utilization", &model::BufferLevel::Specs::min_utilization)
-      .def_readonly("num_ports", &model::BufferLevel::Specs::num_ports)
-      .def_readonly("num_banks", &model::BufferLevel::Specs::num_banks)
-      .def_readonly("reduction_supported", &model::BufferLevel::Specs::reduction_supported);
-
-
-
 }
 }  // namespace pytimeloop::model_bindings
 
