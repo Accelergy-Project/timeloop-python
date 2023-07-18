@@ -1,5 +1,4 @@
 #include "pytimeloop/bindings/mapping.h"
-
 #include "pytimeloop/bindings/type_casters.h"
 
 // Timeloop headers
