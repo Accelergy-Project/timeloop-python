@@ -1,4 +1,5 @@
 #include "pytimeloop/bindings/model.h"
+#include "pytimeloop/bindings/type_casters.h"
 
 #include "pytimeloop/model/accelerator-pool.h"
 #include "pytimeloop/model/accelerator.h"
@@ -231,29 +232,6 @@ void BindTopology(py::module& m) {
       .def_readonly("last_level_accesses", &Stats::last_level_accesses)
       .def_readonly("accesses", &Stats::accesses)
       .def_readonly("per_tensor_accesses", &Stats::per_tensor_accesses);
-
-  /**
-   * @brief   Binds PerDataSpace as used in Topology.Stats to Python under
-   *          Topology.Stats.
-   * @warning May break once the global assumptions of PerDataSpace no longer
-   *          are true.
-   */
-  using PerDataSpace = problem::PerDataSpace<std::uint64_t>;
-  py::class_<PerDataSpace>(stats, "PerDataSpace")
-      .def(py::init<>())
-      /// @brief Index accession of the Array.
-      .def("__getitem__", [](const PerDataSpace& self, const long long& index)
-      {
-        return self[index];
-      })
-      /** @brief Takes advantage of the built-in PerDataSpace streamer to output
-       * a string. */
-      .def("__repr__", [](const PerDataSpace& self) 
-      {
-        std::stringstream stream;
-        stream << self;
-        return stream.str();
-      });
 }
 }  // namespace pytimeloop::model_bindings
 

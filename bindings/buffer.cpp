@@ -1,4 +1,5 @@
 #include "pytimeloop/bindings/buffer.h"
+#include "pytimeloop/bindings/type_casters.h"
 
 #include <optional>
 #include <variant>
