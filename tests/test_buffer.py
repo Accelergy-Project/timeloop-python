@@ -63,6 +63,23 @@ class StatsTest(unittest.TestCase):
                 ## TODO:: Replace this at some point with a ground truth reference.
                 print(f"{key}: {attr}")
 
+            # Gets the specs of the level.
+            specs: BufferLevel.Specs = level.specs
+            # Collects all instance variable names of specs.
+            var_names: list[str] = {
+                var_name
+                for var_name in dir(specs)
+                if not callable(getattr(specs, var_name))
+            } - {"__doc__", "__module__"}
+            # Tests we're able to access everything in Specs
+            key: str
+            for key in var_names:
+                # Pulls the attribute from specs.
+                attr: typing.Any = getattr(specs, key)
+
+                ## TODO:: Replace this at some point with a ground truth reference.
+                print(f"{key}: {attr}")
+
 
             
 

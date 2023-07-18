@@ -70,7 +70,32 @@ specs
     .def_readonly("min_utilization", &model::BufferLevel::Specs::min_utilization)
     .def_readonly("num_ports", &model::BufferLevel::Specs::num_ports)
     .def_readonly("num_banks", &model::BufferLevel::Specs::num_banks)
-    .def_readonly("reduction_supported", &model::BufferLevel::Specs::reduction_supported);
+    .def_readonly("reduction_supported", &model::BufferLevel::Specs::reduction_supported)
+    .def_readonly("network_fill_latency", &model::BufferLevel::Specs::network_fill_latency)
+    .def_readonly("network_drain_latency", &model::BufferLevel::Specs::network_drain_latency)
+    .def_readonly("concordant_compressed_tile_traversal", &model::BufferLevel::Specs::concordant_compressed_tile_traversal)
+    .def_readonly("tile_partition_supported", &model::BufferLevel::Specs::tile_partition_supported)
+    .def_readonly("decompression_supported", &model::BufferLevel::Specs::decompression_supported)
+    .def_readonly("compression_supported", &model::BufferLevel::Specs::compression_supported)
+    .def_readonly("metadata_storage_width", &model::BufferLevel::Specs::metadata_storage_width)
+    .def_readonly("metadata_storage_depth", &model::BufferLevel::Specs::metadata_storage_depth)
+    .def_readonly("unified_data_md_storage", &model::BufferLevel::Specs::unified_data_md_storage)
+    .def_readonly("default_md_block_size", &model::BufferLevel::Specs::default_md_block_size)
+    .def_readonly("default_md_word_bits", &model::BufferLevel::Specs::default_md_word_bits)
+    .def_readonly("read_network_name", &model::BufferLevel::Specs::read_network_name)
+    .def_readonly("fill_network_name", &model::BufferLevel::Specs::fill_network_name)
+    .def_readonly("drain_network_name", &model::BufferLevel::Specs::drain_network_name)
+    .def_readonly("update_network_name", &model::BufferLevel::Specs::update_network_name)
+    .def_readonly("ERT_entries", &model::BufferLevel::Specs::ERT_entries)
+    .def_readonly("op_energy_map", &model::BufferLevel::Specs::op_energy_map)
+    .def_readonly("allow_overbooking", &model::BufferLevel::Specs::allow_overbooking)
+    .def_readonly("vector_access_energy", &model::BufferLevel::Specs::vector_access_energy)
+    .def_readonly("storage_area", &model::BufferLevel::Specs::storage_area)
+    .def_readonly("addr_gen_energy", &model::BufferLevel::Specs::addr_gen_energy)
+    .def_readonly("access_energy_source", &model::BufferLevel::Specs::access_energy_source)
+    .def_readonly("addr_gen_energy_source", &model::BufferLevel::Specs::addr_gen_energy_source)
+    .def_readonly("storage_area_source", &model::BufferLevel::Specs::storage_area_source)
+    .def_readonly("is_sparse_module", &model::BufferLevel::Specs::is_sparse_module);
 
 
 
