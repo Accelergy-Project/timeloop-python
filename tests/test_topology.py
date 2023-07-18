@@ -39,7 +39,7 @@ class StatsTest(unittest.TestCase):
         # Gets the topology.
         topology: Topology = engine.get_topology()
         # Fetches the stats of the topology.
-        stats: Topology.Stats = topology.get_stats()
+        stats: Topology.Stats = topology.stats
 
         # Collects all instance variable names of stats.
         var_names: list[str] = {
