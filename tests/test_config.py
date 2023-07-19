@@ -22,7 +22,8 @@ import yaml
 
 
 # Imports the necessary binding classes we need to test.
-from bindings.config import Config, ConfigNode
+from bindings.config import Config
+ConfigNode = Config.ConfigNode
 
 # Imports the necessary utility funcitons.
 from tests.util import run_evaluation
@@ -102,7 +103,9 @@ class CompoundConfigNodeTest(unittest.TestCase):
     )
 
     def check_node(
-        self, truth: typing.Union[list[typing.Any], dict[typing.Any]], node: ConfigNode
+        self, 
+        truth: typing.Union[list[typing.Any], dict[typing.Any]], 
+        node: ConfigNode
     ) -> None:
         """Checks that a node is equal to its equivalent truth. Returns nothing.
         Values only arise from unittest printouts.
@@ -185,7 +188,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
             # Load the truth into Config.
             compound_config: Config = Config(data, "yaml")
             # Pulls the Node (dict structure analog) from Config.
-            node: ConfigNode = compound_config.getRoot()
+            node: ConfigNode = compound_config.root
             # Starts recursive test.
             self.check_node(truth, node)
 

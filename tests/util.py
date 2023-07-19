@@ -6,7 +6,7 @@ from pathlib import Path
 import glob
 
 # Imports we need to run an evaluation.
-from bindings.config import Config, ConfigNode
+from bindings.config import Config
 from bindings.problem import Workload
 from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
 from bindings.mapping import Mapping
@@ -81,7 +81,7 @@ def run_evaluation(config_dir: Path, paths: list[str]) -> Engine:
     # Loads the YAML into Configuration settings.
     config: Config = Config(yaml_str, "yaml")
     # Pulls out the Config root node, containing all the config info.
-    root: ConfigNode = config.getRoot()
+    root: ConfigNode = config.root
 
     # Creates the workload specified by root.
     workload: Workload = Workload(root["problem"])
