@@ -1,10 +1,12 @@
 // Necessary for PerDataSpace to be exported.
+#include "pytimeloop/bindings/topology.h"
 #include "pytimeloop/bindings/type_casters.h"
 
 // Timeloop headers
 #include "model/topology.hpp"
 
-namespace pytimeloop::model_bindings{
+namespace pytimeloop::model_bindings
+{
 void BindTopology(py::module& m) {
   /**
    * @brief   Binds the model::Topology class to Python.

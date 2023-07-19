@@ -45,12 +45,13 @@ PYBIND11_MODULE(bindings, m) {
     @brief  The classes neeeded to build a model in Timeloop.
   )DOCSTRING";
   model_bindings::BindAccelerator(model_submodule);
+  model_bindings::BindBufferClasses(model_submodule);
   model_bindings::BindAcceleratorPool(model_submodule);
   model_bindings::BindEngine(model_submodule);
   model_bindings::BindEvaluationResult(model_submodule);
   model_bindings::BindLevel(model_submodule);
   model_bindings::BindSparseOptimizationInfo(model_submodule);
-  model_bindings::BindTopology(model_submodule);
+  // model_bindings::BindTopology(model_submodule);
 
   auto problem_submodule = m.def_submodule("problem");
   problem_bindings::BindProblemClasses(problem_submodule);
