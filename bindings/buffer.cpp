@@ -103,7 +103,7 @@ specs
  * @brief                   Binds BufferLevel::Stats to BufferLevel.Stats in Python.
  * @param   buffer_level    Making BufferLevel.Stats under the scope of BufferLevel.
  * @warning                 May break once the global assumptions of Workload no
- *                         longer are true.
+ *                         `longer are true.
  */
 py::class_<model::BufferLevel::Stats> stats(buffer_level, "Stats");
 
