@@ -163,12 +163,16 @@ void BindSparseOptimizationInfo(py::module& m) {
 }
 
 void BindTopology(py::module& m) {
-
   /**
    * @brief   Binds the model::Topology class to Python.
    * @param m The module we're binding Topology to.
    */
   py::class_<model::Topology> topology(m, "Topology");
+
+  topology.doc() = R"DOCSTRING(
+      @brief Binds the Timeloop Topology class to Python.
+      @note  This class is a wrapper around Timeloop's native Topology class.
+  )DOCSTRING";
 
   topology
       /// @brief Uses the stream export of topology for the string representation.
@@ -177,7 +181,11 @@ void BindTopology(py::module& m) {
         std::stringstream stream;
         stream << self;
         return stream.str();
-      })
+      },
+      R"DOCSTRING(
+        @brief  Returns the Timeloop pretty printed version of Topology.
+      )DOCSTRING")
+      /// @brief General attributes of Topology.
       .def_property_readonly("algorithmic_computes", &model::Topology::AlgorithmicComputes)
       .def_property_readonly("actual_computes", &model::Topology::ActualComputes)
       .def_property_readonly("last_level_accesses", &model::Topology::LastLevelAccesses)
@@ -213,6 +221,11 @@ void BindTopology(py::module& m) {
    * @param topology  Making Stats under the scope of Topology.
    */
   py::class_<Stats> stats(topology, "Stats");
+
+  stats.doc() = R"DOCSTRING(
+    @brief  Binds the Topology Stats struct to Python.
+    @note   This class is a wrapper around Timeloop's native Stats struct.
+  )DOCSTRING";
       
   stats
       /// @brief The reset function built into the Stats struct.

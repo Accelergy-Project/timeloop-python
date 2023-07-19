@@ -9,7 +9,7 @@
 
 namespace py = pybind11;
 
-namespace pytimeloop::buffer_bindings {
+namespace pytimeloop::model_bindings {
 
 void BindBufferClasses(py::module& m);
 
