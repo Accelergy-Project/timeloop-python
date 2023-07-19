@@ -17,16 +17,12 @@
 PYBIND11_MODULE(bindings, m) {
   using namespace pytimeloop;
 
-  m.doc() = "PyTimeloop bindings to C++ timeloop code ";
+  m.doc() = R"DOCSTRING(
+    @brief PyTimeloop bindings to C++ timeloop code.
+  )DOCSTRING";
 
   auto accelergy_submodule = m.def_submodule("accelergy");
   accelergy_bindings::BindAccelergyInterface(accelergy_submodule);
-
-  auto buffer_submodule = m.def_submodule("buffer");
-  buffer_submodule.doc() = R"DOCSTRING(
-      Binds the BufferLevels used by Topology to represent a BufferLevel.
-  )DOCSTRING";
-  buffer_bindings::BindBufferClasses(buffer_submodule);
 
   auto config_submodule = m.def_submodule("config");
   config_submodule.doc() = R"DOCSTRING(
@@ -44,6 +40,9 @@ PYBIND11_MODULE(bindings, m) {
   mapspace_bindings::BindMapspaceClasses(mapspace_submodule);
 
   auto model_submodule = m.def_submodule("model");
+  model_submodule.doc() = R"DOCSTRING(
+    @brief  The classes neeeded to build a model in Timeloop.
+  )DOCSTRING";
   model_bindings::BindAccelerator(model_submodule);
   model_bindings::BindAcceleratorPool(model_submodule);
   model_bindings::BindEngine(model_submodule);

@@ -10,7 +10,7 @@
 // Timeloop headers
 #include "model/buffer.hpp"
 
-namespace pytimeloop::buffer_bindings
+namespace pytimeloop::model_bindings
 {
 void BindBufferClasses(py::module& m)
 {
@@ -191,4 +191,4 @@ stats
     .def_readonly("cycles", &model::BufferLevel::Stats::cycles)
     .def_readonly("slowdown", &model::BufferLevel::Stats::slowdown);
 }
-}
+} // namespace pytimeloop::model_bindings
