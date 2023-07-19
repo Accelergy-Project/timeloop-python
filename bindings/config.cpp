@@ -34,16 +34,17 @@ void BindConfigClasses(py::module& m) {
 
   /// @brief Creates an equivalent CompoundConfig class in Python.
   using CompoundConfig = config::CompoundConfig;
-  py::class_<CompoundConfig>(m, "Config")
+  py::class_<CompoundConfig> config(m, "Config");
+
+  config
       /// @brief Initializer. Uses the CompoundConfig string + type constructor.
       .def(py::init<std::string &, std::string &>())
       /// @brief Fetches the root CompoundConfigNode.
-      .def("getRoot", &CompoundConfig::getRoot,
-      "Returns the root ConfigNode of this Config.");
+      .def_propert_readonly("root", &CompoundConfig::getRoot);
   
-  /// @brief Creates an equivalent CompoundConfigNode class in Python. 
+  /// @brief Creates an equivalent Config.CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
-  py::class_<CompoundConfigNode>(m, "ConfigNode")
+  py::class_<CompoundConfigNode>(config, "ConfigNode")
       /** @brief The default constructor. The only way you should get one with
        * values is through Config */
       .def(py::init<>())
@@ -59,14 +60,16 @@ void BindConfigClasses(py::module& m) {
               self.lookup(std::get<std::string>(keyIn)):
               self.lookup(std::to_string(std::get<int>(keyIn)));
       },
-      "Returns the value at the given key. Can accept both strings or ints, and "
-      "will resolve to different behavior depending on what type of ConfigNode "
-      "we are currently in. "
-      "\n\n"
-      "@param self   The current ConfigNode.\n"
-      "@param keyIn  The key/index we want to try to access.\n"
-      "\n"
-      "@return       The ConfigNode at the given key/index.")
+      R"DOCSTRING(
+        Returns the value at the given key. Can accept both strings or ints, and
+        will resolve to different behavior depending on what type of ConfigNode 
+        we are currently in.
+        
+        @param self   The current ConfigNode.
+        @param keyIn  The key/index we want to try to access.
+
+        @return       The ConfigNode at the given key/index.
+      )DOCSTRING")
       /// @brief Setting. Is used to traverse CCNs like a list or dict.
       .def("__setitem__", [](CompoundConfigNode& self,
                              const std::variant<int, std::string>& keyIn,
@@ -149,15 +152,17 @@ void BindConfigClasses(py::module& m) {
           loc.setScalar(YAML::Null);
         }
       },
-      "Sets the value at the given key. Can accept both strings or ints as keys. "
-      "Values can be any return type from __getitem__ (scalars or a ConfigNode). "
-      "\n\n"
-      "Like with Python dicts, if the key does not exist, it will be created. If "
-      "the ConfigNode is instead a list, if a index is not present, it will throw "
-      "an error."
-      "\n\n"
-      "@param self   The current ConfigNode.\n"
-      "@param keyIn  The key we would like to set.\n")
+      R"DOCSTRING(
+        Sets the value at the given key. Can accept both strings or ints as keys.
+        Values can be any return type from __getitem__ (scalars or a ConfigNode).
+
+        Like with Python dicts, if the key does not exist, it will be created. If
+        the ConfigNode is instead a list, if a index is not present, it will throw
+        an error.
+
+        @param self   The current ConfigNode.
+        @param keyIn  The key we would like to set.
+      )DOCSTRING")
       /// @brief Makes it so the in command in Python works; only for Maps.
       .def("__contains__", [](CompoundConfigNode& self, const std::string& key)
       -> bool
@@ -199,12 +204,14 @@ void BindConfigClasses(py::module& m) {
           self.push_back(YAML::Node());
         }
       },
-      "Appends the given value to the end of the current ConfigNode if it's a " 
-      "list. If the current ConfigNode is Null, it will be converted to a list "
-      "and the value we are trying to append will be at index 0."
-      "\n\n"      
-      "@param self  The current ConfigNode.\n"
-      "@param val   The value we want to append.\n")
+      R"DOCSTRING(
+        Appends the given value to the end of the current ConfigNode if it's a
+        list. If the current ConfigNode is Null, it will be converted to a list
+        and the value we are trying to append will be at index 0.
+      
+        @param self  The current ConfigNode.
+        @param val   The value we want to append.
+      )DOCSTRING")
       /// @brief resolves a Node to a Scalar if possible.
       .def("resolve", [](CompoundConfigNode& self) -> CompoundConfigLookupReturn 
       {
@@ -248,12 +255,13 @@ void BindConfigClasses(py::module& m) {
             return self;
         }
       },
-      "Attempts to resolve self to a scalar when possible."
-      "\n\n"      
-      "@param self   The current ConfigNode.\n"
-      "@return       The resolved scalar or the current ConfigNode if it cannot \n"
-      "              be resolved.")
+      R"DOCSTRING(
+        Attempts to resolve self to a scalar when possible.
 
+        @param self   The current ConfigNode.
+        @return       The resolved scalar or the current ConfigNode if it cannot
+                      be resolved.
+      )DOCSTRING")
       /// @brief Converts the Node to a string.
       .def("__str__", [](CompoundConfigNode& self) -> std::string
       {
