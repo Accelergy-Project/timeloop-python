@@ -14,6 +14,5 @@ void BindEvaluationResult(py::module& m);
 void BindLevel(py::module& m);
 void BindSparseOptimizationInfo(py::module& m);
 void BindSparseOptimizationParser(py::module& m);
-void BindTopology(py::module& m);
 
 }  // namespace pytimeloop::model_bindings

@@ -10,6 +10,7 @@
 #include "pytimeloop/bindings/model.h"
 #include "pytimeloop/bindings/problem.h"
 #include "pytimeloop/bindings/search.h"
+#include "pytimeloop/bindings/topology.h"
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
