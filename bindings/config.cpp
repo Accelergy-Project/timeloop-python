@@ -2,9 +2,6 @@
 #include <optional>
 #include <variant>
 
-// PyBind11 headers
-#include "pybind11/stl.h"
-
 // Timeloop headers
 #include "compound-config/compound-config.hpp"
 
