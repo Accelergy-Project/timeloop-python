@@ -63,7 +63,8 @@ set(BINDINGS_SRC
     bindings/mapspace.cpp
     bindings/model.cpp
     bindings/problem.cpp
-    bindings/search.cpp)
+    bindings/search.cpp
+    bindings/topology.cpp)
 add_subdirectory(lib/pybind11)
 pybind11_add_module(bindings ${BINDINGS_SRC})
 set_property(TARGET bindings PROPERTY CXX_STANDARD 17)
