@@ -189,7 +189,7 @@ void BindTopology(py::module& m) {
       .def_property_readonly("buffer_levels", [](const model::Topology& self) {
         /* Creates a vector of levels, as self.NumStorageLevels() cannot be used
          * in constexpr, meaning we can't use it to initialize array sizes. */
-        std::vector<model::BufferLevel> levels(self.NumStorageLevels());
+        std::vector<std::shared_ptr<const model::BufferLevel>> levels(self.NumStorageLevels());
 
         // Goes through all the levels and creates the pairs.
         for (std::uint32_t index = 0; index < self.NumStorageLevels(); index++)
