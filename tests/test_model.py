@@ -11,7 +11,7 @@ from bindings.config import Configurator
 from pytimeloop.app import ModelApp
 from pytimeloop.accelergy_interface import invoke_accelergy
 
-from .util import TEST_TMP_DIR, gather_yaml_configs
+from tests.util import TEST_TMP_DIR, gather_yaml_configs
 
 
 class ModelAppTest(unittest.TestCase):
