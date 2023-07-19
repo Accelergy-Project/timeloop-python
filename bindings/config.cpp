@@ -1,5 +1,4 @@
-#include "pytimeloop/bindings/config.h"
-
+// std's necessary for pybind11.
 #include <optional>
 #include <variant>
 
@@ -8,18 +7,18 @@
 
 // Timeloop headers
 #include "compound-config/compound-config.hpp"
+
+// PyTimeloop headers
+#include "pytimeloop/bindings/config.h"
 #include "pytimeloop/configurator/configurator.h"
 
 namespace pytimeloop::config_bindings {
 
-typedef std::optional<std::variant<bool, long long, unsigned long long, double, 
-std::string, config::CompoundConfigNode>>
-    CompoundConfigLookupReturn;
+using CompoundConfigLookupReturn = std::optional<std::variant<
+  bool, long long, unsigned long long, double, std::string, config::CompoundConfigNode
+>>;
 
 void BindConfigClasses(py::module& m) {
-  /// @brief Defines the docstring for the config module.
-  m.doc() = "The configuration classes needed to run Timeloop in Python.";
-
   using Configurator = pytimeloop::configurator::Configurator;
   py::class_<Configurator>(m, "Configurator")
       .def_static("from_yaml_str", &Configurator::FromYamlStr)
@@ -36,6 +35,14 @@ void BindConfigClasses(py::module& m) {
   using CompoundConfig = config::CompoundConfig;
   py::class_<CompoundConfig> config(m, "Config");
 
+  config.doc() = R"DOCSTRING(
+    @brief  The configuration object Timeloop uses to determine how to run. 
+    
+    This is wrapping a ConfigNode for ownership reasons. ConfigNode is a 
+    YAML::Node with some extra functionality to keep backwards compatibility 
+    with .cfg files. PyTimeloop, however, only supports YAML files.
+  )DOCSTRING";
+
   config
       /// @brief Initializer. Uses the CompoundConfig string + type constructor.
       .def(py::init<std::string &, std::string &>())
@@ -44,7 +51,18 @@ void BindConfigClasses(py::module& m) {
   
   /// @brief Creates an equivalent Config.CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
-  py::class_<CompoundConfigNode>(config, "ConfigNode")
+  py::class_<CompoundConfigNode> config_node(config, "ConfigNode");
+
+  config_node.doc() = R"DOCSTRING(
+    @brief  The configuration node Timeloop uses to determine how to run.
+
+    This is a structure that wraps a YAML::Node, in order to keep backwards
+    compatibility in Timeloop with .cfg files. PyTimeloop, however, only
+    supports YAML files. This class is also used to traverse the YAML tree
+    in a way that is more Pythonic.
+  )DOCSTRING";
+
+  config_node
       /** @brief The default constructor. The only way you should get one with
        * values is through Config */
       .def(py::init<>())
@@ -274,5 +292,4 @@ void BindConfigClasses(py::module& m) {
       },
       "Emits the current ConfigNode as a string.");
 } 
-
 }  // namespace pytimeloop::config_bindings
