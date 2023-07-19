@@ -4,7 +4,7 @@ import unittest
 from pytimeloop.config import Configurator
 from pytimeloop.engine import Accelerator
 
-from .util import gather_yaml_configs
+from tests.util import gather_yaml_configs
 
 
 class AcceleratorTest(unittest.TestCase):

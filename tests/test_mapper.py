@@ -2,13 +2,13 @@ import unittest
 
 from pytimeloop.app import MapperApp
 
-from .util import TEST_TMP_DIR, load_configs
+from tests.util import TEST_TMP_DIR, gather_yaml_configs
 
 
 class MapperAppTest(unittest.TestCase):
     @staticmethod
     def make_mapper_app(config_dir, paths, tmp_path):
-        config = load_configs(config_dir, paths)
+        config = gather_yaml_configs(config_dir, paths)
         return MapperApp(config, str(tmp_path))
 
     def check_mapper_app(
