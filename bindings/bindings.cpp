@@ -51,7 +51,7 @@ PYBIND11_MODULE(bindings, m) {
   model_bindings::BindEvaluationResult(model_submodule);
   model_bindings::BindLevel(model_submodule);
   model_bindings::BindSparseOptimizationInfo(model_submodule);
-  // model_bindings::BindTopology(model_submodule);
+  model_bindings::BindTopology(model_submodule);
 
   auto problem_submodule = m.def_submodule("problem");
   problem_bindings::BindProblemClasses(problem_submodule);
