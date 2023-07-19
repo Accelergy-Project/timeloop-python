@@ -8,6 +8,7 @@ from pathlib import Path
 
 # Imports the Engine to generate a Topology.
 from bindings.model import Engine, Topology
+
 # Imports BufferLevels for type hinting.
 from bindings.buffer import BufferLevel
 
@@ -36,9 +37,7 @@ for level in buffer_levels:
     stats: BufferLevel.Stats = level.stats
     # Collects all instance variable names of stats.
     var_names: list[str] = {
-        var_name
-        for var_name in dir(stats)
-        if not callable(getattr(stats, var_name))
+        var_name for var_name in dir(stats) if not callable(getattr(stats, var_name))
     } - {"__doc__", "__module__"}
 
     # Prints out every variable and its value.
