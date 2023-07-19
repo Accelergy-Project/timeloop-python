@@ -3,9 +3,6 @@
 #include "pytimeloop/model/accelerator-pool.h"
 #include "pytimeloop/model/accelerator.h"
 
-// PyBind11 headers
-#include <pybind11/stl.h>
-
 // Timeloop headers
 #include "model/engine.hpp"
 #include "model/sparse-optimization-info.hpp"
