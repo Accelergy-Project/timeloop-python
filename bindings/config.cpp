@@ -40,7 +40,7 @@ void BindConfigClasses(py::module& m) {
       /// @brief Initializer. Uses the CompoundConfig string + type constructor.
       .def(py::init<std::string &, std::string &>())
       /// @brief Fetches the root CompoundConfigNode.
-      .def_propert_readonly("root", &CompoundConfig::getRoot);
+      .def_property_readonly("root", &CompoundConfig::getRoot);
   
   /// @brief Creates an equivalent Config.CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;

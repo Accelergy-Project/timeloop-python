@@ -14,13 +14,21 @@ namespace pytimeloop::buffer_bindings
 {
 void BindBufferClasses(py::module& m)
 {
+m.doc() = R"DOCSTRING(
+    Binds the BufferLevels used by Topology to represent a BufferLevel.
+)DOCSTRING";
+
 /**
  * @brief           Binds the BufferLevel class to Python under Topology
- * @param topology  Making BufferLevel under the scope of Topology.
  * @warning         May break once the global assumptions of Workload no
  *                  longer are true.
  */
 py::class_<model::BufferLevel> buffer_level(m, "BufferLevel");
+
+buffer_level.doc() = R"DOCSTRING(
+    BufferLevel is a class that represents a single level of a memory hierarchy.
+    It is used by Topology to represent a BufferLevel.
+)DOCSTRING";
 
 buffer_level
     .def(py::init<>())
@@ -30,7 +38,11 @@ buffer_level
         std::stringstream stream;
         stream << self;
         return stream.str();
-    })
+    },
+    R"DOCSTRING(
+        Returns a string representation of the BufferLevel in Timeloop's pretty
+        printed format.
+    )DOCSTRING")
     /// @brief Read-only methods to access the fields of BufferLevel.
     .def_property_readonly("name", &model::BufferLevel::Name)
     .def_property_readonly("specs", &model::BufferLevel::GetSpecs)
@@ -44,6 +56,10 @@ buffer_level
  *                     longer are true.
  */
 py::class_<model::BufferLevel::Specs> specs(buffer_level, "Specs");
+
+specs.doc() = R"DOCSTRING(
+    The specifications of a BufferLevel.
+)DOCSTRING";
 
 specs
     .def(py::init<>())
@@ -106,6 +122,10 @@ specs
  *                         `longer are true.
  */
 py::class_<model::BufferLevel::Stats> stats(buffer_level, "Stats");
+
+stats.doc() = R"DOCSTRING(
+    The statistics of a BufferLevel.
+)DOCSTRING";
 
 stats
     .def(py::init<>())
