@@ -8,8 +8,7 @@ import typing
 from pathlib import Path
 
 # Imports the items we're testing; Engine is used to generate Buffers.
-from bindings.model import Engine, Topology
-from bindings.buffer import BufferLevel
+from bindings.model import Engine, Topology, BufferLevel
 
 # Imports the test utility functions.
 from tests.util import run_evaluation
