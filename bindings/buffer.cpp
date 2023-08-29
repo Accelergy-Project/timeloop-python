@@ -36,7 +36,7 @@ buffer_level
     )DOCSTRING")
     /// @brief Read-only methods to access the fields of BufferLevel.
     .def_property_readonly("name", &model::BufferLevel::Name)
-    .def_property_readonly("specs", &model::BufferLevel::GetSpecs)
+    /// @todo .def_property_readonly("specs", &model::BufferLevel::GetSpecs)
     .def_property_readonly("stats", &model::BufferLevel::GetStats);
 
 
@@ -46,8 +46,10 @@ buffer_level
  * @warning             May break once the global assumptions of Workload no
  *                     longer are true.
  */
+/**
+ * @todo: Uncomment this and .def_property_readonly("specs", &model::BufferLevel::GetSpecs)
+ * once Attribute<type> is bound to python.
 py::class_<model::BufferLevel::Specs> specs(buffer_level, "Specs");
-
 specs.doc() = R"DOCSTRING(
     @brief  The specifications of a BufferLevel.
 )DOCSTRING";
@@ -103,7 +105,7 @@ specs
     .def_readonly("addr_gen_energy_source", &model::BufferLevel::Specs::addr_gen_energy_source)
     .def_readonly("storage_area_source", &model::BufferLevel::Specs::storage_area_source)
     .def_readonly("is_sparse_module", &model::BufferLevel::Specs::is_sparse_module);
-
+*/
 
 
 /**
