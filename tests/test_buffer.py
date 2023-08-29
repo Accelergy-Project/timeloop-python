@@ -63,6 +63,8 @@ class StatsTest(unittest.TestCase):
 
                 ## TODO:: Replace this at some point with a ground truth reference.
                 print(f"{key}: {attr}")
+            '''
+            @todo Uncomment this block once the todo in buffer.cpp for Spec is done.
             print("Specs:")
             # Gets the specs of the level.
             specs: BufferLevel.Specs = level.specs
@@ -80,6 +82,8 @@ class StatsTest(unittest.TestCase):
 
                 ## TODO:: Replace this at some point with a ground truth reference.
                 print(f"{key}: {attr}")
+            '''
+        print("here")
 
 
 if __name__ == "__main__":

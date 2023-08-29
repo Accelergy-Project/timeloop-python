@@ -146,7 +146,8 @@ class Topology(bindings.model.Topology):
             }
 
             return var_dict
-        
+        '''
+        @todo Uncomment this block once the todo in buffer.cpp for Spec is done.
         class Specs(bindings.model.BufferLevel.Specs):
             """@brief Specifications of a BufferLevel. Wraps around the C++ bindings."""
 
@@ -163,7 +164,7 @@ class Topology(bindings.model.Topology):
                 }
 
                 return var_dict
-        
+        '''
 
         class Stats(bindings.model.BufferLevel.Stats):
             """@brief Stats of a BufferLevel. Wraps around the C++ bindings."""
