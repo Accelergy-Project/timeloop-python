@@ -8,7 +8,7 @@ import typing
 from pathlib import Path
 
 # Imports the items we're testing; Engine is used to generate Topology.
-from pytimeloop.model import Engine, Topology
+from bindings.model import Engine, Topology
 
 # Imports the test utility functions.
 from tests.util import run_evaluation
@@ -36,14 +36,23 @@ class StatsTest(unittest.TestCase):
         # Runs evaluation.
         engine: Engine = run_evaluation(config_dir, paths)
         # Gets the topology.
-        topology: Topology = engine.topology
+        topology: Topology = engine.get_topology()
         # Fetches the stats of the topology.
         stats: Topology.Stats = topology.stats
 
+        # Gets all the variable names of stats.
+        var_names: list[str] = {
+            var_name
+            for var_name in dir(stats)
+            if not callable(getattr(stats, var_name))
+        } - {"__doc__", "__module__"}
         # Tests we're able to access everything in Stats
         key: str
         val: typing.Any
-        for key, val in dict(stats).items():
+        for key in var_names:
+            # Pulls the attribute from stats.
+            attr: typing.Any = getattr(stats, key)
+
             ## TODO:: Replace this at some point with a ground truth reference.
             print(f"{key}: {attr}")
 

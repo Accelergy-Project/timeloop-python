@@ -8,7 +8,7 @@ import glob
 # Imports we need to run an evaluation.
 from bindings.config import Config
 from bindings.problem import Workload
-from pytimeloop.model import ArchSpecs, SparseOptimizationInfo, Engine
+from bindings.model import ArchSpecs, SparseOptimizationInfo, Engine
 from bindings.mapping import Mapping
 
 
