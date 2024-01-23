@@ -48,7 +48,7 @@ void BindTopology(py::module& m) {
         for (std::uint32_t index = 0; index < self.NumStorageLevels(); index++)
         {
           // Creates the pair of the level's name and the level itself.
-          levels[index] = self.GetStorageLevel(index);
+          levels[index] = self.ViewStorageLevel(index);
         }
 
         // Returns the array of levels.
