@@ -2,6 +2,7 @@ from enum import Enum
 import os
 import logging
 import subprocess
+from .call_utils import read_output_files
 
 logger = logging.getLogger(__name__)
 
@@ -20,37 +21,30 @@ class SearchTask:
         self.only_bypass = only_bypass_changed
 
 class MapperApp:
-    def __init__(self, yaml_str_cfg: str, log_level=logging.INFO):
+    def __init__(self, yaml_str_cfg: str, log_level=logging.INFO, default_out_dir: str = '.'):
         self.log_level = log_level
         self.yaml_str_cfg = yaml_str_cfg
+        self._default_out_dir = default_out_dir
 
-    def run_subprocess(self):
-        PATH_TO_STATS = 'timeloop-mapper.stats.txt'
-        PATH_TO_MAPPING = 'timeloop-mapper.map.txt'
-        PATH_TO_TMP_INPUT = 'tmp.yaml'
-
+    def run_subprocess(self, out_dir: str=None):
+        out_dir = self._default_out_dir if out_dir is None else out_dir
+        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(os.path.join(out_dir, 'inputs'), exist_ok=True)
+        PATH_TO_TMP_INPUT = os.path.join(out_dir, 'inputs', 'input.yaml')
         with open(PATH_TO_TMP_INPUT, 'w') as f:
             f.write(self.yaml_str_cfg)
-
-        subprocess.run(['timeloop-mapper', PATH_TO_TMP_INPUT])
-        os.remove(PATH_TO_TMP_INPUT)
-
-        stats = ''
-        if os.path.isfile(PATH_TO_STATS):
-            with open(PATH_TO_STATS, 'r') as f:
-                stats += f.read()
-            os.remove(PATH_TO_STATS)
-        else:
-            logger.error('Could not find %s', PATH_TO_STATS)
-
-        mapping = ''
-        if os.path.isfile(PATH_TO_MAPPING):
-            with open(PATH_TO_MAPPING, 'r') as f:
-                mapping += f.read()
-            os.remove(PATH_TO_MAPPING)
-        else:
-            logger.error('Could not find %s', PATH_TO_MAPPING)
-
+        PATH_TO_TMP_INPUT = os.path.abspath(os.path.realpath(PATH_TO_TMP_INPUT))
+        out_dir = os.path.abspath(os.path.realpath(out_dir))
+        cmd = ['timeloop_model', PATH_TO_TMP_INPUT, '-o', out_dir]
+        logger.info(f'Running Timeloop with command: {" ".join(cmd)}')
+        result = subprocess.run(cmd,
+                                cwd=out_dir,
+                                env=os.environ,
+                                capture_output=True)
+        stats, mapping = read_output_files(
+            result, out_dir, 'timeloop_mapper', 
+            'timeloop_mapper.stats.txt', 'timeloop_mapper.map.txt'
+        )
         return stats, mapping
 
     def run(self):
@@ -65,10 +59,10 @@ class MapperApp:
 #         self.logger = logging.getLogger('pytimeloop.app.Mapper')
 #         self.logger.setLevel(log_level)
 
-#         # timeloop-mapper configurations
+#         # timeloop_mapper configurations
 #         self.auto_bypass_on_failure = auto_bypass_on_failure
 #         self.out_prefix = out_prefix
-#         semi_qualified_prefix = 'timeloop-mapper'
+#         semi_qualified_prefix = 'timeloop_mapper'
 #         self.out_prefix = out_dir + '/' + semi_qualified_prefix
 
 #         # Architecture configuration
@@ -85,23 +79,23 @@ class MapperApp:
 #         # Mapper configuration
 #         mapper_cfg = cfg['mapper']
 #         self.num_threads = multiprocessing.cpu_count()
-#         if 'num-threads' in mapper_cfg:
-#             self.num_threads = mapper_cfg['num-threads']
+#         if 'num_threads' in mapper_cfg:
+#             self.num_threads = mapper_cfg['num_threads']
 #         self.logger.info('Using threads = %d', self.num_threads)
 
 #         self.metrics = []
-#         if 'optimization-metric' in mapper_cfg:
-#             self.metrics = mapper_cfg['optimization-metric']
-#         elif 'optimization-metrics' in mapper_cfg:
-#             self.metrics = mapper_cfg['optimization-metrics']
+#         if 'optimization_metric' in mapper_cfg:
+#             self.metrics = mapper_cfg['optimization_metric']
+#         elif 'optimization_metrics' in mapper_cfg:
+#             self.metrics = mapper_cfg['optimization_metrics']
 #         else:
 #             self.metrics = ['edp']
 #         self.metrics = list(self.metrics)
 
 #         # Search size (divide between threads)
 #         self.search_size = 0
-#         if 'search-size' in mapper_cfg:
-#             self.search_size = mapper_cfg['search-size']
+#         if 'search_size' in mapper_cfg:
+#             self.search_size = mapper_cfg['search_size']
 #         if 'search_size' in mapper_cfg:  # backwards compat.
 #             self.search_size = mapper_cfg['search_size']
 #         if self.search_size > 0:
@@ -116,41 +110,41 @@ class MapperApp:
 
 #         # Number of suboptimal valid mappings to trigger victory
 #         self.victory_condition = 500
-#         if 'victory-condition' in mapper_cfg:
-#             self.victory_condition = mapper_cfg['victory-condition']
+#         if 'victory_condition' in mapper_cfg:
+#             self.victory_condition = mapper_cfg['victory_condition']
 
 #         # Inter-thread sync interval
 #         self.sync_interval = 0
-#         if 'sync-interval' in mapper_cfg:
-#             self.sync_interval = mapper_cfg['sync-interval']
+#         if 'sync_interval' in mapper_cfg:
+#             self.sync_interval = mapper_cfg['sync_interval']
 
 #         # Misc.
 #         self.log_stats = False
-#         if 'log-stats' in mapper_cfg:
-#             self.log_stats = mapper_cfg['log-stats']
+#         if 'log_stats' in mapper_cfg:
+#             self.log_stats = mapper_cfg['log_stats']
 
 #         self.log_suboptimal = False
-#         if 'log-suboptimal' in mapper_cfg:
-#             self.log_suboptimal = mapper_cfg['log-suboptimal']
-#         if 'log-all' in mapper_cfg:  # backwards compat.
-#             self.log_suboptimal = mapper_cfg['log-all']
+#         if 'log_suboptimal' in mapper_cfg:
+#             self.log_suboptimal = mapper_cfg['log_suboptimal']
+#         if 'log_all' in mapper_cfg:  # backwards compat.
+#             self.log_suboptimal = mapper_cfg['log_all']
 
 #         self.live_status = False
-#         if 'live-status' in mapper_cfg:
-#             self.live_status = mapper_cfg['live-status']
+#         if 'live_status' in mapper_cfg:
+#             self.live_status = mapper_cfg['live_status']
 
 #         self.diagnostics_on = False
 #         if 'diagnostics' in mapper_cfg:
 #             self.live_status = mapper_cfg['diagnostics']
 
 #         self.penalize_consecutive_bypass_fails = False
-#         if 'penalize-consecutive-bypass-fails' in mapper_cfg:
+#         if 'penalize_consecutive_bypass_fails' in mapper_cfg:
 #             self.penalize_consecutive_bypass_fails = \
-#                 mapper_cfg['penalize-consecutive-bypass-fails']
+#                 mapper_cfg['penalize_consecutive_bypass_fails']
 
 #         self.emit_whoop_nest = False
-#         if 'emit-whoop-nest' in mapper_cfg:
-#             self.emit_whoop_nest = mapper_cfg['emit-whoop-nest']
+#         if 'emit_whoop_nest' in mapper_cfg:
+#             self.emit_whoop_nest = mapper_cfg['emit_whoop_nest']
 
 #         self.logger.info('Mapper configurations complete')
 
