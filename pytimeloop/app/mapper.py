@@ -20,35 +20,38 @@ class SearchTask:
         self.mapping = mapping
         self.only_bypass = only_bypass_changed
 
+
 class MapperApp:
-    def __init__(self, yaml_str_cfg: str, log_level=logging.INFO, default_out_dir: str = '.'):
+    def __init__(
+        self, yaml_str_cfg: str, log_level=logging.INFO, default_out_dir: str = "."
+    ):
         self.log_level = log_level
         self.yaml_str_cfg = yaml_str_cfg
         self._default_out_dir = default_out_dir
 
-    def run_subprocess(self, out_dir: str=None):
+    def run_subprocess(self, out_dir: str = None):
         out_dir = self._default_out_dir if out_dir is None else out_dir
         os.makedirs(out_dir, exist_ok=True)
-        os.makedirs(os.path.join(out_dir, 'inputs'), exist_ok=True)
-        PATH_TO_TMP_INPUT = os.path.join(out_dir, 'inputs', 'input.yaml')
-        with open(PATH_TO_TMP_INPUT, 'w') as f:
+        os.makedirs(os.path.join(out_dir, "inputs"), exist_ok=True)
+        PATH_TO_TMP_INPUT = os.path.join(out_dir, "inputs", "input.yaml")
+        with open(PATH_TO_TMP_INPUT, "w") as f:
             f.write(self.yaml_str_cfg)
         PATH_TO_TMP_INPUT = os.path.abspath(os.path.realpath(PATH_TO_TMP_INPUT))
         out_dir = os.path.abspath(os.path.realpath(out_dir))
-        cmd = ['timeloop_model', PATH_TO_TMP_INPUT, '-o', out_dir]
+        cmd = ["timeloop-model", PATH_TO_TMP_INPUT, "-o", out_dir]
         logger.info(f'Running Timeloop with command: {" ".join(cmd)}')
-        result = subprocess.run(cmd,
-                                cwd=out_dir,
-                                env=os.environ,
-                                capture_output=True)
+        result = subprocess.run(cmd, cwd=out_dir, env=os.environ, capture_output=True)
         stats, mapping = read_output_files(
-            result, out_dir, 'timeloop_mapper', 
-            'timeloop_mapper.stats.txt', 'timeloop_mapper.map.txt'
+            result,
+            out_dir,
+            "timeloop-mapper",
+            "timeloop-mapper.stats.txt",
+            "timeloop-mapper.map.txt",
         )
         return stats, mapping
 
     def run(self):
-        raise NotImplementedError('Disabled for now')
+        raise NotImplementedError("Disabled for now")
 
 
 # class MapperApp:
@@ -59,10 +62,10 @@ class MapperApp:
 #         self.logger = logging.getLogger('pytimeloop.app.Mapper')
 #         self.logger.setLevel(log_level)
 
-#         # timeloop_mapper configurations
+#         # timeloop-mapper configurations
 #         self.auto_bypass_on_failure = auto_bypass_on_failure
 #         self.out_prefix = out_prefix
-#         semi_qualified_prefix = 'timeloop_mapper'
+#         semi_qualified_prefix = 'timeloop-mapper'
 #         self.out_prefix = out_dir + '/' + semi_qualified_prefix
 
 #         # Architecture configuration
