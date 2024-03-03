@@ -38,7 +38,7 @@ class MapperApp:
             f.write(self.yaml_str_cfg)
         PATH_TO_TMP_INPUT = os.path.abspath(os.path.realpath(PATH_TO_TMP_INPUT))
         out_dir = os.path.abspath(os.path.realpath(out_dir))
-        cmd = ["timeloop-model", PATH_TO_TMP_INPUT, "-o", out_dir]
+        cmd = ["timeloop-mapper", PATH_TO_TMP_INPUT, "-o", out_dir]
         logger.info(f'Running Timeloop with command: {" ".join(cmd)}')
         result = subprocess.run(cmd, cwd=out_dir, env=os.environ, capture_output=True)
         stats, mapping = read_output_files(
