@@ -1,82 +1,69 @@
 """
-Does unit/integration testing for the configuration/inputs of PyTimeloop.
+Does unit testing for the configuration of PyTimeloop.
 """
 
-#  The general file location of the tests we're going to run.
 import os
-
-# The entropy library we're using.
 import random
-
-# Used to find OS paths.
 from pathlib import Path
-
-# The unittest library we're using.
 import unittest
-
-# Enables type hints.
 import typing
-
-# A parsed YAML file is used as the ground truth for our test cases.
 import yaml
 
-
-# Imports the necessary binding classes we need to test.
 from bindings.config import Config
 ConfigNode = Config.ConfigNode
 
-# Imports the necessary utility funcitons.
 from tests.util import run_evaluation
 
 
-class ConfigTest(unittest.TestCase):
-    """
-    @brief  Tests the CompoundConfig bindings, ensuring a Timeloop workload can
-            run solely with Python.
-    """
-
-    def test_config_basic(self) -> None:
-        """Tests that a loaded in Config can make a valid mapping.
-
-        Basic test that Python can run a Timeloop configuration from start to
-        finish off of pre-loaded files. Outputs are only through unittest asserts
-        and print statements.
-
-        @param self The testing unit environment.
-        """
-        print("\n\n\nTesting Integration:\n" + "-" * 5)
-        # Directory and path of all the config files.
-        config_dir: Path = Path("01-model-conv1d-2level")
-        paths: list[str] = [
-            "arch/*.yaml",
-            "map/conv1d-2level-os.map.yaml",
-            "prob/*.yaml",
-        ]
-
-        print(run_evaluation(config_dir, paths).pretty_print_stats())
-
-    # def test_multiple_workloads(self):
-    #     '''Tests for any errors when there exist multiple Timeloop Workload
-    #     instances.
-
-    #     Errors are printed out through unittest asserts and print statements.
-
-    #     @param self The testing suite environment.
-    #     '''
-    #     print("\n\n\nTesting Multiple Workloads Existing:\n" + '-'*5)
-
-    #     # Directory and path of all the config files.
-    #     CONFIG_DIR = Path('01-model-conv1d-2level')
-    #     PATHS = ['arch/*.yaml',
-    #              'map/conv1d-2level-os.map.yaml',
-    #              'prob/*.yaml']
-    #     self.run_evaluation(CONFIG_DIR, PATHS)
-
-    #     CONFIG_DIR = Path('01-model-conv1d-1level')
-    #     PATHS = ['arch/*.yaml',
-    #              'map/conv1d-2level-os.map.yaml',
-    #              'prob/*.yaml']
-    #     self.run_evaluation(CONFIG_DIR, PATHS)
+# TODO: Integration tests should not be here.
+# class ConfigTest(unittest.TestCase):
+#     """
+#     @brief  Tests the CompoundConfig bindings, ensuring a Timeloop workload can
+#             run solely with Python.
+#     """
+# 
+#     def test_config_basic(self) -> None:
+#         """Tests that a loaded in Config can make a valid mapping.
+# 
+#         Basic test that Python can run a Timeloop configuration from start to
+#         finish off of pre-loaded files. Outputs are only through unittest asserts
+#         and print statements.
+# 
+#         @param self The testing unit environment.
+#         """
+#         print("\n\n\nTesting Integration:\n" + "-" * 5)
+#         # Directory and path of all the config files.
+#         config_dir: Path = Path("01-model-conv1d-2level")
+#         paths: list[str] = [
+#             "arch/*.yaml",
+#             "map/conv1d-2level-os.map.yaml",
+#             "prob/*.yaml",
+#         ]
+# 
+#         print(run_evaluation(config_dir, paths).pretty_print_stats())
+# 
+#     # def test_multiple_workloads(self):
+#     #     '''Tests for any errors when there exist multiple Timeloop Workload
+#     #     instances.
+# 
+#     #     Errors are printed out through unittest asserts and print statements.
+# 
+#     #     @param self The testing suite environment.
+#     #     '''
+#     #     print("\n\n\nTesting Multiple Workloads Existing:\n" + '-'*5)
+# 
+#     #     # Directory and path of all the config files.
+#     #     CONFIG_DIR = Path('01-model-conv1d-2level')
+#     #     PATHS = ['arch/*.yaml',
+#     #              'map/conv1d-2level-os.map.yaml',
+#     #              'prob/*.yaml']
+#     #     self.run_evaluation(CONFIG_DIR, PATHS)
+# 
+#     #     CONFIG_DIR = Path('01-model-conv1d-1level')
+#     #     PATHS = ['arch/*.yaml',
+#     #              'map/conv1d-2level-os.map.yaml',
+#     #              'prob/*.yaml']
+#     #     self.run_evaluation(CONFIG_DIR, PATHS)
 
 
 ## @var The testing seed.
@@ -98,8 +85,7 @@ class CompoundConfigNodeTest(unittest.TestCase):
     ## @var The location of all our YAML files.
     root: str = (
         os.path.dirname(__file__)
-        + "/timeloop-accelergy-exercises/"
-        + "workspace/exercises/2020.ispass/timeloop"
+        + 'test_configs'
     )
 
     def check_node(
@@ -172,8 +158,6 @@ class CompoundConfigNodeTest(unittest.TestCase):
         @param self The unit test instance, so it can access test specific vars
                     like file locations.
         """
-        print("Testing Accessions:\n" + "-" * 5)
-
         def accession_test(data: dict[str, typing.Any]) -> None:
             """Given a string of a canonical YAML file, test that all accesses
             are possible.
@@ -202,7 +186,6 @@ class CompoundConfigNodeTest(unittest.TestCase):
 
         @param self The unit test instance this test belongs to.
         """
-        print("\n\n\nTesting Setters (Fuzz):\n" + "-" * 5)
 
         # Reference truth value.
         truth: dict = {}
@@ -268,8 +251,6 @@ class CompoundConfigNodeTest(unittest.TestCase):
 
         @param self The testing suite environment we're running in.
         """
-        print("\n\n\nTest Replication:\n" + "-" * 5)
-
         def replication_test(file: str) -> None:
             """Given a canonical YAML string, test if the string can be written
             entirely in Python.
