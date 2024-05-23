@@ -1,1 +1,1 @@
-from bindings.config import Configurator
+from bindings.config import Configurator, Config
