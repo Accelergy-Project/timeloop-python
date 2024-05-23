@@ -1,0 +1,6 @@
+t1
+M 4 K 2 N 2 
+MKN
+t0
+M 1 K 2 N 2 
+KN

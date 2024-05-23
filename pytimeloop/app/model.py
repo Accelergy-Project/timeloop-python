@@ -1,6 +1,10 @@
-from bindings.config import Configurator
+from bindings.config import Config
+from bindings.mapping import ArchConstraints, ArchProperties
 from pytimeloop.engine import Accelerator
 from .call_utils import read_output_files
+from pytimeloop.problem import Workload
+from pytimeloop.mapping import Mapping
+from pytimeloop.model import ArchSpecs, SparseOptimizationInfo
 
 import os
 import logging
@@ -19,6 +23,8 @@ class ModelApp:
         self._default_out_dir = default_out_dir
 
     def run_sandboxed(self):
+        # TODO: may be outdated
+        # TODO: this may not be needed anymore
         def run_result_to_queue(self, q: multiprocessing.Queue):
             result = self.run()
             q.put(result)
@@ -30,6 +36,8 @@ class ModelApp:
         return q.get()
 
     def run_subprocess(self, out_dir: str = None):
+        # TODO: may be outdated
+        # TODO: this may not be needed anymore
         out_dir = self._default_out_dir if out_dir is None else out_dir
         os.makedirs(out_dir, exist_ok=True)
         os.makedirs(os.path.join(out_dir, "inputs"), exist_ok=True)
@@ -55,34 +63,47 @@ class ModelApp:
         model_logger = logging.getLogger("pytimeloop.app.Model")
         model_logger.setLevel(self.log_level)
 
-        cfg = Configurator.from_yaml_str(self.yaml_str_cfg)
-
-        # # timeloop-model configurations
-        # self.auto_bypass_on_failure = auto_bypass_on_failure
-        # self.out_prefix = out_prefix
-        # semi_qualified_prefix = 'timeloop-model'
-        # self.out_prefix = out_dir + '/' + semi_qualified_prefix
-
-        arch_specs = cfg.get_arch_specs()
+        cfg = Config(self.yaml_str_cfg, 'yaml')
 
         # Problem configuration
-        workload = cfg.get_workload()
-        model_logger.info("Workload configuration complete.")
+        workload = Workload(cfg.root['problem'])
+        model_logger.info("Workload configured.")
 
-        constraints = cfg.get_mapping_constraints()
-        model_logger.info("Architecture configuration complete.")
+        is_sparse_topology = 'sparse_optimizations' in cfg.root
+
+        arch_specs = ArchSpecs(cfg.root['architecture'], is_sparse_topology)
+        model_logger.info("Arch specifications configured.")
 
         # Mapping configuration
-        mapping = cfg.get_mapping()
-        model_logger.info("Mapping construction complete.")
+        mapping = Mapping(cfg.root['mapping'], arch_specs, workload)
+        model_logger.info("Mapping configured.")
 
         # Validate mapping against architecture constraints
+        arch_props = ArchProperties(arch_specs)
+        arch_constrains_cfg = Config.ConfigNode()
+        if 'constraints' in cfg.root['architecture']:
+            arch_constrains_cfg = cfg.root['architecture']['constraints']
+        elif 'architecture_constraints' in cfg.root:
+            arch_constrains_cfg = cfg.root['architecture_constraints']
+        constraints = ArchConstraints(arch_props,
+                                      workload,
+                                      arch_constrains_cfg)
         if not constraints.satisfied_by(mapping):
             model_logger.error("Mapping violates architecture constraints.")
             raise ValueError("Mapping violates architecture constraints.")
 
+
         # Sparse optimizations
-        sparse_optimizations = cfg.get_sparse_opts()
+        if 'sparse_optimizations' in cfg.root:
+            sparse_optimizations = SparseOptimizationInfo(
+                cfg.root['sparse_optimizations'],
+                arch_specs
+            )
+        else:
+            sparse_optimizations = SparseOptimizationInfo(
+                Config.ConfigNode(),
+                arch_specs
+            )
 
         engine = Accelerator(arch_specs)
 

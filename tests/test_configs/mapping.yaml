@@ -1,0 +1,9 @@
+mapping:
+  - type: temporal
+    target: Offchip
+    permutation: MKN
+    factors: M=4 K=2 N=2
+  - type: temporal
+    target: Glb
+    permutation: MKN
+    factors: M=1 K=2 N=2

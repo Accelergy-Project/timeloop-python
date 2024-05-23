@@ -1,0 +1,22 @@
+problem:
+  version: 0.3
+  instance:
+    M: 4
+    K: 4
+    N: 4
+  shape:
+    dimensions: [M, K, N]
+    data_spaces:
+    - name: A
+      projection:
+      - - - M
+      - - - K
+    - name: B
+      projection:
+      - - - K
+      - - - N
+    - name: C
+      projection:
+      - - - M
+      - - - N
+      read_write: true

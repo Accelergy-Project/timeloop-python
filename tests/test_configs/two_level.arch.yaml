@@ -1,0 +1,26 @@
+architecture:
+  version: 0.3
+  subtree:
+  - name: System
+    attributes:
+      technology: "28nm"
+    local:
+    - name: Offchip
+      class: DRAM
+      attributes:
+        width: 256
+        data_width: 8
+    subtree:
+    - name: Chip
+      local:
+      - name: Glb
+        class: SRAM
+        attributes:
+          depth: 1024
+          width: 16
+          n_rd_wr_ports: 2
+          data_width: 8
+      - name: Mac
+        class: intmac
+        attributes:
+          data_width: 8
