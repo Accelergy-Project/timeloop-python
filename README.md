@@ -71,6 +71,10 @@ optional arguments:
 This README is written with users as its audience, more information relevant
 to the development of the project can be found in CONTRIBUTING.md.
 
+## General Debugging Information
+1. When debugging the C++ bindings, it may be faster to build by calling `cmake`
+   directly instead of `pip3 install`
+
 ## Known Bugs
 1. segmentation fault at the end of timeloop-mapper.py. Doesn't break anything,
    but quite annoying. Might be caused when cleaning up some objects.

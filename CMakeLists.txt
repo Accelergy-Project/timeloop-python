@@ -10,6 +10,7 @@ endif()
 
 if(DEFINED ENV{TIMELOOP_LIB_PATH})
     set(TIMELOOP_LIB_PATH $ENV{TIMELOOP_LIB_PATH})
+    message(STATUS "Using timeloop libraries from: $ENV{TIMELOOP_LIB_PATH}")
     find_library(LIBTIMELOOP timeloop-mapper HINTS ${TIMELOOP_LIB_PATH} REQUIRED)
 else()
     find_library(LIBTIMELOOP timeloop-mapper REQUIRED)
