@@ -146,6 +146,7 @@ void BindLevel(py::module& m) {
 
 void BindSparseOptimizationInfo(py::module& m) {
   py::class_<sparse::SparseOptimizationInfo>(m, "SparseOptimizationInfo")
+      .def(py::init())
       .def(py::init(&sparse::ParseAndConstruct))
       .def_static("parse_and_construct", &sparse::ParseAndConstruct,
                   py::call_guard<py::scoped_ostream_redirect,
