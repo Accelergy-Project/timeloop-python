@@ -46,7 +46,7 @@ def gather_yaml_files(input_patterns: map) -> str:
     return yaml_str
 
 
-def gather_yaml_configs(rel_config_dir: Path, rel_paths: list[str]) -> str:
+def gather_yaml_configs(config_dir: Path, rel_paths: list[str]) -> str:
     """Combines together all the yaml config files into one string.
 
     @param rel_config_dir   The relative directory of the configs we want to
@@ -57,7 +57,7 @@ def gather_yaml_configs(rel_config_dir: Path, rel_paths: list[str]) -> str:
     @return                 The combined string of all the YAML config files.
     """
     # Constructs the absolute path of the config directory.
-    config_dir: Path = TIMELOOP_EXAMPLES_DIR / rel_config_dir
+    config_dir: Path = config_dir
     # Constructs the absolute path of all the config files.
     paths: map = map(lambda p: str(config_dir / p), rel_paths)
 
