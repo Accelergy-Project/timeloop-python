@@ -11,9 +11,11 @@ endif()
 if(DEFINED ENV{TIMELOOP_LIB_PATH})
     set(TIMELOOP_LIB_PATH $ENV{TIMELOOP_LIB_PATH})
     message(STATUS "Using timeloop libraries from: $ENV{TIMELOOP_LIB_PATH}")
-    find_library(LIBTIMELOOP timeloop-mapper HINTS ${TIMELOOP_LIB_PATH} REQUIRED)
+    find_library(LIBTIMELOOP_MAPPER timeloop-mapper HINTS ${TIMELOOP_LIB_PATH} REQUIRED)
+    find_library(LIBTIMELOOP_APPLICATIONS timeloop-applications HINTS ${TIMELOOP_LIB_PATH} REQUIRED)
 else()
-    find_library(LIBTIMELOOP timeloop-mapper REQUIRED)
+    find_library(LIBTIMELOOP_MAPPER timeloop-mapper REQUIRED)
+    find_library(LIBTIMELOOP_APPLICATIONS timeloop-applications REQUIRED)
 endif()
 
 find_package(Threads REQUIRED)
@@ -45,7 +47,7 @@ target_include_directories(pytimeloop PRIVATE
     include
     ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
-target_link_libraries(pytimeloop PRIVATE ${LIBTIMELOOP} define_gterminate)
+target_link_libraries(pytimeloop PRIVATE ${LIBTIMELOOP_MAPPER} ${LIBTIMELOOP_APPLICATIONS} define_gterminate)
 
 set(BINDINGS_SRC 
     src/configurator/configurator.cpp
@@ -56,6 +58,7 @@ set(BINDINGS_SRC
     src/model/unbounded-queue-accelerator-pool.cpp
     src/model/util.cpp
     bindings/accelergy_interface.cpp
+    bindings/applications.cpp
     bindings/bindings.cpp
     bindings/buffer.cpp
     bindings/config.cpp
@@ -73,7 +76,7 @@ target_include_directories(bindings PUBLIC
     include
     ${TIMELOOP_INCLUDE_PATH}
     lib/pybind11/include)
-target_link_libraries(bindings PUBLIC config++ yaml-cpp rt ${LIBTIMELOOP} define_gterminate)
+target_link_libraries(bindings PUBLIC config++ yaml-cpp rt ${LIBTIMELOOP_MAPPER} ${LIBTIMELOOP_APPLICATIONS} define_gterminate)
 
 # VERSION_INFO is defined by setup.py and passed into the C++ code as a
 # define (VERSION_INFO) here.

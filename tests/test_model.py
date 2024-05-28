@@ -8,8 +8,8 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-from bindings.config import Configurator
-from pytimeloop.app import ModelApp
+from bindings.app import ModelApp
+from bindings.config import Config
 from pytimeloop.accelergy_interface import invoke_accelergy
 
 from tests.util import TEST_TMP_DIR, gather_yaml_configs
@@ -28,7 +28,7 @@ class ModelAppTest(unittest.TestCase):
             )
             yaml_str += result.art
             yaml_str += result.ert
-        return ModelApp(yaml_str, default_out_dir=str(tmp_path))
+        return ModelApp(Config(yaml_str, 'yaml'), default_out_dir=str(tmp_path))
 
     def check_model_app(
             self, config_dir, paths, ref_cycles, ref_area, ref_energy, tmp_path
