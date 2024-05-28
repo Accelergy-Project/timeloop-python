@@ -1,6 +1,7 @@
 #include <variant>
 #include <vector>
 
+#include "pytimeloop/bindings/applications.h"
 #include "pytimeloop/bindings/accelergy-interface.h"
 #include "pytimeloop/bindings/buffer.h"
 #include "pytimeloop/bindings/config.h"
@@ -58,6 +59,9 @@ PYBIND11_MODULE(bindings, m) {
 
   auto search_submodule = m.def_submodule("search");
   search_bindings::BindSearchClasses(search_submodule);
+
+  auto app_submodule = m.def_submodule("app");
+  application_bindings::BindApplications(app_submodule);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

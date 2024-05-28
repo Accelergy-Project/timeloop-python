@@ -2,56 +2,64 @@ from enum import Enum
 import os
 import logging
 import subprocess
-from .call_utils import read_output_files
+import multiprocessing as mp
+# from .call_utils import read_output_files
 
-logger = logging.getLogger(__name__)
+# from bindings.config import Config
+# from bindings.mapping import ArchConstraints
+# from bindings.model import (
+#     ArchSpecs, ArchProperties, SparseOptimizationInfo
+# )
+# from bindings.problem import Workload
 
-
-class Betterness(Enum):
-    BETTER = 1
-    SLIGHTLY_BETTER = 2
-    WORSE = -1
-    SLIGHTLY_WORSE = -2
-
-
-class SearchTask:
-    def __init__(self, task_id, mapping, only_bypass_changed):
-        self.task_id = task_id
-        self.mapping = mapping
-        self.only_bypass = only_bypass_changed
+# logger = logging.getLogger(__name__)
 
 
-class MapperApp:
-    def __init__(
-        self, yaml_str_cfg: str, log_level=logging.INFO, default_out_dir: str = "."
-    ):
-        self.log_level = log_level
-        self.yaml_str_cfg = yaml_str_cfg
-        self._default_out_dir = default_out_dir
+# class Betterness(Enum):
+#     BETTER = 1
+#     SLIGHTLY_BETTER = 2
+#     WORSE = -1
+#     SLIGHTLY_WORSE = -2
 
-    def run_subprocess(self, out_dir: str = None):
-        out_dir = self._default_out_dir if out_dir is None else out_dir
-        os.makedirs(out_dir, exist_ok=True)
-        os.makedirs(os.path.join(out_dir, "inputs"), exist_ok=True)
-        PATH_TO_TMP_INPUT = os.path.join(out_dir, "inputs", "input.yaml")
-        with open(PATH_TO_TMP_INPUT, "w") as f:
-            f.write(self.yaml_str_cfg)
-        PATH_TO_TMP_INPUT = os.path.abspath(os.path.realpath(PATH_TO_TMP_INPUT))
-        out_dir = os.path.abspath(os.path.realpath(out_dir))
-        cmd = ["timeloop-mapper", PATH_TO_TMP_INPUT, "-o", out_dir]
-        logger.info(f'Running Timeloop with command: {" ".join(cmd)}')
-        result = subprocess.run(cmd, cwd=out_dir, env=os.environ, capture_output=True)
-        stats, mapping = read_output_files(
-            result,
-            out_dir,
-            "timeloop-mapper",
-            "timeloop-mapper.stats.txt",
-            "timeloop-mapper.map.txt",
-        )
-        return stats, mapping
 
-    def run(self):
-        raise NotImplementedError("Disabled for now")
+# class SearchTask:
+#     def __init__(self, task_id, mapping, only_bypass_changed):
+#         self.task_id = task_id
+#         self.mapping = mapping
+#         self.only_bypass = only_bypass_changed
+
+
+# class MapperApp:
+#     def __init__(
+#         self, yaml_str_cfg: str, log_level=logging.INFO, default_out_dir: str = "."
+#     ):
+#         self.log_level = log_level
+#         self.yaml_str_cfg = yaml_str_cfg
+#         self._default_out_dir = default_out_dir
+
+#     def run_subprocess(self, out_dir: str = None):
+#         out_dir = self._default_out_dir if out_dir is None else out_dir
+#         os.makedirs(out_dir, exist_ok=True)
+#         os.makedirs(os.path.join(out_dir, "inputs"), exist_ok=True)
+#         PATH_TO_TMP_INPUT = os.path.join(out_dir, "inputs", "input.yaml")
+#         with open(PATH_TO_TMP_INPUT, "w") as f:
+#             f.write(self.yaml_str_cfg)
+#         PATH_TO_TMP_INPUT = os.path.abspath(os.path.realpath(PATH_TO_TMP_INPUT))
+#         out_dir = os.path.abspath(os.path.realpath(out_dir))
+#         cmd = ["timeloop-mapper", PATH_TO_TMP_INPUT, "-o", out_dir]
+#         logger.info(f'Running Timeloop with command: {" ".join(cmd)}')
+#         result = subprocess.run(cmd, cwd=out_dir, env=os.environ, capture_output=True)
+#         stats, mapping = read_output_files(
+#             result,
+#             out_dir,
+#             "timeloop-mapper",
+#             "timeloop-mapper.stats.txt",
+#             "timeloop-mapper.map.txt",
+#         )
+#         return stats, mapping
+
+#     def run(self):
+#         raise NotImplementedError("Disabled for now")
 
 
 # class MapperApp:
@@ -62,26 +70,26 @@ class MapperApp:
 #         self.logger = logging.getLogger('pytimeloop.app.Mapper')
 #         self.logger.setLevel(log_level)
 
-#         # timeloop-mapper configurations
-#         self.auto_bypass_on_failure = auto_bypass_on_failure
-#         self.out_prefix = out_prefix
-#         semi_qualified_prefix = 'timeloop-mapper'
-#         self.out_prefix = out_dir + '/' + semi_qualified_prefix
+# #         # timeloop-mapper configurations
+# #         self.auto_bypass_on_failure = auto_bypass_on_failure
+# #         self.out_prefix = out_prefix
+# #         semi_qualified_prefix = 'timeloop-mapper'
+# #         self.out_prefix = out_dir + '/' + semi_qualified_prefix
 
 #         # Architecture configuration
-#         self.arch_specs = ArchSpecs(cfg['architecture'])
-#         self.arch_specs.generate_tables(
-#             cfg, semi_qualified_prefix, out_dir, self.out_prefix, log_level)
+#         self.arch_specs = ArchSpecs(cfg.root['architecture'])
+#         # self.arch_specs.generate_tables(
+#         #     cfg, semi_qualified_prefix, out_dir, self.out_prefix, log_level)
 
 #         # Problem configuration
-#         self.workload = Workload(cfg['problem'])
+#         self.workload = Workload(cfg.root['problem'])
 #         self.logger.info('Problem configuration complete.')
 
 #         self.arch_props = ArchProperties(self.arch_specs)
 
 #         # Mapper configuration
-#         mapper_cfg = cfg['mapper']
-#         self.num_threads = multiprocessing.cpu_count()
+#         mapper_cfg = cfg.root['mapper']
+#         self.num_threads = mp.cpu_count()
 #         if 'num_threads' in mapper_cfg:
 #             self.num_threads = mapper_cfg['num_threads']
 #         self.logger.info('Using threads = %d', self.num_threads)
@@ -186,15 +194,15 @@ class MapperApp:
 
 #         # TODO: characterize workload on whether it has metadata
 
-#     def run(self):
-#         mapper = CoupledMapper(self.arch_specs, self.workload,
-#                                [(self.split_mapspaces[i], self.search[i])
-#                                 for i in range(len(self.search))],
-#                                self.sparse_optimizations, self.metrics,
-#                                self.search_size, self.timeout,
-#                                self.victory_condition,
-#                                self.penalize_consecutive_bypass_fails)
+# #     def run(self):
+# #         mapper = CoupledMapper(self.arch_specs, self.workload,
+# #                                [(self.split_mapspaces[i], self.search[i])
+# #                                 for i in range(len(self.search))],
+# #                                self.sparse_optimizations, self.metrics,
+# #                                self.search_size, self.timeout,
+# #                                self.victory_condition,
+# #                                self.penalize_consecutive_bypass_fails)
 
-#         mapping, eval_stats = mapper.run()
+# #         mapping, eval_stats = mapper.run()
 
-#         return eval_stats, mapping
+# #         return eval_stats, mapping
