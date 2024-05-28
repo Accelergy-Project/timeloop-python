@@ -34,6 +34,8 @@ Point to your Timeloop source and built libraries:
 export TIMELOOP_INCLUDE_PATH=your/timeloop/path/include
 export TIMELOOP_LIB_PATH=directory/with/timeloop/libs
 ```
+Note that Timeloop needs to be built to generate dynamic libraries.
+
 Then, install PyTimeloop by running
 ```
 $ pip3 install -e .
