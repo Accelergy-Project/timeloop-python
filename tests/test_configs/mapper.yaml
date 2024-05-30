@@ -1,0 +1,4 @@
+mapper:
+    optimization_metrics: [ edp ]
+    num_threads: 1
+    victory_condition: 1
