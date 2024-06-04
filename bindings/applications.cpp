@@ -17,7 +17,8 @@ namespace pytimeloop::application_bindings
 
     py::class_<application::Model::Stats>(m, "ModelResult")
         .def_readwrite("cycles", &application::Model::Stats::cycles)
-        .def_readwrite("energy", &application::Model::Stats::energy);
+        .def_readwrite("energy", &application::Model::Stats::energy)
+        .def_readwrite("stats_string", &application::Model::Stats::stats_string);
 
     py::class_<application::Mapper>(m, "MapperApp")
         .def(py::init<config::CompoundConfig*, std::string, std::string>())
