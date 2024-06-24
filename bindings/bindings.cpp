@@ -12,6 +12,7 @@
 #include "pytimeloop/bindings/problem.h"
 #include "pytimeloop/bindings/search.h"
 #include "pytimeloop/bindings/topology.h"
+#include "pytimeloop/bindings/looptree.h"
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -62,6 +63,9 @@ PYBIND11_MODULE(bindings, m) {
 
   auto app_submodule = m.def_submodule("app");
   application_bindings::BindApplications(app_submodule);
+
+  auto looptree_submodule = m.def_submodule("looptree");
+  looptree_bindings::BindLooptree(looptree_submodule);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

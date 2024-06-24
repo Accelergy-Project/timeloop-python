@@ -60,6 +60,7 @@ set(BINDINGS_SRC
     bindings/bindings.cpp
     bindings/buffer.cpp
     bindings/config.cpp
+    bindings/looptree.cpp
     bindings/mapper.cpp
     bindings/mapping.cpp
     bindings/mapspace.cpp
