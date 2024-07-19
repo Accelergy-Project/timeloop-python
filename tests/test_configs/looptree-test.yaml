@@ -1,0 +1,107 @@
+mapping:
+  type: fused
+  nodes:
+  - type: storage
+    target: 0
+    dspace: [Filter1, Filter2, Fmap1, Fmap3]
+  - type: storage
+    target: 1
+    dspace: [Filter1, Filter2]
+  - type: temporal
+    dimension: P2
+    tile_size: 3
+  - type: storage
+    target: 1
+    dspace: [Fmap1, Fmap3]
+  - type: storage
+    target: 2
+    dspace: [Fmap2]
+  - type: pipeline
+    branches:
+    - - type: compute
+        einsum: Fc1
+        parallelism: 256
+    - - type: compute
+        einsum: Fc2
+        parallelism: 256
+
+problem:
+  - shape:
+      name: Fc1
+      dimensions: [ P1, M1, C1 ]
+      data-spaces:
+      - name: Fmap1
+        dimensions: [ Fmap1_C, Fmap1_P ]
+        projection: '[ C1, P1 ]'
+      - name: Filter1
+        dimensions: [ Filter1_C, Filter1_M ]
+        projection: '[ C1, M1 ]'
+      - name: Fmap2
+        dimensions: [ Fmap2_C, Fmap2_P ]
+        projection: '[ M1, P1 ]'
+        read-write: True
+
+    instance: >-
+      0 <= P1 < 9 and 0 <= M1 < 4 and 0 <= C1 < 2
+
+  - shape:
+      name: Fc2
+      dimensions: [ P2, M2, C2 ]
+      data-spaces:
+      - name: Fmap2
+        dimensions: [ Fmap2_C, Fmap2_P ]
+        projection: '[ C2, P2 ]'
+      - name: Filter2
+        dimensions: [ Filter2_C, Filter2_M ]
+        projection: '[ C2, M2 ]'
+      - name: Fmap3
+        dimensions: [ Fmap3_C, Fmap3_P ]
+        projection: '[ M2, P2 ]'
+        read-write: True
+
+    instance: >-
+      0 <= P2 < 9 and 0 <= M2 < 8 and 0 <= C2 < 4
+
+architecture:
+  version: 0.2
+  
+  subtree:
+  - name: System
+    
+    local:
+    - name: MainMemory
+      class: DRAM
+      attributes:
+        width: 256
+        block-size: 32
+        word-bits: 8
+
+    subtree:
+    - name: Chip
+      attributes:
+        technology: 40nm
+
+      local:
+      - name: GlobalBuffer
+        class: SRAM
+        attributes:
+          depth: 8192
+          width: 256
+          block-size: 32
+          word-bits: 8
+        
+      subtree:
+      - name: PE
+      
+        local:
+        - name: RegisterFile[0..15]
+          class: regfile
+          attributes:
+            depth: 64
+            width: 8
+            block-size: 1
+            word-bits: 8
+        - name: MACC[0..15]
+          class: intmac
+          attributes:
+            datawidth: 8
