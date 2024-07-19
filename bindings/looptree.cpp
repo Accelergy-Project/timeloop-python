@@ -5,6 +5,8 @@
 #include "pytimeloop/bindings/looptree.h"
 #include <applications/looptree-model/model.hpp>
 
+#include <pybind11/stl.h>
+
 namespace py = pybind11;
 
 namespace pytimeloop::looptree_bindings
@@ -12,7 +14,8 @@ namespace pytimeloop::looptree_bindings
   void BindLooptree(py::module& m)
   {
     py::class_<application::LooptreeModel>(m, "LooptreeModelApp")
-        .def(py::init<config::CompoundConfig*, std::string, std::string>());
+        .def(py::init<config::CompoundConfig*, std::string, std::string>())
+        .def("run", &application::LooptreeModel::Run);
 
     py::class_<application::LooptreeModel::Result>(m, "LooptreeResult")
         .def_readwrite("ops", &application::LooptreeModel::Result::ops)
