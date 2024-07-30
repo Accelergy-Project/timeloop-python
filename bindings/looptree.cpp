@@ -34,10 +34,12 @@ namespace pytimeloop::looptree_bindings
         .FUSED_WORKLOAD_METHOD(einsum_id_to_name, EinsumIdToName)
         .FUSED_WORKLOAD_METHOD(data_space_name_to_id, DataSpaceNameToId)
         .FUSED_WORKLOAD_METHOD(data_space_id_to_name, DataSpaceIdToName)
+        .FUSED_WORKLOAD_METHOD(data_space_dimensions, DataSpaceDimensions)
+        .FUSED_WORKLOAD_METHOD(einsum_ospace_dimensions, EinsumOspaceDimensions)
         .FUSED_WORKLOAD_METHOD(tensors_read_by_einsum, TensorsReadByEinsum)
         .FUSED_WORKLOAD_METHOD(tensors_written_by_einsum, TensorsWrittenByEinsum)
         .FUSED_WORKLOAD_METHOD(reader_einsums, ReaderEinsums)
-        .FUSED_WORKLOAD_METHOD(writer_einsums, WriterEinsum)
+        .FUSED_WORKLOAD_METHOD(writer_einsum, WriterEinsum)
         .FUSED_WORKLOAD_METHOD(einsum_dim_is_relevant_to_tensor,
                                EinsumDimIsRelevantToTensor)
         .FUSED_WORKLOAD_METHOD(einsum_dims_relevant_to_tensor,
