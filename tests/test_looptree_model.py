@@ -3,6 +3,8 @@ from pathlib import Path
 
 from bindings.config import Config
 from bindings.looptree import LooptreeModelApp
+from pytimeloop.looptree.des import deserialize_looptree_output
+from pytimeloop.isl.top import Context, isl, c_char_p
 
 from tests.util import TEST_TMP_DIR, gather_yaml_configs
 
@@ -26,34 +28,113 @@ class LooptreeModelAppTest(unittest.TestCase):
     ):
         model = self.make_model_app(config_dir, paths, tmp_path)
         result = model.run()
-        self.assertEqual({0: 72, 1: 288}, result.ops)
+
         self.assertEqual(
             {
-                (0, 0, 0): 18,
-                (0, 1, 0): 8,
-                (0, 3, 1): 32,
-                (0, 4, 1): 72,
-                (1, 0, 0): 18,
-                (1, 1, 0): 8,
-                (1, 3, 1): 32,
-                (1, 4, 1): 72,
-                (2, 2, 0): 36,
-                (2, 2, 1): 36
+                0: '{ [i0, i1] -> 24 : i1 = 0 and 0 <= i0 <= 2 }',
+                1: '{ [i0, i1] -> 96 : i1 = 1 and 0 <= i0 <= 2 }'
+            },
+            result.ops
+        )
+        self.assertEqual(
+            {
+                (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
+                (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
+                (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
+                (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
+                (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+                (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
+                (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
+                (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+                (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
+                (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
             },
             result.fill
         )
         self.assertEqual(
             {
-                (0, 0, 0): 18,
-                (0, 1, 0): 8,
-                (0, 3, 1): 32,
-                (0, 4, 1): 72,
-                (1, 0, 0): 6,
-                (1, 1, 0): 8,
-                (1, 3, 1): 32,
-                (1, 4, 1): 24,
-                (2, 2, 0): 12,
-                (2, 2, 1): 12
+            (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
+            (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
+            (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
+            (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
+            (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+            (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
+            (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
+            (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+            (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
+            (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
             },
             result.occupancy
+        )
+
+
+class TestLooptreeOutputDeserializer(unittest.TestCase):
+    def test_deserializer_with_two_level_mm(self):
+        self.check_deserializer(
+            Path(__file__).parent / 'test_configs',
+            ['looptree-test.yaml'],
+            TEST_TMP_DIR
+        )
+
+    @staticmethod
+    def make_model_app(config_dir, paths, tmp_path):
+        yaml_str = gather_yaml_configs(config_dir, paths)
+        return LooptreeModelApp(Config(yaml_str, 'yaml'),
+                                str(tmp_path),
+                                'looptree-model')
+    
+    def check_deserializer(
+        self, config_dir, paths, tmp_path
+    ):
+        model = self.make_model_app(config_dir, paths, tmp_path)
+        result = model.run()
+
+        des_result = deserialize_looptree_output(result,
+                                                 Context.getDefaultInstance())
+
+        self.assertEqual(
+            {
+                0: '{ [i0, i1] -> 24 : i1 = 0 and 0 <= i0 <= 2 }',
+                1: '{ [i0, i1] -> 96 : i1 = 1 and 0 <= i0 <= 2 }'
+            },
+            {
+                k: c_char_p(isl.isl_pw_qpolynomial_to_str(v)).value.decode('utf-8')
+                for k, v in des_result.ops.items()
+            }
+        )
+        self.assertEqual(
+            {
+                (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
+                (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
+                (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
+                (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
+                (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+                (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
+                (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
+                (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+                (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
+                (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
+            },
+            {
+                k: c_char_p(isl.isl_pw_qpolynomial_to_str(v)).value.decode('utf-8')
+                for k, v in des_result.fill.items()
+            }
+        )
+        self.assertEqual(
+            {
+            (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
+            (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
+            (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
+            (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
+            (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+            (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
+            (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
+            (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
+            (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
+            (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
+            },
+            {
+                k: c_char_p(isl.isl_pw_qpolynomial_to_str(v)).value.decode('utf-8')
+                for k, v in des_result.occupancy.items()
+            }
         )
