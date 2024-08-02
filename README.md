@@ -101,6 +101,11 @@ Please visit the [Timeloop and Accelergy exercises
 repository](https://github.com/Accelergy-Project/timeloop-accelergy-exercises.git)
 for more examples and tutorials.
 
+## Migrating from Standalone TimeloopFE
+If you have installed TimeloopFE that is not included in `pytimeloop` and want
+to migrate to this one, you can simply `import pytimeloop.timeloopfe` instead
+of `import timeloopfe`. Submodule structures are unchanged.
+
 ## General Debugging Information
 1. When debugging the C++ bindings, it may be faster to build by calling `cmake`
    directly instead of `pip3 install`
