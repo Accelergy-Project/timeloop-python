@@ -1,0 +1,7 @@
+ART:
+    version: 0.4
+    tables:
+    - name: ComponentA
+      area: 1.0
+    - name: ComponentB
+      area: 2.0

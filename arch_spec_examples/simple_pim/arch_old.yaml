@@ -1,0 +1,142 @@
+architecture:
+  version: 0.3
+  subtree:                           # "subtree" contains abstract hierarchies
+    - name: system_arch              # name of the design
+      attributes:                    # shared attributes that will propagate down all lower levels
+        technology: "32nm"
+        latency: "1ns"
+      local:
+        - name: DRAM                 # offchip DRAM is the source of all datatypes
+          class: DRAM                # assume DRAM is large enough to store all the data, so no depth specification needed
+          attributes:
+            width: 64                # width in bits
+            datawidth: 16            # datawidth in bits
+            block_size: 4
+            technology: -1
+          required_actions: [read, write, update, leak]
+      subtree:
+        - name: chip                 # all components below this level are on-chip components
+          local:
+            - name: shared_glb
+              class: smartbuffer_SRAM
+              attributes:
+                memory_depth: 16384
+                memory_width: 64
+                n_banks: 32
+                block_size: 4
+                word_bits: 16
+                read_bandwidth: 16
+                write_bandwidth: 16
+                n_rdwr_ports: 2
+                network_read: "D2A_NoC"
+                network_update: "A2D_NoC"
+                technology: -1
+              required_actions: [read, write, update, leak]
+            - name: dummy_buffer
+              class: dummy_storage
+              attributes:
+                depth: 0   # will result in zero area/energy for accelergy
+                width: 16  # timeloop needs a width even if the memory is not storing anything
+                network_fill: "D2A_NoC"
+                network_drain: "A2D_NoC"
+                technology: -1
+              required_actions: [read, write, update, leak]
+            - name: D2A_NoC
+              class: SimpleMulticast         # timeloop class
+              subclass: DAC_SimpleMulticast  # accelergy class
+              attributes:
+                datawidth: 16
+                DAC_datawidth: 1  # DAC only converts one bit per cycle
+                n_DAC_cycles: 16  # number of cycles needed for a DAC to convert a datawidth-bit data
+                n_PE_cols: 16
+                n_PE_rows: 16
+                action_name: "transfer"
+                per_datatype_ERT: True
+                multicast_factor_argument: "num_destinations"
+                technology: -1
+              required_actions: [read, write, update, leak]
+            - name: A2D_NoC
+              class: SimpleMulticast         # timeloop class
+              subclass: ADC_SimpleMulticast  # accelergy class
+              attributes:
+                datawidth: 16
+                ADC_datawidth: 8
+                cell_datawidth: 2
+                n_DAC_cycles: 16    # number of cycles needed for a DAC to convert a datawidth-bit data = datawidth/DAC_datawidth
+                n_PE_cols: 128
+                n_PE_rows: 128
+                action_name: "transfer"
+                per_datatype_ERT: True
+                multicast_factor_argument: "num_destinations"
+                technology: -1
+              required_actions: [read, write, update, leak]
+          subtree:
+            - name: PE[0..16383]
+              local:                 # "local" contains physical instantiations
+                - name: scratchpad
+                  class: memcell_storage  # definitions of the compound classes can be found under "components" folder
+                  attributes:
+                    width: 16       # width in bits
+                    depth: 1
+                    meshX: 128        # number of components in the X dimension (PE rows)
+                    meshY: 128        # number of components in the Y dimension (PE cols)
+                    technology: -1
+                  required_actions: [read, write, update, leak]
+                - name: mac
+                  class: memcell_compute
+                  attributes:
+                    datawidth: 16   # datawidth in bits
+                    meshX: 128        # number of components in the X dimension (PE rows)
+                    meshY: 128        # number of components in the Y dimension (PE cols)
+                    technology: -1
+                  required_actions: [read, write, update, leak]
+
+architecture_constraints:
+  version: 0.4
+  targets:
+    # =======================================
+    # DRAM
+    # =======================================
+    - target: DRAM
+      type: bypass
+      keep: [Inputs, Outputs]
+      bypass: [Weights]  # weights are stored locally in the memcells, not loaded from DRAM
+    - target: DRAM
+      type: temporal
+      factors: R=1 S=1 M=1 C=1
+      permutation: RSCPQMN
+    # =======================================
+    # Global Buffer Constraints
+    # =======================================
+    - target: shared_glb
+      type: bypass
+      keep: [Inputs, Outputs]
+      bypass: [Weights] # weights are stored locally in the memcells, not loaded from DRAM
+    - target: shared_glb
+      type: temporal
+      factors: R=1 S=1 M=1 C=1
+    # =======================================
+    # Dummy Buffer Constraints
+    # =======================================
+    - target: dummy_buffer
+      type: bypass
+      keep: []
+      bypass: [Inputs, Outputs, Weights]  # no data should be stored in dummy, it is just a transition buffer
+    - target: dummy_buffer
+      type: spatial
+      factors: Q=1 P=1
+      permutation: RSC M
+      split: 3  # M cannot be mapped in the same dimension as others
+    - target: dummy_buffer
+      type: temporal
+      factors: R=1 S=1 M=1 C=1
+    # =======================================
+    # WS Buffer Constraints
+    # =======================================
+    - target: scratchpad
+      type: bypass
+      keep: [Weights]
+      bypass: [Inputs, Outputs]
+    - target: scratchpad
+      type: temporal
+      factors: R=1 S=1 M=1 C=1  # single weight tile that does not change

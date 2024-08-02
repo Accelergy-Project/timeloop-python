@@ -1,0 +1,115 @@
+helpful_macros_ignore:
+# =============================================================================
+# Default buffer setup. Reference in the architecture file directly as a buffer
+# top key.
+# e.g. - name: buffer_name
+#        <<: *default_buffer
+#        attributes: {depth: 1024, type: SRAM}
+# =============================================================================
+- &default_buffer_vars
+  class: dummy_storage # Timeloop doesn't care about the buffer class if 
+                        # we're using Accelergy. Just use something.
+  required_actions: [read, update, write, leak]
+  attributes: {datawidth: 1}
+
+# =============================================================================
+# Helpful constraint macros.
+# =============================================================================
+- &dataspaces [Inputs, Outputs, Weights]
+- &vars [N, P, Q, I, C, M, R, S, L, T, G] # Ruamel crashes if this comment is not here.
+
+
+# This goes under the "temporal_constraints" key in an architecture element.
+- &default_temporal_constraints # Do not rewrite the weights.
+  factors: [C=1, M=1, R=1, S=1, L=1, T=1, G=1, N=1]
+  permutation: [C, M, R, S, L, T]
+
+
+# This goes under the "spatial_constraints" key in an architecture element.
+# Disable permutation, XY mapping, networks
+- &default_spatial_constraints
+  permutation: *vars # Spatial permutation usually doesn't matter.
+  no_link_transfer: *dataspaces # No link transfers unless explicitly enabled
+  no_reuse: *dataspaces # No networks unless enabled
+  split: 999 # Disable spatial XY by splitting at the max value. We're not using
+             # Timeloop's 2D model in this architecture.
+
+# This goes under the "temporal_constraints" key in an architecture element.
+# It is specifically if you want this buffer to not be used for mapping;
+# e.g. it doesn't reuse data between iterations, and it doesn't support
+# loop nests.
+- &temporal_dummy_constraints # Dummies do not support iteration or reuse.
+  factors_only: []
+  no_reuse: ["*"]
+  permutation: *vars # Fix permutation to shrink mapspace.
+
+# =============================================================================
+# BUFFER MACROS:
+#   Default buffer:   A buffer that is used in the usual way. e.g. input buffer
+#   Processing stage: A "buffer" that only processes data and does not actually
+#                     store it or support iteration. We use this to model the
+#                     ADC, DAC, communication networks, etc.
+#
+# Reference in the architecture file directly as a buffer top key. The
+# "<<<: *default_buffer" syntax merges in all the keys and subdictionaries from
+# the default buffer. You can then override any of the keys or subdictionaries.
+# (Use "<<: *default_buffer" to merge keys without hierarchically merging
+# subdictionaries.)
+#
+# e.g. - name: buffer_name
+#        <<<: *default_buffer
+#        attributes: {depth: 1024}
+#      - name: input_only_processing_stage_name
+#        <<< *input_processing_stage
+#        attributes: {depth: 1024}
+# =============================================================================
+- &default_buffer
+  name: adsfadsjf
+  <<<: *default_buffer_vars
+  constraints:
+    temporal: {<<: *default_temporal_constraints} 
+
+- &processing_stage
+  <<<: *default_buffer_vars
+  attributes: {depth: INF}
+  constraints:
+    temporal: {<<: *temporal_dummy_constraints}
+
+- &input_processing_stage
+  <<<: *processing_stage
+  constraints: {dataspace: {keep: [Inputs], bypass: [Outputs, Weights]}}
+
+- &output_processing_stage
+  <<<: *processing_stage
+  constraints: {dataspace: {keep: [Outputs], bypass: [Inputs, Weights]}}
+
+- &weight_processing_stage
+  <<<: *processing_stage
+  constraints: {dataspace: {keep: [Weights], bypass: [Inputs, Outputs]}}
+
+- &input_output_processing_stage
+  <<<: *processing_stage
+  constraints: {dataspace: {keep: [Inputs, Outputs], bypass: [Weights]}}
+
+# Applies default spatial constraints to the arch level
+- &container_with_default_spatial_constraints
+  constraints: {spatial: {<<: *default_spatial_constraints}}
+
+
+attribute_macros_ignore:
+  # These will be applied to analog array components
+  pim_component_attributes: &pim_component_attributes
+    rows: ROWS_PER_ARRAY
+    cols: COLS_PER_ARRAY
+    cols_active_at_once: N_COLUMNS // N_COLUMN_GROUPS
+    cell_config: CELL_CONFIG
+    average_input_value: AVERAGE_INPUT_VALUE
+    average_cell_value: AVERAGE_WEIGHT_VALUE
+    latency: ARRAY_LATENCY
+
+  # These will be applied to the ADC
+  adc_component_attributes: &adc_component_attributes
+    <<: *pim_component_attributes
+    resolution: ADC_RESOLUTION
+    n_adcs: 4
+    adc_action_share: ADC_ACTION_SHARE

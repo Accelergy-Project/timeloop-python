@@ -1,0 +1,12 @@
+variables:
+  version: 0.4
+  technology: -1
+  global_cycle_seconds: -1
+
+problem: {version: 0.4}
+
+architecture:
+  version: 0.4
+  nodes:
+  - !Parallel
+    nodes: []

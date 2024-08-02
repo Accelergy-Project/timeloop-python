@@ -1,0 +1,73 @@
+architecture:
+  version: 0.4
+
+  subtree:
+    - name: system
+      required_actions: [read, write, update, leak]
+      attributes:
+        technology: -1
+      local:
+      - name: BackingStorage
+        class: SRAM_metadata
+        required_actions: [read, write, update, leak]
+        attributes:
+          technology: -1
+          data_storage_depth: 512
+          data_storage_width: 32
+          datawidth: 8
+          block_size: 4
+          metadata_storage_depth: 128
+          metadata_storage_width: 4
+          metadata_datawidth: 4
+
+      subtree:
+      - name: PE
+        local:
+        - name: Buffer
+          class: storage
+          subclass: regfile_metadata
+          required_actions: [read, write, update, leak]
+          attributes:
+            technology: -1
+            data_storage_depth: 64
+            data_storage_width: 8
+            datawidth: 8
+            block_size: 1
+            metadata_storage_depth: 16
+            metadata_storage_width: 4
+            metadata_datawidth: 4
+
+        - name: MACC
+          class: intmac
+          required_actions: [read, write, update, leak]
+          attributes:
+            technology: -1
+            datawidth: 8
+
+
+sparse_optimizations:
+  version: 0.4
+  targets:
+    - name: BackingStorage
+      representation_format:
+        data_spaces:
+          - name: Weights
+            ranks:
+              - format: RLE # run length encodin
+
+    - name: Buffer
+      representation_format:
+        data_spaces:
+          - name: Weights
+            ranks:
+              - format: RLE # run length encoding
+
+      action_optimization:
+        - type: skipping
+          options:
+            - target: Inputs
+              condition_on: [ Weights ]
+        - type: skipping
+          options:
+            - target: Outputs
+              condition_on: [ Weights ]

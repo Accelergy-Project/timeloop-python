@@ -1,0 +1,111 @@
+variables:
+  # =============================================================================
+  # Workload
+  # =============================================================================
+  INPUT_BITS: 8
+  WEIGHT_BITS: 18 # Center+Offset encoding uses two devices per weight, so we
+                  # go from 8b -> 16b weights. We also use 3 cells per weight for
+                  # most layers, so we round from 16b->18b to be divisible by 3.
+  OUTPUT_BITS: 8
+  BATCH_SIZE: 1
+
+  # FORMAT:
+  # Value distributions: List of probabilities for each value. Each element
+  # in the list the probability of an analog value, from 0 (first element)
+  # to maximum possible value (last element).
+  # Bit distributions: List of probabilities for each bit. Each element in the
+  # list is the probability of a 1 for that bit.
+
+  # High probability of 0. Sample 32 points.
+  INPUTS_VALUE_DISTRIBUTION: [0.8, 0.2] # 80% 0, 20% 1.
+  INPUT_BIT_DISTRIBUTION: ([0.2] * INPUT_BITS)
+  # High probability of 0. Sample 32 points.
+  WEIGHTS_HIST: [0.9, 0.1] # 90% 0, 10% 1
+  # High probability of 0. Sample 32 points.
+  WEIGHT_BIT_DISTRIBUTION: ([0.2] * WEIGHT_BITS)
+  COLUMN_SUM_VALUE_DISTRIBUTION: ([32] + [1] * 31) 
+
+
+
+  # Derived parameters
+  AVG_DIST: > # Place on next line so YAML doesn't complain about the colon
+    lambda x: sum(i * v for i, v in enumerate(x)) / sum(x) / (len(x) - 1)
+  AVERAGE_INPUT_VALUE: AVG_DIST(INPUTS_VALUE_DISTRIBUTION)
+  AVERAGE_WEIGHT_VALUE: AVG_DIST(WEIGHTS_HIST)
+  AVERAGE_COLUMN_SUM_VALUE: AVG_DIST(COLUMN_SUM_VALUE_DISTRIBUTION)
+
+  # =============================================================================
+  # Architecture structure
+  # =============================================================================
+  # Supported bits
+  SUPPORTED_INPUT_BITS:  8       # Maximum input bits supported by the arch.
+  SUPPORTED_WEIGHT_BITS: 8       # Maximum weight bits supported by the arch.
+  SUPPORTED_OUTPUT_BITS: 8       # Maximum output bits supported by the arch.
+
+  # Architecture size
+  N_TILES:         1                     # Architectural tiles
+  N_MACROS:        8   # Minimal CiM unit. Array + buffers
+  N_ARRAYS:        4   # CiM memory array + peripherals
+  N_COLUMN_GROUPS: 1   # Independently-activated group of cols
+  N_COLUMNS:       512 # A col. uses 1+ inputs to create 1 psum
+  N_ACCUM_GROUPS:  1   # Independently-activated 
+  N_CIM_UNITS:     512 # Independently-activated group of cells
+
+  # The Compute-In-Memory (CIM) Unit is the smallest architectural unit that is
+  # available for spatial mapping. In one timestep, each CIM Unit
+  # may compute one psum using an input and a stored weight.
+  # A CIM Unit may be made up of multiple cells (i.e. SRAM bitcells). The
+  # "width" is the number of cells that are accessed together as one, such as 4
+  # SRAM bitcells to form a 4-bit value. The "depth" is the number of different
+  # addresses that are available per cell group. For example, if the depth is 2,
+  # then each CIM Unit can store two different weights, and can access either
+  # in a given timestep.
+  CIM_UNIT_WIDTH:  2    # "Width" cells are accessed together as one
+  CIM_UNIT_DEPTH:  1    # "Depth" addresses available per cell group
+  BITS_PER_CELL:   3    # Number of bits per memory cell
+
+
+  # Derived architecture size parameters
+  CIM_UNIT_WIDTH_BITS: CIM_UNIT_WIDTH * BITS_PER_CELL
+  ROWS_PER_ARRAY: N_CIM_UNITS * CIM_UNIT_DEPTH
+  COLS_PER_ARRAY: N_COLUMNS
+  CELLS_PER_ARRAY: ROWS_PER_ARRAY * COLS_PER_ARRAY
+  STORAGE_PER_ARRAY: CELLS_PER_ARRAY * BITS_PER_CELL
+
+  ARRAYS_PER_MACRO: N_ARRAYS
+  ROWS_PER_MACRO: ROWS_PER_ARRAY * ARRAYS_PER_MACRO
+  COLS_PER_MACRO: COLS_PER_ARRAY * ARRAYS_PER_MACRO
+  CELLS_PER_MACRO: CELLS_PER_ARRAY * ARRAYS_PER_MACRO
+  STORAGE_PER_MACRO: STORAGE_PER_ARRAY * ARRAYS_PER_MACRO
+
+  # =============================================================================
+  # Data Converters
+  # =============================================================================
+  ADC_RESOLUTION: 7
+  DAC_RESOLUTION: 1
+
+  # =============================================================================
+  # Hardware
+  # =============================================================================
+  VOLTAGE: 0.7
+  LATENCY: 1.0e-9 # ns per cycle
+  ARRAY_LATENCY: LATENCY * 100 # Longer array latency when array is slower than the rest of the chip
+  TECHNOLOGY: 32 # nm
+  CELL_CONFIG: "../../isca_artifact/isca_artifact/cells/raella.cell"
+
+  # ===========================================================================
+  # Other
+  # ===========================================================================
+  INF: 2147483647
+  # Each cell computes the outer product of DAC_RESOLUTION input bits,
+  # ADC_RESOLUTION weight bits, and ADC_RESOLUTION output bits each cycle.
+  N_VIRTUAL_MACS: DAC_RESOLUTION * CIM_UNIT_UTILIZED_BITS * OUTPUT_BITS
+
+
+
+  N_SHIFT_ADDS_PER_BANK: 4
+  DOUBLE_WIDTH_OUTPUT_REG: False
+  N_ADC_PER_BANK: 4
+  COLUMN_READOUT_CLASS: "isaac_adc"
+  SPECULATION_ENABLED: 1
+  ADC_ACTION_SHARE: 0.43 if SPECULATION_ENABLED else 1

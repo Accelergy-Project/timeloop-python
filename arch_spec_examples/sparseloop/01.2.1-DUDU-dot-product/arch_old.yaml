@@ -1,0 +1,30 @@
+architecture:
+  version: 0.4
+
+  subtree:                  # subtree is an abstract level
+    - name: PE
+      required_actions: [read, write, update, leak]
+      attributes:
+        technology: -1           # global attributes shared by entire subtree
+
+      local:                # local points to a list of actual physical components
+        - name: Buffer
+          class: storage    # class is either "storage" or "compute"
+          subclass: regfile # detailed hardware implementation class
+          required_actions: [read, write, update, leak]
+          attributes:
+            technology: -1       # attributes associated with the component
+            depth: 64       # number of entries in storage
+            width: 8        # number of bits for each entry
+            datawidth: 8    # number of bits per data
+            block_size: 1   # number of blocks per storage fetch
+            read_bandwidth: 3
+            write_bandwidth: 1
+
+        - name: MAC
+          class: compute
+          subclass: intmac
+          required_actions: [read, write, update, leak]
+          attributes:
+            technology: -1
+            datawidth: 8

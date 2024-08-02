@@ -97,12 +97,23 @@ if __name__ == '__main__':
     setup(
         name='pytimeloop',
         version='0.0.1',
-        author='Michael Gilbert',
-        author_email='gilbertm@mit.edu',
-        install_requires=['pyyaml'],
+        author='Tanner Andrulis, Michael Gilbert',
+        author_email='andrulis@mit.edu, gilbertm@mit.edu',
+        install_requires=[
+            'accelergy>=0.4',
+            'ruamel.yaml',
+            'psutil',
+            'joblib',
+            'argparse',
+        ],
         packages=find_packages(),
         ext_modules=[CMakeExtension('bindings')],
         cmdclass={'build_ext': CMakeBuild},
         zip_safe=False,
-        scripts=['bin/timeloop-model.py', 'bin/timeloop-mapper.py']
+        entry_points={
+            'console_scripts': [
+                'timeloop = pytimeloop.timeloopfe.command_line_interface:main',
+                'tl = timeloopfe.command_line_interface:main'
+            ]
+        }
     )

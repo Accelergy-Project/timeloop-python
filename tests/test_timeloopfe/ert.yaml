@@ -1,0 +1,22 @@
+ERT:
+    version: '0.4'
+    tables:
+      - name: ComponentA
+        actions:
+          - name: ActionA1
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 1.0
+          - name: ActionA2
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 2.0
+      - name: ComponentB
+        actions:
+          - name: ActionB1
+            arguments:
+                global_cycle_seconds: 1e-09
+                action_latency_cycles: 1
+            energy: 3.0

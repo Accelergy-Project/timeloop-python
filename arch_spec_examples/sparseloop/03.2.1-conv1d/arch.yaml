@@ -1,0 +1,66 @@
+architecture:
+  version: 0.4
+  nodes:
+  - !Container
+    name: system
+    attributes:
+      technology: "45nm"
+
+  - !Component
+    name: BackingStorage
+    class: SRAM_metadata
+    attributes:
+      data_storage_depth: 512
+      data_storage_width: 32
+      datawidth: 8
+      block_size: 4
+      metadata_storage_depth: 128
+      metadata_storage_width: 4
+      metadata_datawidth: 4
+    sparse_optimizations:
+      representation_format:
+        data_spaces:
+          - name: Weights
+            ranks:
+              - format: RLE # run length encodin
+
+
+  - !Container
+    name: PE
+
+  - !Component
+    name: Buffer
+    class: storage
+    subclass: regfile_metadata
+    attributes:
+      data_storage_depth: 64
+      data_storage_width: 8
+      datawidth: 8
+      block_size: 1
+      metadata_storage_depth: 16
+      metadata_storage_width: 4
+      metadata_datawidth: 4
+    sparse_optimizations:
+      representation_format:
+        data_spaces:
+          - name: Weights
+            ranks:
+              - format: RLE # run length encoding
+
+      action_optimization:
+        - type: skipping
+          options:
+            - target: Inputs
+              condition_on: [ Weights ]
+        - type: skipping
+          options:
+            - target: Outputs
+              condition_on: [ Weights ]
+
+  - !Component
+    name: MACC
+    class: intmac
+    attributes:
+      datawidth: 8
+
+

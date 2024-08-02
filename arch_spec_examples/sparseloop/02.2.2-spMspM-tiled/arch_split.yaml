@@ -1,0 +1,87 @@
+architecture:
+  version: 0.4
+  nodes: # Top-level is hierarchical
+  - !Container # Top-level system
+    name: system
+    attributes:
+      technology: "45nm"
+
+  - !Component
+    name: BackingStorage              # storage component
+    class: SRAM_metadata
+    attributes:
+      data_storage_depth: 512
+      data_storage_width: 32
+      datawidth: 8
+      block_size: 4
+      metadata_storage_depth: 128
+      metadata_storage_width: 4
+      metadata_datawidth: 4
+
+  - !Container
+    name: PE
+
+  - !Component
+    name: Buffer                  # storage component
+    class: storage
+    subclass: regfile_metadata
+    attributes:
+      data_storage_depth: 64
+      data_storage_width: 8
+      datawidth: 8
+      block_size: 1
+      metadata_storage_depth: 64
+      metadata_storage_width: 4
+      metadata_datawidth: 4
+      read_bandwidth: 5
+      write_bandwidth: 5
+
+  - !Component
+    name: MAC                    # compute component
+    class: compute
+    subclass: intmac
+    attributes:
+      datawidth: 8
+
+
+sparse_optimizations:
+  version: 0.4
+  targets:
+    - target: BackingStorage
+      representation_format:
+        data_spaces:
+          - name: A
+            ranks:           # no tiling on A, so two ranks needed
+              - format: UOP
+              - format: CP
+          - name: B          # pretiling is required, so B's is represented with 3 ranks
+            ranks:
+              - format: UOP
+              - format: UOP
+              - format: CP
+
+    - target: Buffer
+      representation_format:
+        data_spaces:
+          - name: B
+            ranks:          # each tile of B requires two ranks only
+              - format: UOP
+              - format: CP
+          - name: A
+            ranks:
+              - format: UOP
+              - format: CP
+
+      action_optimization:
+        - type: skipping
+          options:
+            - target: A
+              condition_on: [ B ]
+        - type: skipping
+          options:
+            - target: B
+              condition_on: [ A ]
+        - type: skipping
+          options:
+            - target: Z
+              condition_on: [ A, B ]

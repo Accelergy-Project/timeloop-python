@@ -184,3 +184,6 @@ bench/benchfiles/
 
 # Temporary test files
 tests/tmp-files
+
+# Output directory for running TimeloopFE examples
+outdir/

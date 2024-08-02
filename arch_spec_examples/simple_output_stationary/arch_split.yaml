@@ -1,0 +1,124 @@
+architecture:
+  # ============================================================
+  # Architecture Description
+  # ============================================================
+  version: 0.4
+  nodes: # Top-level is hierarchical
+  - !Container # Top-level system
+    name: system
+
+  - !Component # DRAM main memory
+    name: DRAM
+    class: DRAM
+    attributes:
+      type: "LPDDR4"
+      width: 64
+      block_size: 4
+      datawidth: 16
+
+  - !Container # OS accelerator
+    name: simple_ws
+    attributes:
+      technology: "45nm"
+
+  - !Component # Shared global buffer
+    name: shared_glb
+    class: smartbuffer_SRAM
+    attributes:
+      memory_depth: 16384
+      memory_width: 64
+      n_banks: 32
+      block_size: 4
+      datawidth: 16
+      read_bandwidth: 16
+      write_bandwidth: 16
+
+  - !Container # Array of PEs
+    name: PE
+    spatial: {meshX: 16, meshY: 16}
+
+  - !Component # PE Scratchpad
+    name: pe_spad
+    class: smartbuffer_SRAM
+    attributes:
+      memory_depth: 192
+      memory_width: 16
+      block_size: 1
+      datawidth: 16
+
+  - !Parallel # Register for each data type
+    nodes:
+    - !Component # Weight register
+      name: weight_reg
+      class: reg_storage
+      attributes:
+        depth: 1
+        width: 16           # width in bits
+        datawidth: 16
+
+    - !Component # Input activation register
+      name: input_activation_reg
+      class: reg_storage
+      attributes:
+        depth: 1
+        width: 16           # width in bits
+        datawidth: 16
+
+    - !Component # Output activation register
+      name: output_activation_reg
+      class: reg_storage
+      attributes:
+        depth: 1
+        width: 16           # width in bits
+        datawidth: 16
+
+  - !Component # MAC unit
+    name: mac
+    class: intmac
+    attributes:
+      datawidth: 16
+
+#
+# The following constraints are limitations of the hardware architecture and dataflow
+#
+
+constraints:
+  version: 0.4
+  targets:
+    #  pe spad only stored outputs
+    - target: pe_spad
+      type: dataspace
+      bypass: [Inputs, Weights]
+      keep: [Outputs]
+    # pe spad keeps outputs stationary
+    - target: pe_spad
+      type: temporal
+      permutation: [R, S, P, Q]
+    # NoC sending C in x direction, M in y direction; parallel-for loops for C and M only
+    - target: PE
+      type: spatial
+      permutation: [C, M]
+      split: 1
+      factors: [R=1, S=1, P=1, Q=1]
+    # enforce the registers to only store 1 data of the datatype it stores
+    - target: weight_reg
+      type: temporal
+      factors: [R=1, S=1, M=1, C=1]
+    - target: weight_reg
+      type: dataspace
+      keep: [Weights]
+      bypass: [Inputs, Outputs]
+    - target: input_activation_reg
+      type: temporal
+      factors: [P=1, Q=1, C=1, N=1]
+    - target: input_activation_reg
+      type: dataspace
+      keep: [Inputs]
+      bypass: [Outputs, Weights]
+    - target: output_activation_reg
+      type: temporal
+      factors: [P=1, Q=1, M=1, N=1]
+    - target: output_activation_reg
+      type: dataspace
+      keep: [Outputs]
+      bypass: [Inputs, Weights]

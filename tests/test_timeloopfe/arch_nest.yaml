@@ -1,0 +1,124 @@
+variables:
+  version: 0.4
+  technology: -1
+  global_cycle_seconds: -1
+
+architecture:
+  version: 0.4
+  nodes:
+  # Top-level elements
+  - !Component {name: A, class: storage, attributes: {datawidth: 1, technology: -1}}
+  - !Component {name: B, class: storage, attributes: {datawidth: 1, technology: -1}}
+
+  # Hierarchical
+  - !Hierarchical
+    nodes:
+    - !Component {name: Hier_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Component {name: Hier_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Hierarchical
+      nodes:
+      - !Component {name: Hier_Hier_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Hier_Hier_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Parallel
+      nodes:
+      - !Component {name: Hier_Peer_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Hier_Peer_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Pipelined
+      nodes:
+      - !Component {name: Hier_Pipe_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Hier_Pipe_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+
+  # Parallel
+  - !Parallel &peers_ref
+    nodes:
+    - !Component {name: Peer_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Component {name: Peer_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Hierarchical
+      nodes:
+      - !Component {name: Peer_Hier_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Peer_Hier_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Parallel
+      nodes:
+      - !Component {name: Peer_Peer_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Peer_Peer_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Pipelined
+      nodes:
+      - !Component {name: Peer_Pipe_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Peer_Pipe_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+
+  # Pipelined 
+  - !Pipelined
+    nodes:
+    - !Component {name: Pipe_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Component {name: Pipe_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Hierarchical
+      nodes:
+      - !Component {name: Pipe_Hier_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Pipe_Hier_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Parallel
+      nodes:
+      - !Component {name: Pipe_Peer_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Pipe_Peer_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+    - !Pipelined
+      nodes:
+      - !Component {name: Pipe_Pipe_A, class: storage, attributes: {datawidth: 1, technology: -1}}
+      - !Component {name: Pipe_Pipe_B, class: storage, attributes: {datawidth: 1, technology: -1}}
+
+  # YAML References
+  - !Component &elem_ref 
+    name: elem_ref
+    class: storage
+    attributes: {datawidth: 1, technology: -1}
+
+  - !Hierarchical &peers_ref
+    nodes:
+    - !Component &peers_ref
+      name: Peer_Ref_A
+      class: storage
+      attributes: {datawidth: 1, technology: -1}
+
+  - !Parallel
+    nodes:
+    - !Component {<<: *elem_ref, name: elem_ref_2}
+    - !Hierarchical 
+      nodes:
+      - !Component 
+        <<: *peers_ref
+        name: peers_ref_2
+      
+
+  - !Component &merge_A 
+    name: merge_A
+    class: storage
+    area_scale: 1
+    attributes: {from_A: 1, datawidth: 1, technology: -1}
+    constraints: {}
+  - !Component &merge_B
+    name: merge_B
+    class: storage
+    area_scale: 2
+    attributes: {from_B: 2, from_B_list: [], datawidth: 1, technology: -1}
+    constraints: {}
+  - !Component
+    <<: *merge_A
+    <<<: *merge_B
+    name: merge_C
+    attributes: {from_C: 3, datawidth: 1, technology: -1}
+
+problem:
+  version: 0.4
+  instance:
+    A: 1
+    B: 2
+    C: 3
+  shape:
+    coefficients: []
+    data_spaces:
+      - {name: dataspace_A, projection: [A]}
+      - {name: dataspace_B, projection: [B]}
+      - {name: dataspace_C, projection: [C]}
+    dimensions:
+    - A
+    - B
+    - C
+    name: ''

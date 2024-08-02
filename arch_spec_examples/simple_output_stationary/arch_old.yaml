@@ -1,0 +1,124 @@
+architecture:
+  # ============================================================
+  # Architecture Description
+  # ============================================================
+  version: 0.3
+  subtree:
+    - name: system
+      local:
+        - name: DRAM
+          class: DRAM
+          attributes:
+            type: "LPDDR4"
+            width: 64
+            block_size: 4
+            word_bits: 16
+            technology: -1
+          required_actions: [read, write, update, leak]
+      subtree:
+        - name: simple_ws
+          attributes:
+            technology: "45nm"
+          local:
+            - name: shared_glb
+              class: smartbuffer_SRAM
+              attributes:
+                memory_depth: 16384
+                memory_width: 64
+                n_banks: 32
+                block_size: 4
+                word_bits: 16
+                read_bandwidth: 16
+                write_bandwidth: 16
+                technology: -1
+              required_actions: [read, write, update, leak]
+          subtree:
+          - name: PE[0..255]
+            local:
+              - name: pe_spad
+                class: smartbuffer_SRAM
+                attributes:
+                  memory_depth: 192
+                  memory_width: 16
+                  block_size: 1
+                  word_bits: 16
+                  meshX: 16
+                  technology: -1
+                required_actions: [read, write, update, leak]
+              - name: mac
+                class: intmac
+                attributes:
+                  datawidth: 16
+                  meshX : 16
+                  technology: -1
+                required_actions: [read, write, update, leak]
+              # input and output registers for the mac unit
+              - name: weight_reg
+                class: reg_storage
+                attributes:
+                  depth: 1
+                  width: 16           # width in bits
+                  meshX: 16
+                  technology: -1
+                required_actions: [read, write, update, leak]
+              - name: input_activation_reg
+                class: reg_storage
+                attributes:
+                  depth: 1
+                  width: 16           # width in bits
+                  meshX: 16
+                  technology: -1
+                required_actions: [read, write, update, leak]
+              - name: output_activation_reg
+                class: reg_storage
+                attributes:
+                  depth: 1
+                  width: 16           # width in bits
+                  meshX: 16
+                  technology: -1
+                required_actions: [read, write, update, leak]
+
+#
+# The following constraints are limitations of the hardware architecture and dataflow
+#
+
+architecture_constraints:
+  version: 0.4
+  targets:
+    #  pe spad only stored outputs
+    - target: pe_spad
+      type: bypass
+      bypass: [Inputs, Weights]
+      keep: [Outputs]
+    # pe spad keeps outputs stationary
+    - target: pe_spad
+      type: temporal
+      permutation: RSPQ
+    # NoC sending C in x direction, M in y direction; parallel-for loops for C and M only
+    - target: shared_glb
+      type: spatial
+      permutation: CM
+      split: 1
+      factors: R=1 S=1 P=1 Q=1
+    # enforce the registers to only store 1 data of the datatype it stores
+    - target: weight_reg
+      type: temporal
+      factors: R=1 S=1 M=1 C=1
+    - target: weight_reg
+      type: bypass
+      keep: [Weights]
+      bypass: [Inputs, Outputs]
+    - target: input_activation_reg
+      type: temporal
+      factors: P=1 Q=1 C=1 N=1
+    - target: input_activation_reg
+      type: bypass
+      keep: [Inputs]
+      bypass: [Outputs, Weights]
+    - target: output_activation_reg
+      type: temporal
+      factors: P=1 Q=1 M=1 N=1
+    - target: output_activation_reg
+      type: bypass
+      keep: [Outputs]
+      bypass: [Inputs, Weights]

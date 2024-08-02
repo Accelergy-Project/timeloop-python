@@ -1,0 +1,236 @@
+!include ./macros.yaml
+!include ./variables.yaml
+
+architecture:
+  version: 0.4
+  nodes: 
+  # ===========================================================================
+  - !Container # Top-level system
+    name: system
+    <<<: *container_with_default_spatial_constraints
+    attributes:
+      technology: TECHNOLOGY
+      latency: 1
+      cell_config: CELL_CONFIG
+
+  - !Component # Chip: data that makes it here is residing in other tiles
+    name: chip 
+    <<<: *default_buffer
+    attributes: {depth: INF, width: INF, reduction_supported: False}
+    constraints:
+      dataspace: {keep_only: [Inputs, Outputs]}
+      temporal: # No default temporal constraints here
+        factors_only: [Q=-1, N=-1] # Iterate over rows / samples ONLY.
+        factors: [] # Override default: Timeloop will find the factors
+        permutation: [Q, N] # Override default: Timeloop will find the permutation
+
+  # ===========================================================================
+  - !Container # Tile contains multiple crossbars and a shared buffer
+    name: tile
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_TILES}
+
+  - !Component # On-chip network serves inputs/outputs between tiles
+    name: on_chip_network
+    <<<: *input_output_processing_stage
+    subclass: isaac_router_shared_by_four
+    attributes:
+      width: 256
+      read_bandwidth: width
+      write_bandwidth: width
+
+  - !Component # eDRAM buffer serves a set of tiles
+    name: eDRAM_buf
+    <<<: *default_buffer
+    subclass: isaac_edram
+    attributes:
+      depth: 2048
+      width: 256
+      read_bandwidth: width
+      write_bandwidth: width
+    constraints:
+      dataspace: {keep_only: [Inputs, Outputs]}
+    
+  - !Component # Quantize outputs before sending them to the next tile
+    name: output_quantize
+    <<<: *output_processing_stage
+    subclass: output_quantize_edram
+    attributes:
+      depth: 2048
+      width: 256
+      storage_for_scales: depth * width // 2
+
+  # ===========================================================================
+  - !Container # Macro: Full CiM unit with memory, peripherals, needed storage
+    name: macro
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_MACROS}
+
+  - !Component # Inter-tile network feeds inputs/outputs between tiles
+    name: inter_tile_network
+    <<<: *input_output_processing_stage
+    subclass: isaac_eDRAM_bus
+    attributes:
+      width: 256
+
+  - !Component # Output center+offset correct for outputs
+    name: output_center_offset_correct
+    <<<: *output_processing_stage
+    subclass: raella_output_center_offset_correct
+    attributes: 
+      width: OUTPUT_BITS
+      center_entries: N_COLUMNS // N_ARRAYS // 2
+
+  - !Component # Input buffer
+    name: input_buffer
+    <<<: *default_buffer
+    subclass: raella_input_buffer
+    attributes:
+      read_bandwidth: ROWS_PER_ARRAY
+      # Increase the depth to support grouped convolutions
+      width: 64
+      depth: SUPPORTED_INPUT_BITS * ROWS_PER_MACRO // width
+      adc_action_share: ADC_ACTION_SHARE
+      scaleup_input_buffer_for_groups: 1 # FIXME
+      input_bits: SUPPORTED_INPUT_BITS
+    constraints:
+      dataspace: {keep: [Inputs], bypass: [Outputs, Weights]}
+
+  # ===========================================================================
+  - !Container # array: Independent array with memory elements and peripherals.
+    name: array
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_ARRAYS}
+    constraints:
+      spatial: {no_reuse: []} # Enable multicast networks
+
+  - !Component # Output register holds psums in progress
+    # We double the output register depth to handle the case where the output
+    # is imperfectly factorized and an output register needs to hold more data.
+    # We correct the energy/area in the component class and disable temporal 
+    # iteration to avoid using the extra space.
+    name: output_register
+    <<<: *default_buffer
+    subclass: raella_output_register
+    attributes:
+      # write_bandwidth: N_SHIFT_ADDS_PER_BANK
+      entry_bits: SUPPORTED_OUTPUT_BITS * 2
+      width: entry_bits * N_ADC_PER_BANK
+      n_entries: N_COLUMNS // N_ARRAYS // 2 # >= 2 cols/weight
+      depth: entry_bits * n_entries // width # depth=Capacity/width
+      datawidth: 2 # Accumulate in 16b registers instead of 8b. 2x datawidth 
+      speculation_adc_scale: ADC_ACTION_SHARE
+    constraints:
+      dataspace: {keep_only: [Outputs]}
+      temporal: # Override default temporal constraints
+        factors_only: [I=INPUT_BITS]
+
+    # Column readout includes ADCs and Shift+Adds
+
+  - !Component # Column readout (ADC)
+    name: column_readout
+    <<<: *output_processing_stage
+    subclass: column_readout
+    attributes:
+      <<<: *adc_component_attributes
+      bw_speculation_scale: (8/11) ** SPECULATION_ENABLED
+      # write_bandwidth: N_ADC_PER_BANK * OUTPUT_BITS * bw_speculation_scale
+      width: OUTPUT_BITS
+      include_column_drivers: 0
+
+    # Input drivers + DAC feed inputs onto the rows of the crossbar
+
+  - !Component # Input drivers (DAC)
+    name: input_drivers
+    <<<: *input_processing_stage
+    subclass: raella_dac
+    attributes: 
+      <<: *pim_component_attributes
+      n_components: N_CIM_UNITS // N_ACCUM_GROUPS
+      read_bandwidth: n_components * DAC_RESOLUTION
+      width: DAC_RESOLUTION
+
+  # ===========================================================================
+  - !Container # Column group: Independent group of columns accessed together.
+    name: column_group
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_COLUMN_GROUPS}
+
+  # ===========================================================================
+  - !Container # Column: A group of memory elements and peripherals.
+    name: column
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_COLUMNS}
+    constraints:
+      # Allow input multicast between columns
+      spatial: {no_reuse: [Outputs, Weights]} 
+
+  - !Component # Psubbuf to capture & buffer analog column sums
+    name: timely_psubbuf
+    <<<: *output_processing_stage
+    subclass: timely_psubbuf
+    attributes: {width: OUTPUT_BITS, technology: 65}
+
+  # ===========================================================================
+  - !Container # Accum. group: A group of CiM units whose outputs are summed.
+    name: accumulator_group
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_ACCUM_GROUPS}
+
+  - !Component # inter_col_analog_inputs: Dummy to catch analog reads
+    # After inputs are converted, they are analog and read by all columns. This
+    # dummy catches all those reads. It also enforces 1-input-per-row with its
+    # depth constraint.
+    name: inter_col_analog_inputs 
+    <<<: *input_processing_stage
+    attributes: 
+      width: 1
+      depth: DAC_RESOLUTION * N_CIM_UNITS // N_ACCUM_GROUPS
+
+  # ===========================================================================
+  - !Container # CiM Unit: A set of cells that compute one MAC operation.
+    name: cim_unit
+    <<<: *container_with_default_spatial_constraints
+    spatial: {meshX: N_CIM_UNITS}
+    constraints:
+      spatial: 
+        no_iteration_over_dataspaces: [Outputs]
+        no_reuse: [Inputs, Weights] # Allow output reduction
+        factors: [L=1]# Also don't iterate over weight bits
+
+  - !Component # PIM Cell: Base memory in the CIM unit.
+    name: pim_cell
+    <<<: *default_buffer
+    subclass: memory_cell
+    attributes:
+      <<: *pim_component_attributes
+      width:       BITS_PER_CELL * CIM_UNIT_WIDTH
+      depth:       CIM_UNIT_DEPTH
+      width_cells: CIM_UNIT_WIDTH
+      cycles_per_activation: ARRAY_LATENCY / LATENCY
+      read_bandwidth: width / cycles_per_activation
+    constraints:
+      dataspace: {keep: [Weights], bypass: [Inputs, Outputs]}
+      temporal: 
+        no_iteration_over_dataspaces: [Outputs]
+        factors_only: []
+        permutation: *vars
+
+  # ===========================================================================
+  - !Container # bitwise_virtualization: Virtualize the bitwise MACs
+    # bitwise_virtualization: Virtualize the bitwise MACs to allow parallel
+    # execution of "bit" operations. This is done because each Timeloop MAC
+    # unit can only do one operation at a time, but when we split the bits
+    # we need many ops per MAC unit.
+    name: bitwise_virtualization
+    spatial: {meshX: N_VIRTUAL_MACS}
+    constraints:
+      spatial:
+        factors_only: [I=DAC_RESOLUTION, L=CIM_UNIT_WIDTH_BITS, T=0] # 0 = All
+        permutation: *vars
+        no_reuse: []
+        split: 999
+
+  - !Component
+    name: virtual_bitwise_mac
+    class: free_mac # free mac
