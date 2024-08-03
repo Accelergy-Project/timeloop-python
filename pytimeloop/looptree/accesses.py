@@ -1,17 +1,12 @@
 from collections.abc import Mapping
 
 from pytimeloop.isl.top import Context, isl, libc
-from pytimeloop.isl.to_str import isl_pw_qpolynomial_to_str
-from pytimeloop.isl.singular import get_value_from_singular_qpolynomial
+from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
 
 
 def get_total_accesses(accesses: Mapping[(int, str), int]):
     result = {
-        k: get_value_from_singular_qpolynomial(
-            isl.isl_pw_qpolynomial_sum(
-                isl.isl_pw_qpolynomial_copy(v)
-            )
-        )
+        k: get_sum_of_pw_qpolynomial(v)
         for k, v in accesses.items()
     }
 
