@@ -12,7 +12,7 @@ class LooptreeModelAppTest(unittest.TestCase):
     def test_model_with_two_level_mm(self):
         self.check_model_app(
             Path(__file__).parent / 'test_configs',
-            ['looptree-test.yaml'],
+            ['looptree-test-fused.yaml'],
             TEST_TMP_DIR
         )
 
@@ -72,7 +72,7 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
     def test_deserializer_with_two_level_mm(self):
         self.check_deserializer(
             Path(__file__).parent / 'test_configs',
-            ['looptree-test.yaml'],
+            ['looptree-test-fused.yaml'],
             TEST_TMP_DIR
         )
 

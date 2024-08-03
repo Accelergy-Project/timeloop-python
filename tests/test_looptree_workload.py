@@ -11,7 +11,7 @@ class TestLooptreeWorkload(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         yaml_str = gather_yaml_configs(Path(__file__).parent / 'test_configs',
-                                       ['looptree-test.yaml'])
+                                       ['looptree-test-fused.yaml'])
         config = Config(yaml_str, 'yaml')
         cls._workload = LooptreeWorkload.parse_cfg(config.root['problem'])
 
@@ -40,7 +40,7 @@ class TestLooptreeWorkloadDependencyAnalyzer(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         yaml_str = gather_yaml_configs(Path(__file__).parent / 'test_configs',
-                                       ['looptree-test.yaml'])
+                                       ['looptree-test-fused.yaml'])
         config = Config(yaml_str, 'yaml')
         cls._workload = LooptreeWorkload.parse_cfg(config.root['problem'])
         cls._analyzer = LooptreeWorkloadDependencyAnalyzer(cls._workload)
