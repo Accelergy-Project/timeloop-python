@@ -1,10 +1,11 @@
 import unittest
 from pathlib import Path
 
+import islpy as isl
+
 from bindings.config import Config
 from bindings.looptree import LooptreeModelApp
 from pytimeloop.looptree.des import deserialize_looptree_output
-from pytimeloop.isl.top import Context, isl, c_char_p
 
 from tests.util import TEST_TMP_DIR, gather_yaml_configs
 
@@ -19,9 +20,9 @@ class LooptreeModelAppTest(unittest.TestCase):
     @staticmethod
     def make_model_app(config_dir, paths, tmp_path):
         yaml_str = gather_yaml_configs(config_dir, paths)
-        return LooptreeModelApp(Config(yaml_str, 'yaml'),
-                                str(tmp_path),
-                                'looptree-model')
+        config = Config(yaml_str, 'yaml')
+        model = LooptreeModelApp(config, str(tmp_path), 'looptree-model')
+        return model
     
     def check_model_app(
         self, config_dir, paths, tmp_path
@@ -89,8 +90,7 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
         model = self.make_model_app(config_dir, paths, tmp_path)
         result = model.run()
 
-        des_result = deserialize_looptree_output(result,
-                                                 Context.getDefaultInstance())
+        des_result = deserialize_looptree_output(result, isl.DEFAULT_CONTEXT)
 
         self.assertEqual(
             {
@@ -98,8 +98,7 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
                 1: '{ [i0, i1] -> 96 : i1 = 1 and 0 <= i0 <= 2 }'
             },
             {
-                k: c_char_p(isl.isl_pw_qpolynomial_to_str(v)).value.decode('utf-8')
-                for k, v in des_result.ops.items()
+                k: v.to_str() for k, v in des_result.ops.items()
             }
         )
         self.assertEqual(
@@ -116,8 +115,7 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
                 (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
             },
             {
-                k: c_char_p(isl.isl_pw_qpolynomial_to_str(v)).value.decode('utf-8')
-                for k, v in des_result.fill.items()
+                k: v.to_str() for k, v in des_result.fill.items()
             }
         )
         self.assertEqual(
@@ -134,7 +132,6 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
             (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
             },
             {
-                k: c_char_p(isl.isl_pw_qpolynomial_to_str(v)).value.decode('utf-8')
-                for k, v in des_result.occupancy.items()
+                k: v.to_str() for k, v in des_result.occupancy.items()
             }
         )

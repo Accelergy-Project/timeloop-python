@@ -1,11 +1,13 @@
 import unittest
 from pathlib import Path
+
 from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
 
+import islpy as isl
+
 from bindings.config import Config
 from bindings.looptree import LooptreeModelApp, LooptreeWorkload
-from pytimeloop.isl.top import Context
 from pytimeloop.looptree.des import deserialize_looptree_output
 from pytimeloop.looptree.accesses import reads_and_writes_from_fill, get_total_accesses
 
@@ -66,8 +68,9 @@ class TestLoopTreeAccess(unittest.TestCase):
         model, config, workload = self.make_model_app(config_dir,
                                                       paths,
                                                       tmp_path)
-        result = deserialize_looptree_output(model.run(),
-                                             Context.getDefaultInstance())
+
+        result = model.run()
+        result = deserialize_looptree_output(result, isl.DEFAULT_CONTEXT)
 
         reads, writes = reads_and_writes_from_fill(result.fill,
                                                    config['mapping'],

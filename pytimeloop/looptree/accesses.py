@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 
-from pytimeloop.isl.top import Context, isl, libc
+import islpy as isl
+
 from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
 
 
