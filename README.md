@@ -34,6 +34,9 @@ libgpm-dev
 cmake
 ```
 
+Moreover, PyTimeloop requires the installation of `islpy` with Barvinok support
+enabled.
+
 ## Installation
 First, ensure that Timeloop and Accelergy are installed following the
 [Timeloop+Accelergy install instructions](https://timeloop.csail.mit.edu/installation).
