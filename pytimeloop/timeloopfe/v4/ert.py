@@ -9,6 +9,15 @@ class Ert(DictNode):
         super().add_attr("version", default="0.4")
         super().add_attr("tables", Tables)
 
+    def find_component(self, name: str):
+        for table in self.tables:
+            # Component names in ERT are compound, e.g.,
+            # Parent1.Parent0.Component[0..NumOfComponent]
+            last_component_in_compound_name: str = \
+                table.name.split('[')[0].split('.')[-1]
+            if name == last_component_in_compound_name:
+                return table
+
     def isempty(self) -> bool:
         return self.tables.isempty()
 
@@ -28,6 +37,11 @@ class Table(DictNode):
 
         super().add_attr("name", str)
         super().add_attr("actions", Actions)
+
+    def find_action(self, name: str):
+        for action in self.actions:
+            if name == action.name:
+                return action
 
 
 class Actions(ListNode):
