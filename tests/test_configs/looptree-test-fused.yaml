@@ -1,3 +1,7 @@
+variables:
+  global_cycle_seconds: 1e-9
+  technology: "40nm"
+
 mapping:
   type: fused
   nodes:
@@ -75,6 +79,7 @@ architecture:
         width: 256
         block-size: 32
         word-bits: 8
+      required_actions: [read, write]
 
     subtree:
     - name: Chip
@@ -89,6 +94,7 @@ architecture:
           width: 256
           block-size: 32
           word-bits: 8
+        required_actions: [read, write]
         
       subtree:
       - name: PE
@@ -101,7 +107,11 @@ architecture:
             width: 8
             block-size: 1
             word-bits: 8
+            action_latency_cycles: 1
+          required_actions: [read, write]
         - name: MACC[0..15]
           class: intmac
           attributes:
             datawidth: 8
+            width: 8
+          required_actions: [compute]

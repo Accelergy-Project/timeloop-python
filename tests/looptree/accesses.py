@@ -17,7 +17,7 @@ from tests.util import TEST_TMP_DIR, gather_yaml_configs
 class TestLoopTreeAccess(unittest.TestCase):
     def test_accesses_with_two_level_mm_fused(self):
         self.check_accesses(
-            Path(__file__).parent / 'test_configs',
+            Path(__file__).parent.parent / 'test_configs',
             ['looptree-test-fused.yaml'],
             TEST_TMP_DIR,
             {
@@ -33,7 +33,7 @@ class TestLoopTreeAccess(unittest.TestCase):
 
     def test_accesses_with_two_level_mm_fused(self):
         self.check_accesses(
-            Path(__file__).parent / 'test_configs',
+            Path(__file__).parent.parent / 'test_configs',
             ['looptree-test-unfused.yaml'],
             TEST_TMP_DIR,
             {
