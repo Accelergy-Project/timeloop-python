@@ -7,6 +7,7 @@ import inspect
 import logging
 import os
 import threading
+from pathlib import Path
 from typing import (
     Callable,
     Any,
@@ -1276,7 +1277,7 @@ class DictNode(Node, dict):
     @classmethod
     def from_yaml_files(
         cls,
-        *files: Union[str, List[str]],
+        *files: Union[str, List[str], Path, list[Path]],
         jinja_parse_data: Dict[str, Any] = None,
         **kwargs,
     ) -> "DictNode":
@@ -1307,8 +1308,12 @@ class DictNode(Node, dict):
         jinja_parse_data = jinja_parse_data or {}
         for f in files:
             if isinstance(f, (list, tuple)):
+                if isinstance(f[0], Path):
+                    f = list(map(str, f))
                 allfiles.extend(f)
             else:
+                if isinstance(f, Path):
+                    f = str(f)
                 allfiles.append(f)
         files = allfiles
         rval = {}

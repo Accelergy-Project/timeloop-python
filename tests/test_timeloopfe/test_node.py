@@ -1,5 +1,7 @@
 import os
 import unittest
+from pathlib import Path
+
 from pytimeloop.timeloopfe.v4.processors.constraint_attacher import (
     ConstraintAttacherProcessor,
 )
@@ -31,6 +33,16 @@ class NodeTest(unittest.TestCase):
         return Specification.from_yaml_files(
             os.path.join(this_script_dir, "arch_nest.yaml"), *args, **kwargs
         )
+
+    def test_from_yaml_path_vs_str(self):
+        arch_nest_path = Path(__file__).parent / 'arch_nest.yaml'
+        spec = Specification.from_yaml_files(arch_nest_path)
+        arch_nest_path = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            'arch_nest.yaml'
+        )
+        spec2 = Specification.from_yaml_files(arch_nest_path)
+        self.assertEqual(spec, spec2)
 
     def test_missing_key(self):
         with self.assertRaises((KeyError)):
