@@ -21,7 +21,7 @@ def reads_and_writes_from_fill(fills: Mapping, mapping, workload):
     reads = {}
     writes = {}
 
-    parent_buffers = get_parent_buffers(mapping)
+    parent_buffers = get_parent_buffers(mapping, workload)
 
     for (buffer_id, dspace_id, einsum_id), fill in fills.items():
         dspace_name = dspace_id_to_name[dspace_id]
@@ -37,11 +37,36 @@ def reads_and_writes_from_fill(fills: Mapping, mapping, workload):
     return reads, writes
 
 
-def get_parent_buffers(mapping):
-    return _get_parent_buffers(mapping, {})
+def reads_and_writes_from_ops(ops, mapping, workload):
+    mapping = mapping['nodes']
+    dspace_id_to_name = workload.data_space_id_to_name()
+    einsum_name_to_id = workload.einsum_name_to_id()
+
+    reads = {}
+    writes = {}
+
+    parent_buffers = get_parent_buffers(mapping, workload)
+
+    for einsum_id, ops_val in ops.items():
+        for dspace in workload.tensors_read_by_einsum(einsum_id):
+            dspace_name = dspace_id_to_name[dspace]
+            parent = parent_buffers[('compute', dspace_name)]
+            reads[(parent, dspace_name)] = ops_val
+        for dspace in workload.tensors_written_by_einsum(einsum_id):
+            dspace_name = dspace_id_to_name[dspace]
+            parent = parent_buffers[('compute', dspace_name)]
+            reads[(parent, dspace_name)] = ops_val
+            writes[(parent, dspace_name)] = ops_val
+
+    return reads, writes
 
 
-def _get_parent_buffers(mapping, dspace_to_top_buffer):
+
+def get_parent_buffers(mapping, workload):
+    return _get_parent_buffers(mapping, {}, workload)
+
+
+def _get_parent_buffers(mapping, dspace_to_top_buffer, workload):
     parent_buffers = {}
 
     for node in mapping:
@@ -59,7 +84,18 @@ def _get_parent_buffers(mapping, dspace_to_top_buffer):
             for child in node['branches']:
                 parent_buffers |= _get_parent_buffers(
                     child,
-                    dspace_to_top_buffer.copy()
+                    dspace_to_top_buffer.copy(),
+                    workload
                 )
+
+        if node['type'] == 'compute':
+            einsum_name = node['einsum']
+            einsum_id = workload.einsum_name_to_id()[einsum_name]
+            for dspace in workload.tensors_read_by_einsum(einsum_id):
+                dspace = workload.data_space_id_to_name()[dspace]
+                parent_buffers[('compute', dspace)] = dspace_to_top_buffer[dspace]
+            for dspace in workload.tensors_written_by_einsum(einsum_id):
+                dspace = workload.data_space_id_to_name()[dspace]
+                parent_buffers[('compute', dspace)] = dspace_to_top_buffer[dspace]
 
     return parent_buffers
