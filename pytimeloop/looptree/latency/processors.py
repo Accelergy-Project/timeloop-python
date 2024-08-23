@@ -1,11 +1,10 @@
-import ctypes
+import islpy as isl
 
-from pytimeloop.isl.top import isl
-from pytimeloop.isl.sum import sum_until_idx, sum_all_pw_qpolynomials, make_reduction_map
+from pytimeloop.isl.sum import sum_until_idx, make_reduction_map
 
 
 def process_sequential_latency(top_idx: int, latencies):
-    summed_latency = sum_all_pw_qpolynomials(latencies)
+    summed_latency = sum(latencies)
     return sum_until_idx(top_idx, summed_latency)
 
 
@@ -19,7 +18,7 @@ def process_parallel_latency(top_idx: int, latencies):
         n_dims-1
     )
 
-    summed_latency = sum_all_pw_qpolynomials(latencies)
+    summed_latency = sum(latencies)
 
     is_tight = ctypes.c_int(0)
     max_per_timestep = isl.isl_map_apply_pw_qpolynomial_fold(

@@ -19,7 +19,7 @@ class TestLatency(unittest.TestCase):
         result = deserialize_looptree_output(model.run(),
                                              isl.DEFAULT_CONTEXT)
 
-        print(result.op_occupancy)
+        print(result.occupancy)
 
 
     def test_latency_mm_unfused(self):
