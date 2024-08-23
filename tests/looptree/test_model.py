@@ -6,7 +6,7 @@ import islpy as isl
 from bindings.config import Config
 from bindings.looptree import LooptreeModelApp
 from pytimeloop.looptree.des import deserialize_looptree_output
-
+from.make_model_app import make_model_app
 from tests.util import TEST_TMP_DIR, gather_yaml_configs
 
 class LooptreeModelAppTest(unittest.TestCase):
@@ -32,8 +32,8 @@ class LooptreeModelAppTest(unittest.TestCase):
 
         self.assertEqual(
             {
-                0: '{ [i0, i1] -> 24 : i1 = 0 and 0 <= i0 <= 2 }',
-                1: '{ [i0, i1] -> 96 : i1 = 1 and 0 <= i0 <= 2 }'
+                0: '{ [i0, i1, i2, i3] -> 3 : i1 = 0 and 0 <= i0 <= 2 and 0 <= i2 <= 3 and 0 <= i3 <= 1 }',
+                1: '{ [i0, i1, i2, i3] -> 3 : i1 = 1 and 0 <= i0 <= 2 and 0 <= i2 <= 3 and 0 <= i3 <= 7 }'
             },
             result.ops
         )
@@ -94,8 +94,8 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
 
         self.assertEqual(
             {
-                0: '{ [i0, i1] -> 24 : i1 = 0 and 0 <= i0 <= 2 }',
-                1: '{ [i0, i1] -> 96 : i1 = 1 and 0 <= i0 <= 2 }'
+                0: '{ [i0, i1, i2, i3] -> 3 : i1 = 0 and 0 <= i0 <= 2 and 0 <= i2 <= 3 and 0 <= i3 <= 1 }',
+                1: '{ [i0, i1, i2, i3] -> 3 : i1 = 1 and 0 <= i0 <= 2 and 0 <= i2 <= 3 and 0 <= i3 <= 7 }'
             },
             {
                 k: v.to_str() for k, v in des_result.ops.items()

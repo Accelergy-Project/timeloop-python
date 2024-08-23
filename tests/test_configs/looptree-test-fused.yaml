@@ -22,9 +22,21 @@ mapping:
     dspace: [Fmap2]
   - type: sequential
     branches:
-    - - type: compute
+    - - type: temporal
+        dimension: M1
+        tile_size: 1
+      - type: spatial
+        dimension: C1
+        tile_size: 1
+      - type: compute
         einsum: Fc1
-    - - type: compute
+    - - type: temporal
+        dimension: C2
+        tile_size: 1
+      - type: spatial
+        dimension: M2
+        tile_size: 1
+      - type: compute
         einsum: Fc2
 
 problem:
@@ -44,7 +56,7 @@ problem:
         read-write: True
 
     instance: >-
-      0 <= P1 < 9 and 0 <= M1 < 1 and 0 <= C1 < 1
+      0 <= P1 < 9 and 0 <= M1 < 4 and 0 <= C1 < 2
 
   - shape:
       name: Fc2
@@ -62,7 +74,7 @@ problem:
         read-write: True
 
     instance: >-
-      0 <= P2 < 9 and 0 <= M2 < 1 and 0 <= C2 < 1
+      0 <= P2 < 9 and 0 <= M2 < 8 and 0 <= C2 < 4
 
 architecture:
   version: 0.2
