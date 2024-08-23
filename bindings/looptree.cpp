@@ -31,7 +31,8 @@ namespace pytimeloop::looptree_bindings
     py::class_<application::LooptreeModel::Result>(m, "LooptreeResult")
         .def_readwrite("ops", &application::LooptreeModel::Result::ops)
         .def_readwrite("fill", &application::LooptreeModel::Result::fill)
-        .def_readwrite("occupancy", &application::LooptreeModel::Result::occupancy);
+        .def_readwrite("occupancy", &application::LooptreeModel::Result::occupancy)
+        .def_readwrite("temporal_steps", &application::LooptreeModel::Result::temporal_steps);
 
     py::class_<problem::FusedWorkload>(m, "LooptreeWorkload")
         .FUSED_WORKLOAD_METHOD(einsum_name_to_id, EinsumNameToId)

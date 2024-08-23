@@ -4,6 +4,7 @@ from pytimeloop.isl.sum import sum_until_idx, make_reduction_map
 
 
 def process_sequential_latency(top_idx: int, latencies):
+    print(latencies)
     summed_latency = sum(latencies)
     return sum_until_idx(top_idx, summed_latency)
 
