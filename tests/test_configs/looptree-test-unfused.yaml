@@ -4,26 +4,48 @@ mapping:
   - type: storage
     target: 0
     dspace: [Filter1, Filter2, Fmap1, Fmap2, Fmap3]
-  - type: storage
-    target: 1
-    dspace: [Filter1, Filter2]
-  - type: temporal
-    dimension: P2
-    tile_size: 3
-  - type: storage
-    target: 1
-    dspace: [Fmap1, Fmap3]
-  - type: storage
-    target: 2
-    dspace: [Fmap2]
-  - type: pipeline
+  - type: sequential
     branches:
-    - - type: compute
+    - - type: storage
+        target: 1
+        dspace: [Filter1]
+      - type: temporal
+        dimension: P1
+        tile_size: 1
+      - type: storage
+        target: 1
+        dspace: [Fmap1]
+      - type: spatial
+        dimension: M1
+        tile_size: 1
+      - type: temporal
+        dimension: C1
+        tile_size: 1
+      - type: storage
+        target: 2
+        dspace: [Fmap2]
+      - type: compute
         einsum: Fc1
-        parallelism: 256
-    - - type: compute
+    - - type: storage
+        target: 1
+        dspace: [Filter2]
+      - type: temporal
+        dimension: P2
+        tile_size: 1
+      - type: storage
+        target: 1
+        dspace: [Fmap3]
+      - type: spatial
+        dimension: M2
+        tile_size: 1
+      - type: spatial
+        dimension: C2
+        tile_size: 1
+      - type: storage
+        target: 2
+        dspace: [Fmap2]
+      - type: compute
         einsum: Fc2
-        parallelism: 256
 
 problem:
   - shape:
@@ -64,7 +86,7 @@ problem:
 
 architecture:
   version: 0.2
-  
+
   subtree:
   - name: System
     
@@ -80,7 +102,6 @@ architecture:
     - name: Chip
       attributes:
         technology: 40nm
-
       local:
       - name: GlobalBuffer
         class: SRAM
@@ -89,18 +110,10 @@ architecture:
           width: 256
           block-size: 32
           word-bits: 8
-        
+
       subtree:
       - name: PE
-      
         local:
-        - name: RegisterFile[0..15]
-          class: regfile
-          attributes:
-            depth: 64
-            width: 8
-            block-size: 1
-            word-bits: 8
         - name: MACC[0..15]
           class: intmac
           attributes:
