@@ -7,6 +7,7 @@ class LooptreeOutput:
     def __init__(self):
         self.ops = {}
         self.occupancy = {}
+        self.op_occupancy = {}
         self.fill = {}
 
 
@@ -17,8 +18,8 @@ def deserialize_looptree_output(
     output = LooptreeOutput()
 
     output.ops = {
-        k: isl.PwQPolynomial.read_from_str(isl_ctx, v)
-        for k, v in looptree_output.ops.items()
+        k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
+        for k, (dims, v) in looptree_output.ops.items()
     }
 
     output.occupancy = {
@@ -29,6 +30,11 @@ def deserialize_looptree_output(
     output.fill = {
         k: isl.PwQPolynomial.read_from_str(isl_ctx, v)
         for k, v in looptree_output.fill.items()
+    }
+
+    output.temporal_steps = {
+        k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
+        for k, (dims, v) in looptree_output.temporal_steps.items()
     }
 
     return output

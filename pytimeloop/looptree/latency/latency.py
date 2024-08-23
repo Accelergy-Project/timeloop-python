@@ -1,18 +1,16 @@
 from pytimeloop.isl.singular import get_value_from_singular_qpolynomial
-
 from pytimeloop.looptree.latency.processors import LATENCY_PROCESSORS
+
+from bindings.looptree import SpatialTag
 
 
 def compute_latency(mapping, temporal_steps, workload):
-    latencies = {
-        k: steps_to_latency(v) for k, v in temporal_steps.items()
-    }
     return get_value_from_singular_qpolynomial(
-        _compute_latency(mapping, 0, latencies, workload)
+        _compute_latency(mapping, 0, temporal_steps, workload)
     )
 
 
-def _compute_latency(mapping, top_idx: int, latencies, workload):
+def _compute_latency(mapping, top_idx: int, temporal_steps, workload):
     einsum_name_to_id = workload.einsum_name_to_id()
 
     next_top_idx = top_idx
@@ -21,7 +19,7 @@ def _compute_latency(mapping, top_idx: int, latencies, workload):
 
         if node['type'] in LATENCY_PROCESSORS.keys():
             children_latencies = [
-                _compute_latency(branch, next_top_idx, latencies, workload)
+                _compute_latency(branch, next_top_idx, temporal_steps, workload)
                 for branch in node['branches']
             ]
 
@@ -30,8 +28,15 @@ def _compute_latency(mapping, top_idx: int, latencies, workload):
         elif node['type'] == 'compute':
             einsum = node['einsum']
             einsum_id = einsum_name_to_id[einsum]
-            return latencies[einsum_id]
+            return temporal_steps[einsum_id]
 
 
-def steps_to_latency(map):
+def ops_to_latency(dims, map):
+    mask = [False]*len(dims)
+    new_dims = []
+    for i, d in enumerate(dims):
+        if d == SpatialTag:
+            mask[i] = True
+        else:
+            new_dims.append(d)
     return map.domain().identity().card()

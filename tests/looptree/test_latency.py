@@ -10,7 +10,7 @@ from tests.util import TEST_TMP_DIR
 
 
 class TestLatency(unittest.TestCase):
-    def test_latency_mm_fused(self):
+    def test_latency_mm_fused_sequential(self):
         model, spec, workload = make_model_app(
             Path(__file__).parent.parent / 'test_configs',
             ['looptree-test-fused.yaml'],
@@ -23,8 +23,19 @@ class TestLatency(unittest.TestCase):
         latency = compute_latency(spec.mapping.nodes,
                                   result.temporal_steps,
                                   workload)
-        self.assertEqual(6, latency)
+        self.assertEqual(24, latency)
 
+    def test_latency_mm_fused_pipeline(self):
+        model, spec, workload = make_model_app(
+            Path(__file__).parent.parent / 'test_configs',
+            ['looptree-test-fused-pipeline.yaml'],
+            TEST_TMP_DIR,
+            False
+        )
+        result = deserialize_looptree_output(model.run(),
+                                             isl.DEFAULT_CONTEXT)
 
-    def test_latency_mm_unfused(self):
-        pass
+        latency = compute_latency(spec.mapping.nodes,
+                                  result.temporal_steps,
+                                  workload)
+        self.assertEqual(16, latency)
