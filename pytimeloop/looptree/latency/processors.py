@@ -9,29 +9,6 @@ def process_sequential_latency(top_idx: int, latencies):
     return sum_until_idx(top_idx, summed_latency)
 
 
-def process_parallel_latency(top_idx: int, latencies):
-    n_dims = isl.isl_pw_qpolynomial_dim(
-        latencies[0][1],
-        isl.isl_dim_in
-    )
-    reduce_to_branching_point_map = make_reduction_map(
-        isl.isl_pw_qpolynomial_get_domain_space(latencies[0]),
-        n_dims-1
-    )
-
-    summed_latency = sum(latencies)
-
-    max_per_timestep, is_tight = \
-        reduce_to_branching_point_map.apply_pw_qpolynomial_fold(
-            isl.PwQPolynomialFold.from_pw_qpolynomial(
-                isl.fold.max,
-                summed_latency
-            )
-        )
-
-    return sum_until_idx(top_idx, max_per_timestep)
-
-
 def process_pipeline_latency(top_idx: int, latencies):
     sequential_latency = process_sequential_latency(top_idx, latencies)
 
@@ -77,7 +54,6 @@ def process_pipeline_latency(top_idx: int, latencies):
 
 LATENCY_PROCESSORS = {
     'sequential': process_sequential_latency,
-    'parallel': process_parallel_latency,
     'pipeline': process_pipeline_latency
 }
 
