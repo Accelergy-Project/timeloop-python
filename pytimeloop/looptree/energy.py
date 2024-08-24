@@ -19,7 +19,7 @@ def gather_actions(looptree_results, mapping, workload, bindings):
     reads = get_total_accesses(reads)
     writes = get_total_accesses(writes)
     ops = sum(get_sum_of_pw_qpolynomial(v)
-              for v in looptree_results.ops.values())
+              for (tags, v) in looptree_results.ops.values())
 
     actions = {}
     for (buf, tensor), counts in reads.items():

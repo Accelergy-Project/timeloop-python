@@ -24,7 +24,7 @@ def compute_capacity_usage(mapping, occupancy, workload):
                     if key in occupancy:
                         max_cap = max(
                             max_cap,
-                            get_value_from_singular_qpolynomial(occupancy[key])
+                            get_value_from_singular_qpolynomial(occupancy[key][1])
                         )
                 caps[buf] += max_cap
 

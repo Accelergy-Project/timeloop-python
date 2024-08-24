@@ -43,7 +43,7 @@ problem:
   - shape:
       name: Fc1
       dimensions: [ P1, M1, C1 ]
-      data-spaces:
+      data_spaces:
       - name: Fmap1
         dimensions: [ Fmap1_C, Fmap1_P ]
         projection: '[ C1, P1 ]'
@@ -53,7 +53,7 @@ problem:
       - name: Fmap2
         dimensions: [ Fmap2_C, Fmap2_P ]
         projection: '[ M1, P1 ]'
-        read-write: True
+        read_write: True
 
     instance: >-
       0 <= P1 < 9 and 0 <= M1 < 4 and 0 <= C1 < 2
@@ -61,7 +61,7 @@ problem:
   - shape:
       name: Fc2
       dimensions: [ P2, M2, C2 ]
-      data-spaces:
+      data_spaces:
       - name: Fmap2
         dimensions: [ Fmap2_C, Fmap2_P ]
         projection: '[ C2, P2 ]'
@@ -71,7 +71,7 @@ problem:
       - name: Fmap3
         dimensions: [ Fmap3_C, Fmap3_P ]
         projection: '[ M2, P2 ]'
-        read-write: True
+        read_write: True
 
     instance: >-
       0 <= P2 < 9 and 0 <= M2 < 8 and 0 <= C2 < 4
@@ -87,8 +87,8 @@ architecture:
       class: DRAM
       attributes:
         width: 256
-        block-size: 32
-        word-bits: 8
+        block_size: 32
+        word_bits: 8
       required_actions: [read, write]
 
     subtree:
@@ -102,8 +102,8 @@ architecture:
         attributes:
           depth: 8192
           width: 256
-          block-size: 32
-          word-bits: 8
+          block_size: 32
+          word_bits: 8
         required_actions: [read, write]
         
       subtree:

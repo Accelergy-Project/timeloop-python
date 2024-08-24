@@ -5,7 +5,7 @@ import islpy as isl
 from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
 
 
-def get_total_accesses(accesses: Mapping[(int, str), int]):
+def get_total_accesses(accesses: Mapping):
     result = {
         k: get_sum_of_pw_qpolynomial(v)
         for k, v in accesses.items()
@@ -23,7 +23,7 @@ def reads_and_writes_from_fill(fills: Mapping, mapping, workload):
 
     parent_buffers = get_parent_buffers(mapping, workload)
 
-    for (buffer_id, dspace_id, einsum_id), fill in fills.items():
+    for (buffer_id, dspace_id, einsum_id), (tags, fill) in fills.items():
         dspace_name = dspace_id_to_name[dspace_id]
         parent_buffer = parent_buffers[(buffer_id, dspace_name)]
         if parent_buffer is not None:
@@ -47,7 +47,7 @@ def reads_and_writes_from_ops(ops, mapping, workload):
 
     parent_buffers = get_parent_buffers(mapping, workload)
 
-    for einsum_id, ops_val in ops.items():
+    for einsum_id, (tags, ops_val) in ops.items():
         for dspace in workload.tensors_read_by_einsum(einsum_id):
             dspace_name = dspace_id_to_name[dspace]
             parent = parent_buffers[('compute', dspace_name)]

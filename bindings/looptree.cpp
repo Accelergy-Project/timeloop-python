@@ -28,11 +28,11 @@ namespace pytimeloop::looptree_bindings
         .def(py::init<config::CompoundConfig*, std::string, std::string>())
         .def("run", &application::LooptreeModel::Run);
 
-    py::class_<analysis::Temporal>(m, "TemporalTag");
-    py::class_<analysis::Spatial>(m, "SpatialTag");
-    py::class_<analysis::Sequential>(m, "SequentialTag");
-    py::class_<analysis::PipelineTemporal>(m, "PipelineTemporalTag");
-    py::class_<analysis::PipelineSpatial>(m, "PipelineSpatialTag");
+    py::class_<analysis::Temporal>(m, "TemporalTag").def(py::init<>());
+    py::class_<analysis::Spatial>(m, "SpatialTag").def(py::init<>());
+    py::class_<analysis::Sequential>(m, "SequentialTag").def(py::init<>());
+    py::class_<analysis::PipelineTemporal>(m, "PipelineTemporalTag").def(py::init<>());
+    py::class_<analysis::PipelineSpatial>(m, "PipelineSpatialTag").def(py::init<>());
 
     py::class_<application::LooptreeModel::Result>(m, "LooptreeResult")
         .def_readwrite("ops", &application::LooptreeModel::Result::ops)

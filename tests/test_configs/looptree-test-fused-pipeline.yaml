@@ -43,7 +43,7 @@ problem:
   - shape:
       name: Fc1
       dimensions: [ P1, M1, C1 ]
-      data-spaces:
+      data_spaces:
       - name: Fmap1
         dimensions: [ Fmap1_C, Fmap1_P ]
         projection: '[ C1, P1 ]'
@@ -61,7 +61,7 @@ problem:
   - shape:
       name: Fc2
       dimensions: [ P2, M2, C2 ]
-      data-spaces:
+      data_spaces:
       - name: Fmap2
         dimensions: [ Fmap2_C, Fmap2_P ]
         projection: '[ C2, P2 ]'

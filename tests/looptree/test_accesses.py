@@ -31,7 +31,7 @@ class TestLoopTreeAccess(unittest.TestCase):
             }
         )
 
-    def test_accesses_with_two_level_mm_fused(self):
+    def test_accesses_with_two_level_mm_unfused(self):
         self.check_accesses(
             Path(__file__).parent.parent / 'test_configs',
             ['looptree-test-unfused.yaml'],
@@ -40,7 +40,7 @@ class TestLoopTreeAccess(unittest.TestCase):
                 (0, 'Fmap1'): 18,
                 (0, 'Filter1'): 8,
                 (0, 'Filter2'): 32,
-                (0, 'Fmap2'): 36,
+                (0, 'Fmap2'): 288,
                 (0, 'Fmap3'): 72
             },
             {

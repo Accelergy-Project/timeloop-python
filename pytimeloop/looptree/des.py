@@ -23,13 +23,13 @@ def deserialize_looptree_output(
     }
 
     output.occupancy = {
-        k: isl.PwQPolynomial.read_from_str(isl_ctx, v)
-        for k, v in looptree_output.occupancy.items()
+        k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
+        for k, (dims, v) in looptree_output.occupancy.items()
     }
 
     output.fill = {
-        k: isl.PwQPolynomial.read_from_str(isl_ctx, v)
-        for k, v in looptree_output.fill.items()
+        k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
+        for k, (dims, v) in looptree_output.fill.items()
     }
 
     output.temporal_steps = {
