@@ -15,7 +15,7 @@ from pytimeloop.timeloopfe.v4fused import Specification
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 
 
-def run_pytimeloop(config_dir, paths, tmp_path, bindings, call_accelergy):
+def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     yaml_str = gather_yaml_configs(config_dir, paths)
     config = Config(yaml_str, 'yaml')
     if isinstance(tmp_path, Path):

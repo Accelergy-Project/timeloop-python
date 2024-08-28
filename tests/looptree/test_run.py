@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
 
-from pytimeloop.looptree.run import run_pytimeloop
+from pytimeloop.looptree.run import run_looptree
 
 from tests.util import TEST_TMP_DIR
 
@@ -15,7 +15,7 @@ class TestCompleteRun(unittest.TestCase):
             'compute': 'MACC'
         }
 
-        latency, energy = run_pytimeloop(
+        latency, energy = run_looptree(
             Path(__file__).parent.parent / 'test_configs',
             ['looptree-test-fused.yaml'],
             TEST_TMP_DIR,
