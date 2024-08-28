@@ -18,7 +18,7 @@ def delayed_import():
     global DELAYED_IMPORT_DONE
     if DELAYED_IMPORT_DONE:
         return
-    global v3spec, v4spec, v4_to_v3
+    global v3spec, v4spec, v4_to_v3, v4fusedspec
 
     from ..v3 import specification as current_import
 
@@ -29,6 +29,9 @@ def delayed_import():
     from .version_transpilers import v4_to_v3 as current_import
 
     v4_to_v3 = current_import
+
+    from ..v4fused import specification as current_import
+    v4fusedspec = current_import
 
 
 def _specification_to_yaml_string(
@@ -52,6 +55,8 @@ def _specification_to_yaml_string(
     elif isinstance(specification, v4spec.Specification):
         input_content = v4_to_v3.transpile(specification, for_model=for_model)
         input_content = to_yaml_string(input_content)
+    elif isinstance(specification, v4fusedspec.Specification):
+        input_content = to_yaml_string(specification)
     else:
         raise TypeError(f"Can not call Timeloop with {type(specification)}")
 

@@ -18,14 +18,15 @@ mapping:
       - type: spatial
         dimension: M1
         tile_size: 1
-      - type: temporal
-        dimension: C1
-        tile_size: 1
       - type: storage
         target: 2
         dspace: [Fmap2]
+      - type: temporal
+        dimension: C1
+        tile_size: 1
       - type: compute
         einsum: Fc1
+        target: 3
     - - type: storage
         target: 1
         dspace: [Filter2]
@@ -46,6 +47,7 @@ mapping:
         dspace: [Fmap2]
       - type: compute
         einsum: Fc2
+        target: 3
 
 problem:
   - shape:

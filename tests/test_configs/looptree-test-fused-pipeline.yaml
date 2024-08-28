@@ -30,6 +30,7 @@ mapping:
         tile_size: 1
       - type: compute
         einsum: Fc1
+        target: 3
     - - type: temporal
         dimension: C2
         tile_size: 1
@@ -38,6 +39,7 @@ mapping:
         tile_size: 1
       - type: compute
         einsum: Fc2
+        target: 3
 
 problem:
   - shape:

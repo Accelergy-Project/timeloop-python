@@ -5,16 +5,18 @@ from pytimeloop.isl.sum import sum_until_idx, make_reduction_map
 from pytimeloop.isl.qpolynomial import from_pw_qpolynomial_fold
 
 def process_sequential_latency(top_idx: int, latencies):
+    dim_tags = latencies[0][0]
     summed_latency = sum(map(lambda pair: pair[1], latencies))
-    return sum_until_idx(top_idx, summed_latency)
+    return dim_tags[:top_idx], sum_until_idx(top_idx, summed_latency)
 
 
 def process_pipeline_latency(top_idx: int, latencies):
-    sequential_latency = process_sequential_latency(top_idx, latencies)
+    sequential_latency = process_sequential_latency(top_idx, latencies)[1]
 
     summed_latency = sum(map(lambda pair: pair[1], latencies))
 
-    dim_tags = latencies[0][0]
+    all_dim_tags = latencies[0][0]
+    dim_tags = all_dim_tags[:]
     for pipeline_idx in range(len(dim_tags)):
         if isinstance(dim_tags[pipeline_idx], PipelineSpatialTag):
             break
@@ -49,7 +51,7 @@ def process_pipeline_latency(top_idx: int, latencies):
 
     hidden_latency = sum_until_idx(top_idx, hidden_latencies)
 
-    return sequential_latency - hidden_latency
+    return all_dim_tags[:top_idx], sequential_latency - hidden_latency
 
 
 LATENCY_PROCESSORS = {

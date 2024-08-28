@@ -1,3 +1,5 @@
+import re
+
 from ..common.nodes import DictNode, ListNode
 
 
@@ -12,11 +14,13 @@ class Ert(DictNode):
     def find_component(self, name: str):
         for table in self.tables:
             # Component names in ERT are compound, e.g.,
-            # Parent1.Parent0.Component[0..NumOfComponent]
-            last_component_in_compound_name: str = \
-                table.name.split('[')[0].split('.')[-1]
+            # Parent1.Parent0[0..NumOfParent].Component[0..NumOfComponent]
+            full_name = table.name
+            full_name = re.sub('\[\d+\.\.\d+\]', '', full_name)
+            last_component_in_compound_name: str = full_name.split('.')[-1]
             if name == last_component_in_compound_name:
                 return table
+        raise KeyError(f'Could not find component {name}')
 
     def isempty(self) -> bool:
         return self.tables.isempty()

@@ -24,4 +24,4 @@ class TestCapacityAggregators(unittest.TestCase):
                                                 result.occupancy,
                                                 workload)
 
-        self.assertEqual({0: 130, 1: 70, 2: 12}, capacity_usage)
+        self.assertEqual({0: 130, 1: 50, 2: 4, 3: 1}, capacity_usage)

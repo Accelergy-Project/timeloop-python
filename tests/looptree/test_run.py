@@ -12,7 +12,8 @@ class TestCompleteRun(unittest.TestCase):
             0: 'MainMemory',
             1: 'GlobalBuffer',
             2: 'GlobalBuffer',
-            'compute': 'MACC'
+            3: 'GlobalBuffer',
+            4: 'MACC'
         }
 
         latency, energy = run_looptree(
@@ -23,12 +24,12 @@ class TestCompleteRun(unittest.TestCase):
             True
         )
 
-        self.assertEqual(24, latency)
+        self.assertEqual(54, latency)
 
         ENERGY_REFS = {
             ('MainMemory', 'read'): 266240,
             ('MainMemory', 'write'): 147456,
-            ('GlobalBuffer', 'read'): 103342.36,
+            ('GlobalBuffer', 'read'): 116260.16,
             ('GlobalBuffer', 'write'): 35009.79,
             ('MACC', 'compute'): 360
         }

@@ -6,8 +6,8 @@ from bindings.looptree import SpatialTag
 
 def compute_latency(mapping, temporal_steps, workload):
     return get_value_from_singular_qpolynomial(
-        _compute_latency(mapping, 0, temporal_steps, workload)
-    )
+        _compute_latency(mapping, 0, temporal_steps, workload)[1]
+    ).to_python()
 
 
 def _compute_latency(mapping, top_idx: int, temporal_steps, workload):
@@ -27,6 +27,8 @@ def _compute_latency(mapping, top_idx: int, temporal_steps, workload):
                                                     children_latencies)
         elif node['type'] == 'compute':
             einsum = node['einsum']
+            if 'incomplete' in node and node['incomplete']:
+                return ([], 0)
             einsum_id = einsum_name_to_id[einsum]
             return temporal_steps[einsum_id]
 

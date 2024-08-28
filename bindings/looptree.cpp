@@ -29,14 +29,16 @@ namespace pytimeloop::looptree_bindings
         .def("run", &application::LooptreeModel::Run);
 
     py::class_<analysis::Temporal>(m, "TemporalTag").def(py::init<>());
-    py::class_<analysis::Spatial>(m, "SpatialTag").def(py::init<>());
+    py::class_<analysis::Spatial>(m, "SpatialTag").def(py::init<int, analysis::BufferId>());
     py::class_<analysis::Sequential>(m, "SequentialTag").def(py::init<>());
     py::class_<analysis::PipelineTemporal>(m, "PipelineTemporalTag").def(py::init<>());
     py::class_<analysis::PipelineSpatial>(m, "PipelineSpatialTag").def(py::init<>());
 
     py::class_<application::LooptreeModel::Result>(m, "LooptreeResult")
         .def_readwrite("ops", &application::LooptreeModel::Result::ops)
-        .def_readwrite("fill", &application::LooptreeModel::Result::fill)
+        .def_readwrite("fills", &application::LooptreeModel::Result::fills)
+        .def_readwrite("fills_by_parent", &application::LooptreeModel::Result::fills_by_parent)
+        .def_readwrite("fills_by_peer", &application::LooptreeModel::Result::fills_by_peer)
         .def_readwrite("occupancy", &application::LooptreeModel::Result::occupancy)
         .def_readwrite("temporal_steps", &application::LooptreeModel::Result::temporal_steps);
 

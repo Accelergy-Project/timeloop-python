@@ -8,7 +8,8 @@ class LooptreeOutput:
         self.ops = {}
         self.occupancy = {}
         self.op_occupancy = {}
-        self.fill = {}
+        self.fills_by_peer = {}
+        self.fills_by_parent = {}
 
 
 def deserialize_looptree_output(
@@ -27,9 +28,14 @@ def deserialize_looptree_output(
         for k, (dims, v) in looptree_output.occupancy.items()
     }
 
-    output.fill = {
+    output.fills_by_peer = {
         k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
-        for k, (dims, v) in looptree_output.fill.items()
+        for k, (dims, v) in looptree_output.fills_by_peer.items()
+    }
+
+    output.fills_by_parent = {
+        k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
+        for k, (dims, v) in looptree_output.fills_by_parent.items()
     }
 
     output.temporal_steps = {

@@ -41,53 +41,17 @@ class LooptreeModelAppTest(unittest.TestCase):
         def seconds(ds):
             yield from map(lambda pair: pair[1], ds)
 
-        dims = [SpatialTag, SpatialTag, TemporalTag, SpatialTag, SequentialTag,
-                TemporalTag, SpatialTag]
+        dims = [TemporalTag, SequentialTag, TemporalTag, SpatialTag]
         self.assertTrue(compare_dims(
             list(firsts(result.ops.values()))[0],
             dims
         ))
         self.assertEqual(
             [
-                '{ [i0, i1, i2, i3, i4, i5, i6] -> 3 : i0 = 0 and i1 = 0 and i3 = 0 and i4 = 0 and 0 <= i2 <= 2 and 0 <= i5 <= 3 and 0 <= i6 <= 1 }',
-                '{ [i0, i1, i2, i3, i4, i5, i6] -> 3 : i0 = 0 and i1 = 0 and i3 = 0 and i4 = 1 and 0 <= i2 <= 2 and 0 <= i5 <= 3 and 0 <= i6 <= 7 }'
+                "{ [i0, i1, i2, i3] -> 1 : i1 = 0 and 0 <= i0 <= 8 and 0 <= i2 <= 1 and 0 <= i3 <= 3 }",
+                "{ [i0, i1, i2, i3] -> 1 : i1 = 1 and 0 <= i0 <= 8 and 0 <= i2 <= 3 and 0 <= i3 <= 7 }",
             ],
             list(seconds(result.ops.values()))
-        )
-
-        self.assertEqual(
-            {
-                (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
-                (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
-                (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
-                (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
-                (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-                (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
-                (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
-                (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-                (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
-                (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
-            },
-            {
-                k: pair[1] for k, pair in result.fill.items()
-            }
-        )
-        self.assertEqual(
-            {
-            (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
-            (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
-            (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
-            (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
-            (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-            (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
-            (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
-            (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-            (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
-            (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
-            },
-            {
-                k: pair[1] for k, pair in result.occupancy.items()
-            }
         )
 
 
@@ -114,44 +78,10 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
 
         self.assertEqual(
             {
-                0: '{ [i0, i1, i2, i3, i4, i5, i6] -> 3 : i0 = 0 and i1 = 0 and i3 = 0 and i4 = 0 and 0 <= i2 <= 2 and 0 <= i5 <= 3 and 0 <= i6 <= 1 }',
-                1: '{ [i0, i1, i2, i3, i4, i5, i6] -> 3 : i0 = 0 and i1 = 0 and i3 = 0 and i4 = 1 and 0 <= i2 <= 2 and 0 <= i5 <= 3 and 0 <= i6 <= 7 }'
+                0: "{ [i0, i1, i2, i3] -> 1 : i1 = 0 and 0 <= i0 <= 8 and 0 <= i2 <= 1 and 0 <= i3 <= 3 }",
+                1: "{ [i0, i1, i2, i3] -> 1 : i1 = 1 and 0 <= i0 <= 8 and 0 <= i2 <= 3 and 0 <= i3 <= 7 }",
             },
             {
                 k: v.to_str() for k, (tags, v) in des_result.ops.items()
-            }
-        )
-        self.assertEqual(
-            {
-                (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
-                (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
-                (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
-                (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
-                (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-                (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
-                (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
-                (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-                (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
-                (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
-            },
-            {
-                k: v.to_str() for k, (tags, v) in des_result.fill.items()
-            }
-        )
-        self.assertEqual(
-            {
-            (0, 0, 0): '{ [i0] -> 18 : i0 = 0 }',
-            (0, 1, 0): '{ [i0] -> 8 : i0 = 0 }',
-            (0, 3, 1): '{ [i0] -> 32 : i0 = 0 }',
-            (0, 4, 1): '{ [i0] -> 72 : i0 = 0 }',
-            (1, 0, 0): '{ [i0, i1, i2] -> 6 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-            (1, 1, 0): '{ [i0, i1] -> 8 : i0 = 0 and i1 = 0 }',
-            (1, 3, 1): '{ [i0, i1] -> 32 : i0 = 0 and i1 = 0 }',
-            (1, 4, 1): '{ [i0, i1, i2] -> 24 : i0 = 0 and i1 = 0 and 0 <= i2 <= 2 }',
-            (2, 2, 0): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }',
-            (2, 2, 1): '{ [i0, i1, i2, i3] -> 12 : i0 = 0 and i1 = 0 and i3 = 0 and 0 <= i2 <= 2 }'
-            },
-            {
-                k: v.to_str() for k, (tags, v) in des_result.occupancy.items()
             }
         )

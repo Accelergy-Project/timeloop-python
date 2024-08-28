@@ -23,7 +23,7 @@ class TestLatency(unittest.TestCase):
         latency = compute_latency(spec.mapping.nodes,
                                   result.temporal_steps,
                                   workload)
-        self.assertEqual(24, latency)
+        self.assertEqual(54, latency)
 
     def test_latency_mm_fused_pipeline(self):
         model, spec, workload = make_model_app(

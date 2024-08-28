@@ -47,6 +47,7 @@ class Specification(BaseSpecification):
         super().add_attr(
             "problem",
             required_type=FusedProblem,
+            default=[]
         )
         super().add_attr("variables", Variables, {"version": 0.4})
         super().add_attr("globals", Globals, {"version": 0.4}, part_name_match=True)

@@ -13,7 +13,7 @@ mapping:
     dspace: [Filter1, Filter2]
   - type: temporal
     dimension: P2
-    tile_size: 3
+    tile_size: 1
   - type: storage
     target: 1
     dspace: [Fmap1, Fmap3]
@@ -23,21 +23,29 @@ mapping:
   - type: sequential
     branches:
     - - type: temporal
-        dimension: M1
-        tile_size: 1
-      - type: spatial
         dimension: C1
         tile_size: 1
+      - type: spatial
+        dimension: M1
+        tile_size: 1
+      - type: storage
+        target: 3
+        dspace: [Fmap1]
       - type: compute
         einsum: Fc1
+        target: 4
     - - type: temporal
         dimension: C2
         tile_size: 1
       - type: spatial
         dimension: M2
         tile_size: 1
+      - type: storage
+        target: 3
+        dspace: [Fmap2]
       - type: compute
         einsum: Fc2
+        target: 4
 
 problem:
   - shape:
