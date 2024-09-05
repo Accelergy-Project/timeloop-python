@@ -1,0 +1,9 @@
+<map id="pytimeloop.timeloopfe.common.nodes copy.DictNode" name="pytimeloop.timeloopfe.common.nodes copy.DictNode">
+<area shape="rect" id="Node000001" title="A node that is a dictionary of other nodes." alt="" coords="87,168,324,208"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_01copy_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,79,243,120"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="155,129,189,165,185,169,151,133"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="100,5,148,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="127,46,127,79,121,79,121,46"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="267,86,309,112"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="268,125,226,169,222,166,264,122"/>
+</map>

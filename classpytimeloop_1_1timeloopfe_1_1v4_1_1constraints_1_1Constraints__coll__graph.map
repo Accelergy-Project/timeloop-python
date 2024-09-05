@@ -1,0 +1,23 @@
+<map id="pytimeloop.timeloopfe.v4.constraints.Constraints" name="pytimeloop.timeloopfe.v4.constraints.Constraints">
+<area shape="rect" id="Node000001" title="Class representing constraints." alt="" coords="1448,75,1681,116"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="544,100,785,141"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="800,114,1447,96,1448,101,800,120"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="224,95,495,120"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="511,111,544,113,544,118,511,117"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="329,77,340,71,359,68,378,70,389,76,392,86,387,96,382,93,387,85,385,80,376,75,359,73,342,76,332,82"/>
+<area shape="rect" id="Node000009" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="544,35,785,76"/>
+<area shape="poly" id="edge10_Node000009_Node000003" title=" " alt="" coords="454,89,544,73,545,79,454,94"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="9,69,57,95"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="73,83,223,94,223,100,72,88"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="5,120,61,146"/>
+<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="76,131,199,127,274,118,275,124,200,132,77,136"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="338,144,380,170"/>
+<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="396,150,544,132,544,138,396,155"/>
+<area shape="rect" id="Node000007" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1ConstraintsList.html" title="A class representing a list of constraints." alt="" coords="1124,39,1357,80"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="1373,71,1448,80,1447,85,1372,77"/>
+<area shape="rect" id="Node000008" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1CombinableListNode.html" title="A list node that can be combined with others by extending." alt="" coords="834,38,1074,78"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="1090,56,1123,56,1123,62,1090,61"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="800,54,834,54,833,60,800,59"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="340,5,379,31"/>
+<area shape="poly" id="edge11_Node000009_Node000010" title=" " alt="" coords="394,20,544,38,544,43,394,25"/>
+</map>

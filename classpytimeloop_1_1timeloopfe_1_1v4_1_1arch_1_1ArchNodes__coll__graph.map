@@ -1,0 +1,17 @@
+<map id="pytimeloop.timeloopfe.v4.arch.ArchNodes" name="pytimeloop.timeloopfe.v4.arch.ArchNodes">
+<area shape="rect" id="Node000001" title="A collection of architectural nodes." alt="" coords="834,55,1028,96"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNode.html" title="A node in the architecture hierarchy." alt="" coords="567,87,762,128"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="777,91,833,85,834,90,777,97"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="224,95,495,120"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="511,105,567,105,567,110,511,110"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="329,77,340,71,359,68,378,70,389,76,392,86,387,96,382,93,387,85,385,80,376,75,359,73,342,76,332,82"/>
+<area shape="rect" id="Node000006" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="544,22,785,62"/>
+<area shape="poly" id="edge7_Node000006_Node000003" title=" " alt="" coords="437,88,566,60,567,66,438,94"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="9,69,57,95"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="73,83,223,94,223,100,72,88"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="5,120,61,146"/>
+<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="76,131,199,127,274,118,275,124,200,132,77,136"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="800,56,834,61,833,66,800,62"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="340,5,379,31"/>
+<area shape="poly" id="edge8_Node000006_Node000007" title=" " alt="" coords="394,18,544,30,544,35,394,23"/>
+</map>

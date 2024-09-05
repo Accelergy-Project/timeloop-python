@@ -1,0 +1,5 @@
+<map id="pytimeloop.timeloopfe.v4.constraints.Factor" name="pytimeloop.timeloopfe.v4.constraints.Factor">
+<area shape="rect" id="Node000001" title="A loop factor (e.g., P=1)" alt="" coords="5,79,239,120"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="103,5,141,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="125,46,125,79,119,79,119,46"/>
+</map>

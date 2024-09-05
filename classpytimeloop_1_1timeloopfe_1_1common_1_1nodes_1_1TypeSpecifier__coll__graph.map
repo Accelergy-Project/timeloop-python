@@ -1,0 +1,9 @@
+<map id="pytimeloop.timeloopfe.common.nodes.TypeSpecifier" name="pytimeloop.timeloopfe.common.nodes.TypeSpecifier">
+<area shape="rect" id="Node000001" title="Represents a type specifier for a node in the TimeloopFE library." alt="" coords="48,139,289,180"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,55,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="33,45,40,81,47,98,57,113,72,126,90,136,87,141,69,131,53,117,42,100,35,82,28,46"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="147,5,190,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="171,46,171,139,166,139,166,46"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="216,5,284,31"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="249,47,240,81,223,117,200,141,196,137,218,113,235,80,243,46"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" title=" " alt="" coords="5,78,83,104"/>
+<area shape="rect" id="Node000001" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_01copy_1_1ParseError.html" title="Exception for nodes." alt="" coords="143,5,380,46"/>
+<area shape="poly" id="edge119_Node000000_Node000001" title=" " alt="" coords="92,70,130,56,173,44,174,49,131,62,94,75"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ParseError.html" title="Exception for nodes." alt="" coords="142,71,382,111"/>
+<area shape="poly" id="edge120_Node000000_Node000002" title=" " alt="" coords="99,88,141,88,141,94,99,94"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1processor_1_1ProcessorError.html" title="Exception raised by processors." alt="" coords="131,136,393,177"/>
+<area shape="poly" id="edge121_Node000000_Node000003" title=" " alt="" coords="94,107,131,120,174,133,173,138,130,126,92,112"/>
+</map>

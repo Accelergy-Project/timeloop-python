@@ -1,0 +1,13 @@
+<map id="pytimeloop.timeloopfe.v4.constraints.Dataspace" name="pytimeloop.timeloopfe.v4.constraints.Dataspace">
+<area shape="rect" id="Node000001" title="A constraint class for specifying dataspace properties." alt="" coords="115,330,348,371"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Constraint.html" title="A constraint in the system." alt="" coords="115,241,348,282"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="234,298,234,330,229,330,229,298"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="112,153,352,193"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="234,209,234,241,229,241,229,209"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,79,277,105"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="168,113,211,150,208,154,164,117"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="117,5,165,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="144,46,144,79,138,79,138,46"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="301,79,344,105"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="299,117,256,154,252,150,295,113"/>
+</map>

@@ -1,0 +1,20 @@
+<map id="pytimeloop.timeloopfe.v4.arch.Compute" name="pytimeloop.timeloopfe.v4.arch.Compute">
+<area shape="rect" id="Node000001" title="A compute component." alt="" coords="1220,142,1414,182"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Component.html" title="A component in the architecture." alt="" coords="978,142,1172,182"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1188,159,1220,159,1220,165,1188,165"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Leaf.html" title="A leaf node in the architecture hierarchy." alt="" coords="709,88,930,114"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="892,115,988,139,987,144,890,120"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNode.html" title="A node in the architecture hierarchy." alt="" coords="444,47,638,88"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="654,78,709,85,709,90,654,84"/>
+<area shape="rect" id="Node000005" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="102,63,373,88"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="388,69,443,67,444,73,388,74"/>
+<area shape="rect" id="Node000007" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="421,112,661,153"/>
+<area shape="poly" id="edge7_Node000007_Node000005" title=" " alt="" coords="324,89,430,109,429,114,323,94"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="5,63,54,88"/>
+<area shape="poly" id="edge10_Node000002_Node000006" title=" " alt="" coords="47,100,70,131,86,145,103,156,161,180,221,199,282,215,345,226,472,237,597,237,716,229,825,214,919,197,994,181,995,186,920,202,826,220,717,234,598,243,472,243,345,231,281,220,219,205,159,185,100,160,82,149,66,134,43,103"/>
+<area shape="poly" id="edge9_Node000003_Node000006" title=" " alt="" coords="67,57,101,48,257,18,381,4,441,3,506,8,662,33,700,43,736,57,796,85,794,90,734,62,698,48,661,38,505,13,441,9,382,9,258,23,102,53,69,62"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="69,73,101,73,101,78,69,78"/>
+<area shape="poly" id="edge6_Node000003_Node000007" title=" " alt="" coords="677,115,708,111,709,116,677,120"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="216,120,258,146"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="274,130,421,130,421,135,274,135"/>
+</map>

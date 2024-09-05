@@ -1,0 +1,103 @@
+<map id="pytimeloop.timeloopfe.common.nodes.Node" name="pytimeloop.timeloopfe.common.nodes.Node">
+<area shape="rect" id="Node000001" title="Base class for all nodes in the hierarchy." alt="" coords="102,266,373,292"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="421,1508,661,1549"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="248,306,537,1507,532,1508,243,308"/>
+<area shape="rect" id="Node000062" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="421,136,661,177"/>
+<area shape="poly" id="edge44_Node000001_Node000062" title=" " alt="" coords="285,257,488,175,490,180,287,262"/>
+<area shape="rect" id="Node000090" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNode.html" title="A node in the architecture hierarchy." alt="" coords="444,259,638,299"/>
+<area shape="poly" id="edge49_Node000001_Node000090" title=" " alt="" coords="388,276,444,276,444,282,388,282"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,266,54,292"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="69,276,101,276,101,282,69,282"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1base__specification_1_1BaseSpecification.html" title="Base class for specifications in the Timeloop framework." alt="" coords="723,2325,954,2366"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="548,1564,563,1727,594,1955,616,2071,643,2177,675,2264,692,2298,711,2322,725,2334,721,2338,707,2326,688,2300,670,2266,638,2179,611,2073,588,1956,557,1727,542,1565"/>
+<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="548,1564,564,1722,595,1942,617,2055,644,2158,675,2242,693,2274,711,2298,729,2313,751,2322,749,2327,727,2317,707,2302,688,2277,670,2244,639,2159,612,2056,590,1943,559,1722,543,1565"/>
+<area shape="rect" id="Node000006" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Attributes.html" title="A class representing attributes for a node in the architecture." alt="" coords="741,2391,936,2431"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="547,1564,561,1736,590,1980,612,2105,639,2219,672,2313,691,2349,711,2376,726,2388,742,2397,740,2401,723,2392,707,2380,687,2352,667,2315,634,2221,607,2106,585,1981,556,1736,542,1565"/>
+<area shape="rect" id="Node000008" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Branch.html" title="A branch in the architecture." alt="" coords="741,316,936,357"/>
+<area shape="poly" id="edge6_Node000003_Node000008" title=" " alt="" coords="540,1492,545,1267,553,1105,566,929,587,753,616,592,635,521,656,459,680,407,707,368,722,355,739,346,742,350,725,359,711,371,685,410,661,461,640,523,621,593,592,754,571,929,558,1105,550,1267,545,1492"/>
+<area shape="rect" id="Node000013" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Leaf.html" title="A leaf node in the architecture hierarchy." alt="" coords="728,266,949,292"/>
+<area shape="poly" id="edge7_Node000003_Node000013" title=" " alt="" coords="539,1493,541,1255,547,1083,560,896,580,710,610,539,629,463,652,398,678,344,707,302,726,288,730,292,711,306,682,346,657,400,634,465,615,540,585,710,565,897,553,1083,547,1255,545,1493"/>
+<area shape="rect" id="Node000020" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Spatial.html" title="A spatial configuration in a system architecture." alt="" coords="741,2456,936,2497"/>
+<area shape="poly" id="edge8_Node000003_Node000020" title=" " alt="" coords="547,1564,558,1747,570,1874,586,2011,608,2147,636,2271,652,2325,670,2373,690,2412,711,2441,725,2453,742,2462,740,2467,722,2458,707,2445,685,2414,665,2375,647,2327,630,2272,603,2148,581,2012,565,1875,553,1748,541,1564"/>
+<area shape="rect" id="Node000021" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1art_1_1Art.html" title=" " alt="" coords="738,2521,939,2546"/>
+<area shape="poly" id="edge9_Node000003_Node000021" title=" " alt="" coords="546,1564,555,1760,565,1897,580,2044,601,2191,630,2324,647,2383,666,2434,688,2475,711,2506,739,2524,736,2529,708,2510,683,2478,661,2436,642,2384,625,2326,596,2191,575,2045,560,1897,550,1760,541,1564"/>
+<area shape="rect" id="Node000022" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1art_1_1Table.html" title=" " alt="" coords="746,2571,931,2611"/>
+<area shape="poly" id="edge10_Node000003_Node000022" title=" " alt="" coords="546,1564,554,1768,564,1912,579,2067,600,2221,628,2363,646,2425,665,2479,687,2524,711,2557,728,2571,747,2580,745,2585,725,2575,707,2561,683,2526,660,2481,641,2427,623,2364,595,2222,573,2068,559,1912,549,1768,541,1565"/>
+<area shape="rect" id="Node000023" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1Action.html" title="Represents an action that a component can perform." alt="" coords="718,2636,959,2677"/>
+<area shape="poly" id="edge11_Node000003_Node000023" title=" " alt="" coords="546,1564,552,1779,561,1932,575,2097,596,2262,625,2413,643,2479,663,2537,686,2585,711,2621,726,2633,722,2637,707,2625,681,2588,658,2539,638,2481,620,2414,591,2263,570,2098,556,1932,547,1779,540,1564"/>
+<area shape="rect" id="Node000024" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1ComponentAttributes.html" title="Represents the attributes of a component." alt="" coords="718,2701,959,2742"/>
+<area shape="poly" id="edge12_Node000003_Node000024" title=" " alt="" coords="545,1564,550,1790,558,1952,571,2128,592,2303,621,2465,640,2535,661,2597,684,2648,711,2687,726,2699,722,2703,707,2690,680,2651,656,2599,634,2537,616,2466,587,2304,566,2128,553,1952,545,1790,540,1564"/>
+<area shape="rect" id="Node000025" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1Components.html" title="A collection of components." alt="" coords="718,2767,959,2807"/>
+<area shape="poly" id="edge13_Node000003_Node000025" title=" " alt="" coords="545,1565,548,1802,555,1973,567,2159,588,2345,617,2516,636,2591,658,2657,683,2711,711,2752,725,2764,722,2768,707,2755,678,2714,653,2659,631,2593,612,2517,583,2346,562,2160,549,1973,543,1802,540,1565"/>
+<area shape="rect" id="Node000026" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1CompoundComponent.html" title="Represents a compound component." alt="" coords="718,381,959,422"/>
+<area shape="poly" id="edge14_Node000003_Node000026" title=" " alt="" coords="540,1492,547,1278,556,1125,570,960,591,795,620,643,638,577,658,519,681,470,707,433,722,421,726,425,711,437,686,473,663,521,643,578,625,645,596,796,575,960,561,1125,552,1278,546,1492"/>
+<area shape="rect" id="Node000027" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1Subcomponent.html" title="A subcomponent." alt="" coords="718,447,959,487"/>
+<area shape="poly" id="edge15_Node000003_Node000027" title=" " alt="" coords="541,1492,549,1289,559,1146,574,991,595,836,624,695,641,633,661,578,683,533,707,499,722,486,726,490,711,502,687,536,666,580,646,634,629,696,600,837,579,991,564,1146,554,1289,546,1492"/>
+<area shape="rect" id="Node000028" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1SubcomponentAction.html" title="A subcomponent action." alt="" coords="718,512,959,553"/>
+<area shape="poly" id="edge16_Node000003_Node000028" title=" " alt="" coords="541,1493,551,1301,562,1167,578,1022,599,878,628,747,644,689,663,638,684,596,707,564,722,551,726,555,711,567,689,599,668,640,649,690,633,748,605,879,583,1023,567,1167,557,1301,546,1493"/>
+<area shape="rect" id="Node000029" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1components_1_1SubcomponentActionGroup.html" title="A group of subactions taken by a particular subcomponent." alt="" coords="718,577,959,618"/>
+<area shape="poly" id="edge17_Node000003_Node000029" title=" " alt="" coords="542,1492,554,1312,566,1187,582,1053,604,920,631,798,666,698,686,659,707,629,723,616,726,620,711,633,690,662,671,700,637,799,609,921,587,1054,571,1187,559,1312,547,1492"/>
+<area shape="rect" id="Node000030" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Constraint.html" title="A constraint in the system." alt="" coords="722,643,955,683"/>
+<area shape="poly" id="edge18_Node000003_Node000030" title=" " alt="" coords="542,1492,556,1323,586,1084,608,961,635,849,668,757,687,722,707,694,723,682,726,686,711,698,691,725,673,760,640,851,613,963,591,1085,562,1324,547,1492"/>
+<area shape="rect" id="Node000037" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1ConstraintGroup.html" title="A group of constraints." alt="" coords="722,708,955,749"/>
+<area shape="poly" id="edge19_Node000003_Node000037" title=" " alt="" coords="543,1492,559,1335,590,1116,613,1004,639,901,671,817,688,785,707,760,723,747,726,751,711,764,693,788,675,819,644,903,618,1005,596,1117,564,1336,548,1493"/>
+<area shape="rect" id="Node000038" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Constraints.html" title="Class representing constraints." alt="" coords="722,773,955,814"/>
+<area shape="poly" id="edge20_Node000003_Node000038" title=" " alt="" coords="544,1492,562,1347,595,1147,617,1046,643,953,673,877,690,848,707,825,723,813,727,817,711,829,694,851,678,879,648,955,622,1047,600,1148,567,1348,549,1493"/>
+<area shape="rect" id="Node000039" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1ert_1_1Action.html" title=" " alt="" coords="746,839,931,879"/>
+<area shape="poly" id="edge21_Node000003_Node000039" title=" " alt="" coords="544,1492,564,1360,599,1179,621,1088,647,1005,676,937,691,911,707,890,725,877,745,867,747,872,728,881,711,894,696,914,680,939,652,1007,627,1089,604,1180,570,1361,550,1493"/>
+<area shape="rect" id="Node000040" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1ert_1_1ActionArguments.html" title=" " alt="" coords="746,904,931,945"/>
+<area shape="poly" id="edge22_Node000003_Node000040" title=" " alt="" coords="539,1492,543,1387,551,1318,564,1242,585,1165,615,1088,655,1017,680,984,708,954,725,941,745,932,747,937,728,946,711,958,684,988,660,1020,620,1090,590,1166,569,1244,556,1319,548,1388,544,1493"/>
+<area shape="rect" id="Node000041" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1ert_1_1Ert.html" title=" " alt="" coords="738,969,939,994"/>
+<area shape="poly" id="edge23_Node000003_Node000041" title=" " alt="" coords="540,1492,546,1394,555,1331,569,1262,590,1192,619,1123,658,1060,708,1005,736,988,739,992,711,1009,662,1063,624,1126,595,1194,574,1264,560,1332,551,1395,545,1492"/>
+<area shape="rect" id="Node000042" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1ert_1_1Table.html" title=" " alt="" coords="746,1019,931,1059"/>
+<area shape="poly" id="edge24_Node000003_Node000042" title=" " alt="" coords="542,1492,553,1406,564,1352,580,1293,601,1232,629,1173,664,1118,708,1070,725,1058,745,1049,747,1054,728,1062,711,1074,668,1122,634,1176,606,1234,585,1294,569,1353,558,1407,547,1493"/>
+<area shape="rect" id="Node000043" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1globals_1_1EnvironmentVariables.html" title="Dictionary of environment variables." alt="" coords="733,1084,944,1125"/>
+<area shape="poly" id="edge25_Node000003_Node000043" title=" " alt="" coords="545,1492,559,1418,589,1321,610,1271,637,1221,669,1176,708,1136,732,1120,735,1125,711,1140,673,1179,641,1224,615,1273,594,1323,564,1419,550,1493"/>
+<area shape="rect" id="Node000044" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1globals_1_1Globals.html" title="Top&#45;level Globals key." alt="" coords="733,1149,944,1190"/>
+<area shape="poly" id="edge26_Node000003_Node000044" title=" " alt="" coords="548,1492,567,1429,598,1350,619,1309,644,1270,674,1233,708,1201,732,1186,734,1191,711,1205,678,1237,649,1273,624,1312,603,1353,572,1431,553,1494"/>
+<area shape="rect" id="Node000045" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1mapper_1_1Mapper.html" title="A mapper object that holds various attributes and settings for mapping operations in Timeloop." alt="" coords="732,1215,945,1255"/>
+<area shape="poly" id="edge27_Node000003_Node000045" title=" " alt="" coords="553,1492,575,1441,608,1380,652,1319,679,1291,708,1266,731,1253,734,1258,711,1271,682,1294,656,1322,613,1383,580,1444,558,1494"/>
+<area shape="rect" id="Node000046" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1mapspace_1_1Mapspace.html" title="Top&#45;level mapspace object." alt="" coords="724,1280,953,1321"/>
+<area shape="poly" id="edge28_Node000003_Node000046" title=" " alt="" coords="560,1493,585,1455,619,1411,661,1368,708,1331,733,1319,736,1323,711,1336,664,1372,623,1415,590,1458,564,1496"/>
+<area shape="rect" id="Node000047" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1DataSpace.html" title="A data space object." alt="" coords="731,1345,946,1386"/>
+<area shape="poly" id="edge29_Node000003_Node000047" title=" " alt="" coords="573,1495,633,1445,669,1419,708,1397,739,1384,741,1389,710,1401,672,1423,636,1449,576,1499"/>
+<area shape="rect" id="Node000048" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Density.html" title="A Density object represents the density and distribution of a workload tensor." alt="" coords="731,1411,946,1451"/>
+<area shape="poly" id="edge30_Node000003_Node000048" title=" " alt="" coords="606,1499,708,1462,751,1449,752,1454,710,1467,608,1504"/>
+<area shape="rect" id="Node000049" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1DensityList.html" title="A list of densities for each data space." alt="" coords="731,1476,946,1517"/>
+<area shape="poly" id="edge31_Node000003_Node000049" title=" " alt="" coords="677,1511,730,1505,731,1511,677,1516"/>
+<area shape="rect" id="Node000050" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Instance.html" title="An problem instance object." alt="" coords="731,1541,946,1582"/>
+<area shape="poly" id="edge32_Node000003_Node000050" title=" " alt="" coords="677,1541,731,1547,730,1552,677,1546"/>
+<area shape="rect" id="Node000051" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Problem.html" title="The top&#45;level problem object in Timeloop." alt="" coords="731,1607,946,1647"/>
+<area shape="poly" id="edge33_Node000003_Node000051" title=" " alt="" coords="607,1553,710,1591,752,1604,750,1609,708,1596,605,1558"/>
+<area shape="rect" id="Node000052" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Shape.html" title="Problem shape object." alt="" coords="731,1672,946,1713"/>
+<area shape="poly" id="edge34_Node000003_Node000052" title=" " alt="" coords="576,1557,636,1609,672,1634,711,1657,741,1669,739,1674,708,1661,669,1639,632,1613,572,1562"/>
+<area shape="rect" id="Node000053" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1ActionOptimization.html" title="An action optimization." alt="" coords="730,1737,947,1778"/>
+<area shape="poly" id="edge35_Node000003_Node000053" title=" " alt="" coords="564,1561,589,1599,623,1643,664,1686,711,1722,736,1735,733,1739,708,1727,660,1690,619,1646,585,1602,560,1564"/>
+<area shape="rect" id="Node000054" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1ActionOptimizationOption.html" title="An action optimization option." alt="" coords="711,1803,966,1843"/>
+<area shape="poly" id="edge36_Node000003_Node000054" title=" " alt="" coords="557,1562,579,1613,612,1674,656,1736,682,1763,711,1787,732,1800,730,1805,708,1792,679,1767,652,1739,608,1677,575,1615,553,1564"/>
+<area shape="rect" id="Node000055" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1ComputeOptimization.html" title="A compute optimization." alt="" coords="723,1868,954,1909"/>
+<area shape="poly" id="edge37_Node000003_Node000055" title=" " alt="" coords="553,1563,571,1626,603,1705,624,1746,649,1785,678,1821,711,1853,731,1865,728,1870,708,1857,674,1825,644,1788,619,1748,598,1707,566,1628,548,1565"/>
+<area shape="rect" id="Node000056" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1RepresentationDataSpace.html" title="Contains the representation format for a data space." alt="" coords="709,1933,968,1974"/>
+<area shape="poly" id="edge38_Node000003_Node000056" title=" " alt="" coords="550,1563,564,1638,593,1734,615,1784,641,1834,673,1879,711,1918,729,1931,726,1935,708,1922,669,1882,636,1836,610,1787,588,1736,559,1639,544,1564"/>
+<area shape="rect" id="Node000057" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1RepresentationFormat.html" title="A representation format sparse optimization." alt="" coords="721,1999,956,2039"/>
+<area shape="poly" id="edge39_Node000003_Node000057" title=" " alt="" coords="547,1563,558,1649,569,1704,585,1763,606,1823,633,1882,668,1936,711,1984,728,1996,725,2000,708,1988,664,1939,629,1884,601,1825,579,1764,564,1705,553,1650,542,1564"/>
+<area shape="rect" id="Node000058" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1RepresentationRank.html" title="A representation rank." alt="" coords="726,2064,951,2105"/>
+<area shape="poly" id="edge40_Node000003_Node000058" title=" " alt="" coords="545,1564,553,1661,562,1723,576,1791,597,1861,626,1930,663,1994,711,2049,728,2062,725,2066,708,2053,659,1997,621,1932,592,1863,571,1793,556,1724,547,1661,540,1564"/>
+<area shape="rect" id="Node000059" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1SparseOptimizationGroup.html" title="A group of sparse optimizations." alt="" coords="711,2129,966,2170"/>
+<area shape="poly" id="edge41_Node000003_Node000059" title=" " alt="" coords="544,1564,547,1672,555,1743,568,1820,589,1900,618,1978,659,2051,683,2084,711,2114,727,2127,724,2131,708,2118,679,2087,654,2054,613,1980,583,1901,563,1821,549,1743,542,1672,539,1564"/>
+<area shape="rect" id="Node000060" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1SparseOptimizations.html" title="Top&#45;level class for sparse optimizations." alt="" coords="725,2195,952,2235"/>
+<area shape="poly" id="edge42_Node000003_Node000060" title=" " alt="" coords="549,1564,569,1700,603,1885,625,1979,651,2064,680,2133,695,2160,711,2180,727,2192,724,2196,707,2184,691,2163,675,2136,646,2066,620,1980,598,1886,564,1700,544,1565"/>
+<area shape="rect" id="Node000061" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1variables_1_1Variables.html" title="A top&#45;level class for variables." alt="" coords="728,2260,949,2301"/>
+<area shape="poly" id="edge43_Node000003_Node000061" title=" " alt="" coords="549,1564,566,1712,599,1917,621,2021,647,2116,677,2193,694,2223,711,2245,729,2259,726,2263,707,2249,689,2226,672,2195,642,2117,616,2022,594,1918,561,1713,543,1565"/>
+<area shape="rect" id="Node000063" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1CombinableListNode.html" title="A list node that can be combined with others by extending." alt="" coords="718,136,959,177"/>
+<area shape="poly" id="edge45_Node000062_Node000063" title=" " alt="" coords="677,154,718,154,718,159,677,159"/>
+<area shape="rect" id="Node000069" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1FlatteningListNode.html" title="A list node that flattens lists of lists." alt="" coords="718,5,959,46"/>
+<area shape="poly" id="edge46_Node000062_Node000069" title=" " alt="" coords="584,125,642,90,708,57,743,44,745,49,710,61,644,94,587,129"/>
+<area shape="rect" id="Node000071" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNodes.html" title="A collection of architectural nodes." alt="" coords="741,201,936,242"/>
+<area shape="poly" id="edge47_Node000062_Node000071" title=" " alt="" coords="652,178,743,198,742,203,651,183"/>
+<area shape="rect" id="Node000072" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Networks.html" title="A list of networks in the architecture." alt="" coords="741,71,936,111"/>
+<area shape="poly" id="edge48_Node000062_Node000072" title=" " alt="" coords="651,129,742,109,743,115,652,135"/>
+<area shape="poly" id="edge51_Node000090_Node000008" title=" " alt="" coords="654,298,741,315,740,320,653,303"/>
+<area shape="poly" id="edge52_Node000090_Node000013" title=" " alt="" coords="654,276,728,276,728,282,654,282"/>
+<area shape="poly" id="edge50_Node000090_Node000071" title=" " alt="" coords="653,255,740,238,741,243,654,260"/>
+</map>

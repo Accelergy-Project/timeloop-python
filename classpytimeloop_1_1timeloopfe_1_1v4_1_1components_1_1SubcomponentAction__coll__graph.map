@@ -1,0 +1,16 @@
+<map id="pytimeloop.timeloopfe.v4.components.SubcomponentAction" name="pytimeloop.timeloopfe.v4.components.SubcomponentAction">
+<area shape="rect" id="Node000001" title="A subcomponent action." alt="" coords="5,301,246,342"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="89,198,330,238"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="205,254,193,279,166,303,163,299,189,276,200,252"/>
+<area shape="poly" id="edge7_Node000001_Node000002" title=" " alt="" coords="136,250,124,264,119,282,121,301,116,302,114,281,119,261,132,246"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="176,109,448,135"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="290,147,233,199,229,195,286,143"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="465,115,474,122,466,128,449,131,448,126,465,124,469,122,462,119"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="288,5,336,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="315,47,315,109,310,109,310,47"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="71,5,126,31"/>
+<area shape="poly" id="edge8_Node000001_Node000005" title=" " alt="" coords="93,47,83,85,75,133,72,186,80,238,94,271,112,299,108,302,90,274,75,239,67,186,69,132,78,84,87,45"/>
+<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="126,39,157,61,193,83,258,106,257,111,191,87,154,66,123,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="110,109,152,135"/>
+<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="152,145,195,195,191,199,148,148"/>
+</map>

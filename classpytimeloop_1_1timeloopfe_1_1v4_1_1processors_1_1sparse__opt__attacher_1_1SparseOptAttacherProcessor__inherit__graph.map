@@ -1,0 +1,7 @@
+<map id="pytimeloop.timeloopfe.v4.processors.sparse_opt_attacher.SparseOptAttacherProcessor" name="pytimeloop.timeloopfe.v4.processors.sparse_opt_attacher.SparseOptAttacherProcessor">
+<area shape="rect" id="Node000001" title="Takes sparse optimizations from sparse optimizations lists and attaches them to the architecture." alt="" coords="5,168,279,208"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1processor_1_1Processor.html" title="Base class for all processors, which are used to modify the specification before it is passed to Acce..." alt="" coords="11,79,273,120"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="145,135,145,167,139,167,139,135"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="118,5,166,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="145,46,145,79,139,79,139,46"/>
+</map>

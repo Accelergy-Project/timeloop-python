@@ -1,0 +1,21 @@
+<map id="pytimeloop.timeloopfe.common.nodes.CombinableListNode" name="pytimeloop.timeloopfe.common.nodes.CombinableListNode">
+<area shape="rect" id="Node000001" title="A list node that can be combined with others by extending." alt="" coords="709,136,950,177"/>
+<area shape="rect" id="Node000006" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1ConstraintsList.html" title="A class representing a list of constraints." alt="" coords="998,5,1231,46"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="872,125,930,90,997,57,1031,44,1032,49,999,61,933,95,875,130"/>
+<area shape="rect" id="Node000007" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Factors.html" title="A list of factors used to describe loop bounds." alt="" coords="998,71,1231,111"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="935,129,1022,109,1023,115,937,135"/>
+<area shape="rect" id="Node000008" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1globals_1_1AccelergyPlugIns.html" title="A list of paths to Python files containing Accelergy plug&#45;ins." alt="" coords="1009,136,1220,177"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="965,154,1009,154,1009,159,965,159"/>
+<area shape="rect" id="Node000009" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1globals_1_1ExpressionCustomFunctions.html" title="A list of paths to Python files containing functions to be used in expressions." alt="" coords="1009,201,1220,242"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="937,178,1023,198,1022,203,935,183"/>
+<area shape="rect" id="Node000010" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1ComputeOptimizationTypeList.html" title="A list of compute optimizations." alt="" coords="999,266,1230,322"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="877,183,934,218,999,251,1026,263,1024,268,997,256,931,222,874,188"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="421,136,661,177"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="677,154,709,154,709,159,677,159"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="102,118,373,144"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="389,141,421,144,420,149,388,146"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,118,54,144"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="69,128,101,128,101,134,69,134"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="218,168,257,193"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="272,175,420,163,421,169,272,180"/>
+</map>

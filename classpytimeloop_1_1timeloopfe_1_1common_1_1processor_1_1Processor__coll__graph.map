@@ -1,0 +1,5 @@
+<map id="pytimeloop.timeloopfe.common.processor.Processor" name="pytimeloop.timeloopfe.common.processor.Processor">
+<area shape="rect" id="Node000001" title="Base class for all processors, which are used to modify the specification before it is passed to Acce..." alt="" coords="5,79,268,120"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="112,5,161,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="139,46,139,79,134,79,134,46"/>
+</map>

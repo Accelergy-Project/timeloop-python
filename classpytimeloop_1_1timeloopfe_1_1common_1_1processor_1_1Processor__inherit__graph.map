@@ -1,0 +1,25 @@
+<map id="pytimeloop.timeloopfe.common.processor.Processor" name="pytimeloop.timeloopfe.common.processor.Processor">
+<area shape="rect" id="Node000001" title="Base class for all processors, which are used to modify the specification before it is passed to Acce..." alt="" coords="102,300,364,341"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1processor_1_1References2CopiesProcessor.html" title="Converts references to copies in the specification." alt="" coords="452,5,714,46"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,285,269,233,304,171,352,108,380,81,411,57,450,38,453,43,413,61,383,85,356,112,309,174,273,235,250,287"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1processor_1_1SimpleProcessor.html" title="An example simple processor." alt="" coords="452,71,714,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="252,286,279,247,316,202,360,158,411,122,451,105,453,110,413,127,363,162,320,206,283,250,257,289"/>
+<area shape="rect" id="Node000005" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1constraint__attacher_1_1ConstraintAttacherProcessor.html" title="Takes constraints from constraints lists and attaches them to objects in the architecture." alt="" coords="438,136,728,177"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="265,287,329,235,369,209,411,187,445,175,447,180,413,192,372,214,332,240,268,292"/>
+<area shape="rect" id="Node000006" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1constraint__macro_1_1ConstraintMacroProcessor.html" title="Defines constraint macros to be used for simplifying constraint specification." alt="" coords="438,201,728,242"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="298,291,411,252,462,240,463,245,413,258,300,296"/>
+<area shape="rect" id="Node000007" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1dataspace2branch_1_1Dataspace2BranchProcessor.html" title="Resolves which data spaces are kept in which branches." alt="" coords="412,267,754,307"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="379,304,412,301,412,306,380,309"/>
+<area shape="rect" id="Node000008" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1enable__dummy__table_1_1EnableDummyTableProcessor.html" title="Enable the dummy table for Accelergy to placeholder energy/area." alt="" coords="442,332,724,373"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="380,331,442,337,441,342,379,336"/>
+<area shape="rect" id="Node000009" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1permutation__optimizer_1_1PermutationOptimizerProcessor.html" title="Optimizes permutation by pruning superfluous permutations." alt="" coords="432,397,734,438"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="301,344,413,382,464,394,462,399,411,387,299,349"/>
+<area shape="rect" id="Node000010" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1required__actions_1_1RequiredActionsProcessor.html" title="Ensures that all components have actions defined for Accelergy Storage:" alt="" coords="444,463,723,503"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="268,349,333,400,372,426,413,447,448,460,446,465,411,452,369,430,329,404,265,353"/>
+<area shape="rect" id="Node000011" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1sparse__opt__attacher_1_1SparseOptAttacherProcessor.html" title="Takes sparse optimizations from sparse optimizations lists and attaches them to the architecture." alt="" coords="446,528,720,569"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="257,352,284,390,320,434,363,477,413,513,447,527,445,532,411,517,360,481,316,438,279,393,252,355"/>
+<area shape="rect" id="Node000012" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1processors_1_1to__diagram__processor_1_1ToDiagramProcessor.html" title="Generates a Graphviz diagram of the architecture." alt="" coords="452,593,715,634"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="250,354,274,405,309,467,356,528,383,555,413,578,452,597,450,601,411,583,380,559,352,531,305,470,269,408,245,356"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,308,54,333"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="70,318,101,318,101,323,70,323"/>
+</map>
