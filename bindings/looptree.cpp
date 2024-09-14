@@ -57,6 +57,7 @@ namespace pytimeloop::looptree_bindings
         .FUSED_WORKLOAD_METHOD(tensors_written_by_einsum, TensorsWrittenByEinsum)
         .FUSED_WORKLOAD_METHOD(reader_einsums, ReaderEinsums)
         .FUSED_WORKLOAD_METHOD(writer_einsum, WriterEinsum)
+        .FUSED_WORKLOAD_METHOD(get_rank_shape, GetRankShape)
         .def_static("parse_cfg", &problem::ParseFusedWorkload);
 
     py::class_<problem::FusedWorkloadDependencyAnalyzer>(m, "LooptreeWorkloadDependencyAnalyzer")
