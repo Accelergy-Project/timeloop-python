@@ -7,6 +7,7 @@ class OpCompatibility:
     # Fusion information
     fused_tensors: frozenset[str]
     fused_loops: tuple[tuple[str, int]]
+    fused_ranks: frozenset[str]
 
     # General information about the operation
     ranks: frozenset[str]
@@ -63,6 +64,7 @@ class OpCompatibility:
             fused_loops=tuple(
                 (l, f) for l, f in self.fused_loops if l in relevant_ranks
             ),
+            fused_ranks=frozenset(self.fused_ranks & relevant_ranks),
             ranks=self.ranks & relevant_ranks,
             tensors=self.tensors & relevant_tensors,
             neighbors=self.neighbors,
@@ -85,6 +87,13 @@ class OpCompatibility:
 
     # def __repr__(self):
     #     return f"OpCompatibility(fused_tensors={self.fused_tensors}, fused_loops={self.fused_loops}, ranks={self.ranks}, tensors={self.tensors})"
+
+    def live_with(
+        self, live_ops: set[str], live_compatibilities: dict[str, "OpCompatibility"]
+    ) -> bool:
+        return self.neighbors & live_ops or any(
+            self.fused_ranks & c.fused_ranks for c in live_compatibilities.values()
+        )
 
 
 class MultiOpCompatibility:
@@ -117,7 +126,9 @@ class FusionSet:
     def combine(self, other: "FusionSet"):
         return FusionSet(
             compatibility={**self.compatibility, **other.compatibility},
-            payload=self.payload.combine(other.payload),
+            payload=self.payload.combine(
+                other.payload
+            ),  # TODO: INCLUDE SOMETHING TO DELAY PARETO-FINDING UNTIL ALL TILED FUSION IS RESOLVED
         )
 
     def matches(self, other: "FusionSet") -> bool:
@@ -144,11 +155,18 @@ class FusionSet:
         relevant_tensors: set[str],
         relevant_ranks: set[str],
     ):
-        # NEIGHBORLY-NESS SHOULD CHAIN THROUGH TILED FUSION!!!!
+        live, newlive = None, {}
+        while newlive != live:
+            live = newlive
+            newlive = {
+                k: v
+                for k, v in self.compatibility.items()
+                if v.live_with(relevant_ops, live)
+            }
+
         return tuple(
             (k, self.compatibility[k].drop_irrelevant(relevant_tensors, relevant_ranks))
-            for k, v in self.compatibility.items()
-            if relevant_ops & v.neighbors
+            for k, v in live.items()
         )
 
     def vertical_combine(self, others: list["FusionSet"]):
@@ -204,6 +222,7 @@ if __name__ == "__main__":
                                     (p, f) for p, f in zip(perm, factors)
                                 ),
                                 fused_tensors=frozenset(tn),
+                                fused_ranks=frozenset(r),
                                 ranks=frozenset(ranks),
                                 tensors=frozenset(tensors),
                                 neighbors=frozenset(neighbors),
@@ -323,5 +342,7 @@ if __name__ == "__main__":
                 new_sols.append(v[0])
         sols = new_sols
 
-# Compatibility set for a layer
-#
+# TODO:
+# - Feedback from compatibility sets -> payloads whether things are additive/maximal
+# - If things are slowing down as we create larger fused sets, can collapse
+#   no-longer-relevent ops into a dead ops group
