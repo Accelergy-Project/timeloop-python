@@ -1,15 +1,16 @@
 from dataclasses import dataclass
+from collections import namedtuple
 
 
-@dataclass
+@dataclass(frozen=True)
 class OpCompatibility:
     # Fusion information
-    fused_tensors: set[str]
-    fused_loops: list[tuple[str, int]]
+    fused_tensors: frozenset[str]
+    fused_loops: tuple[tuple[str, int]]
 
     # General information about the operation
-    ranks: set[str]
-    tensors: set[str]
+    ranks: frozenset[str]
+    tensors: frozenset[str]
 
     def matches(self, other: "OpCompatibility") -> bool:
         # Incompatible if one operation fuses a tensor that the other operation
@@ -30,8 +31,7 @@ class OpCompatibility:
         #   exactly, except for the innermost loop of B, where the loop bound of
         #   S must be divisible by the loop bound of B (meaning that the tile
         #   size of L is a multiple of the tile size of S).
-        mine = [m for m in self.fused_loops if m[0] in other.ranks]
-        other = [m for m in other.fused_loops if m[0] in self.ranks]
+        mine, other = self.fused_loops, other.fused_loops
         if mine and other:
             big_tiler, small_tiler = mine, other  # Default
             if len(mine) > len(other):  # Further subdivide -> smaller tile
@@ -53,6 +53,25 @@ class OpCompatibility:
 
     def combine(self, other: "OpCompatibility") -> "OpCompatibility":
         raise NotImplementedError()
+
+    def drop_irrelevant(
+        self, relevant_tensors: set[str], relevant_ranks: set[str]
+    ) -> "OpCompatibility":
+        return OpCompatibility(
+            fused_tensors=self.fused_tensors & relevant_tensors,
+            fused_loops=[(l, f) for l, f in self.fused_loops if l in relevant_ranks],
+            ranks=self.ranks & relevant_ranks,
+            tensors=self.tensors & relevant_tensors,
+        )
+
+    def __eq__(self, other):
+        return (
+            self.fused_tensors == other.fused_tensors
+            and len(self.fused_loops) == len(other.fused_loops)
+            and all(
+                len(a) == len(b) for a, b in zip(self.fused_loops, other.fused_loops)
+            )
+        )
 
     def __str__(self):
         return f"Fused Tensors: {self.fused_tensors}, Fused Loops: {self.fused_loops}"
@@ -116,21 +135,24 @@ if __name__ == "__main__":
     from itertools import permutations
 
     rank_sizes = {
-        "matmul_1_M": 2,
+        "matmul_1_M": 4,
         "matmul_1_K": 2,
         "matmul_1_N": 2,
-        "matmul_2_M": 2,
-        "matmul_2_K": 2,
         "matmul_2_N": 2,
+        "matmul_3_N": 2,
     }
-    fusable_tensors = {"A1", "C1"}
+    fusable_tensors = {"A1", "C1", "C2", "C3"}
+    must_fuse = {"A1", "C1", "C2", "C3"}
 
     def get_compatibility_sets(tensor2rank: dict[str, set[str]]):
         print(f"Tensor2Rank: {tensor2rank}")
 
         compatibility_sets = []
-        for tn in powerset(set(tensor2rank.keys()) & fusable_tensors):
+        tensors = set(tensor2rank.keys())
+        for tn in powerset(tensors & fusable_tensors):
             # print(f"\t{tn}")
+            if (must_fuse & tensors) - set(tn):
+                continue
             if tn:
                 ranks = set.union(*[tensor2rank[t] for t in tn])
             else:
@@ -149,7 +171,7 @@ if __name__ == "__main__":
                                 fused_loops=[(p, f) for p, f in zip(perm, factors)],
                                 fused_tensors=set(tn),
                                 ranks=set(ranks),
-                                tensors=set(tensor2rank.keys()),
+                                tensors=tensors,
                             )
                         )
 
@@ -166,8 +188,6 @@ if __name__ == "__main__":
                         if any(f == 1 for f in factors):
                             continue
                         make_cs()
-                        # print(f"\t\t\t\t{factors}")
-                        # print(f"\t\t\t\t{compatibility_sets[-1]}")
         return compatibility_sets
 
     sets1 = get_compatibility_sets(
@@ -184,8 +204,23 @@ if __name__ == "__main__":
             "C2": {"matmul_1_M", "matmul_2_N"},
         }
     )
+    sets3 = get_compatibility_sets(
+        {
+            "C2": {"matmul_1_M", "matmul_2_N"},
+            "B3": {"matmul_2_N", "matmul_3_N"},
+            "C3": {"matmul_1_M", "matmul_3_N"},
+        }
+    )
     for s1 in sets1:
+        print(f"\n{s1}")
         for s2 in sets2:
-            if s1.matches(s2):
-                print(f"{s1} <=======> {s2}")
-                s1.matches(s2)
+            if not s1.matches(s2):
+                continue
+            print(f"\t{s2}")
+            for s3 in sets3:
+                if not s2.matches(s3):
+                    continue
+                # print(f"\t\t{s3}")
+
+    ops = ["M1", "M2", "M3"]
+    potential_solution = namedtuple("PotentialSolution", ops)
