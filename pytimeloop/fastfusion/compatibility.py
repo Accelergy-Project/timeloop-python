@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 
 
 @dataclass(frozen=True)
@@ -11,6 +11,7 @@ class OpCompatibility:
     # General information about the operation
     ranks: frozenset[str]
     tensors: frozenset[str]
+    neighbors: frozenset[str]
 
     def matches(self, other: "OpCompatibility") -> bool:
         # Incompatible if one operation fuses a tensor that the other operation
@@ -59,9 +60,12 @@ class OpCompatibility:
     ) -> "OpCompatibility":
         return OpCompatibility(
             fused_tensors=self.fused_tensors & relevant_tensors,
-            fused_loops=[(l, f) for l, f in self.fused_loops if l in relevant_ranks],
+            fused_loops=tuple(
+                (l, f) for l, f in self.fused_loops if l in relevant_ranks
+            ),
             ranks=self.ranks & relevant_ranks,
             tensors=self.tensors & relevant_tensors,
+            neighbors=self.neighbors,
         )
 
     def __eq__(self, other):
@@ -74,10 +78,13 @@ class OpCompatibility:
         )
 
     def __str__(self):
-        return f"Fused Tensors: {self.fused_tensors}, Fused Loops: {self.fused_loops}"
+        return f"FTN: {self.fused_tensors}, FL: {self.fused_loops}"
 
     def __repr__(self):
-        return f"OpCompatibility(fused_tensors={self.fused_tensors}, fused_loops={self.fused_loops}, ranks={self.ranks}, tensors={self.tensors})"
+        return str(self)
+
+    # def __repr__(self):
+    #     return f"OpCompatibility(fused_tensors={self.fused_tensors}, fused_loops={self.fused_loops}, ranks={self.ranks}, tensors={self.tensors})"
 
 
 class MultiOpCompatibility:
@@ -99,35 +106,56 @@ class Payload:
         pass
 
     def combine(self, other: "Payload"):
-        raise NotImplementedError()
+        return Payload()
 
 
-class PotentialSolution:
+class FusionSet:
     def __init__(self, compatibility: dict[str:OpCompatibility], payload: Payload):
         self.compatibility: dict[str, OpCompatibility] = compatibility
         self.payload: Payload = payload
 
-    def combine(self, other: "PotentialSolution"):
-        return PotentialSolution(
+    def combine(self, other: "FusionSet"):
+        return FusionSet(
             compatibility={**self.compatibility, **other.compatibility},
             payload=self.payload.combine(other.payload),
         )
 
-    def matches(
+    def matches(self, other: "FusionSet") -> bool:
+        for c in self.compatibility.values():
+            for n in c.neighbors:
+                if n in other.compatibility and not c.matches(other.compatibility[n]):
+                    return False
+        return True
+
+    def drop_irrelevant(self, relevant_tensors: set[str], relevant_ranks: set[str]):
+        self.compatibility = {
+            k: v.drop_irrelevant(relevant_tensors, relevant_ranks)
+            for k, v in self.compatibility.items()
+        }
+
+    def as_tuple(self):
+        return tuple(
+            (k, self.compatibility[k]) for k in sorted(self.compatibility.keys())
+        )
+
+    def relevant_tuple(
         self,
-        other: "PotentialSolution",
-        shared_ops: list[str],
-        shared_ranks: dict[str, str],
-    ) -> bool:
-        return self.compatibility.matches(other.compatibility, shared_ranks)
+        relevant_ops: set[str],
+        relevant_tensors: set[str],
+        relevant_ranks: set[str],
+    ):
+        # NEIGHBORLY-NESS SHOULD CHAIN THROUGH TILED FUSION!!!!
+        return tuple(
+            (k, self.compatibility[k].drop_irrelevant(relevant_tensors, relevant_ranks))
+            for k, v in self.compatibility.items()
+            if relevant_ops & v.neighbors
+        )
 
+    def vertical_combine(self, others: list["FusionSet"]):
+        return self
 
-class FusionSet:
-    def __init__(self, solutions: dict[str, PotentialSolution]):
-        self.solutions = solutions
-
-    def combine(self, other: "Payload"):
-        results = {}
+    def __str__(self):
+        return " ".join(f"[{k} {v}]" for k, v in self.compatibility.items())
 
 
 if __name__ == "__main__":
@@ -136,15 +164,19 @@ if __name__ == "__main__":
 
     rank_sizes = {
         "matmul_1_M": 4,
-        "matmul_1_K": 2,
-        "matmul_1_N": 2,
-        "matmul_2_N": 2,
-        "matmul_3_N": 2,
+        "matmul_1_K": 4,
+        "matmul_1_N": 4,
+        "matmul_2_N": 4,
+        "matmul_3_N": 4,
     }
     fusable_tensors = {"A1", "C1", "C2", "C3"}
-    must_fuse = {"A1", "C1", "C2", "C3"}
+    must_fuse = {"C1"}
 
-    def get_compatibility_sets(tensor2rank: dict[str, set[str]]):
+    compatibility_sets = []
+
+    def get_compatibility_sets(
+        op_name: str, neighbors: set[str], tensor2rank: dict[str, set[str]]
+    ):
         print(f"Tensor2Rank: {tensor2rank}")
 
         compatibility_sets = []
@@ -168,10 +200,13 @@ if __name__ == "__main__":
                     def make_cs():
                         compatibility_sets.append(
                             OpCompatibility(
-                                fused_loops=[(p, f) for p, f in zip(perm, factors)],
-                                fused_tensors=set(tn),
-                                ranks=set(ranks),
-                                tensors=tensors,
+                                fused_loops=tuple(
+                                    (p, f) for p, f in zip(perm, factors)
+                                ),
+                                fused_tensors=frozenset(tn),
+                                ranks=frozenset(ranks),
+                                tensors=frozenset(tensors),
+                                neighbors=frozenset(neighbors),
                             )
                         )
 
@@ -188,39 +223,105 @@ if __name__ == "__main__":
                         if any(f == 1 for f in factors):
                             continue
                         make_cs()
-        return compatibility_sets
+        return op_name, [FusionSet({op_name: c}, Payload()) for c in compatibility_sets]
 
-    sets1 = get_compatibility_sets(
-        {
-            "A1": {"matmul_1_M", "matmul_1_K"},
-            "B1": {"matmul_1_K", "matmul_1_N"},
-            "C1": {"matmul_1_M", "matmul_1_N"},
-        }
-    )
-    sets2 = get_compatibility_sets(
-        {
-            "C1": {"matmul_1_M", "matmul_1_N"},
-            "B2": {"matmul_1_N", "matmul_2_N"},
-            "C2": {"matmul_1_M", "matmul_2_N"},
-        }
-    )
-    sets3 = get_compatibility_sets(
-        {
-            "C2": {"matmul_1_M", "matmul_2_N"},
-            "B3": {"matmul_2_N", "matmul_3_N"},
-            "C3": {"matmul_1_M", "matmul_3_N"},
-        }
-    )
-    for s1 in sets1:
-        print(f"\n{s1}")
-        for s2 in sets2:
-            if not s1.matches(s2):
-                continue
-            print(f"\t{s2}")
-            for s3 in sets3:
-                if not s2.matches(s3):
-                    continue
-                # print(f"\t\t{s3}")
+    compatibility_sets = [
+        get_compatibility_sets(
+            "M1",
+            {"M2"},
+            {
+                "A1": {"matmul_1_M", "matmul_1_K"},
+                "B1": {"matmul_1_K", "matmul_1_N"},
+                "C1": {"matmul_1_M", "matmul_1_N"},
+            },
+        ),
+        get_compatibility_sets(
+            "M2",
+            {"M1", "M3"},
+            {
+                "C1": {"matmul_1_M", "matmul_1_N"},
+                "B2": {"matmul_1_N", "matmul_2_N"},
+                "C2": {"matmul_1_M", "matmul_2_N"},
+            },
+        ),
+        get_compatibility_sets(
+            "M3",
+            {"M2"},
+            {
+                "C2": {"matmul_1_M", "matmul_2_N"},
+                "B3": {"matmul_2_N", "matmul_3_N"},
+                "C3": {"matmul_1_M", "matmul_3_N"},
+            },
+        ),
+    ]
 
-    ops = ["M1", "M2", "M3"]
-    potential_solution = namedtuple("PotentialSolution", ops)
+    op, sols = compatibility_sets.pop(0)
+    ops = [op]
+    for s in sols:
+        print(s)
+
+    while compatibility_sets:
+        print("\n\n")
+
+        # Put together the next set of solutions
+        op, next_sols = compatibility_sets.pop(0)
+        new_sols = []
+        for s in sols:
+            for ns in next_sols:
+                if s.matches(ns):
+                    new_sols.append(s.combine(ns))
+                    # print(f"Combining {s} with {ns}")
+                    # print(f"{s.combine(ns)}")
+        sols = new_sols
+        ops.append(op)
+
+        # Prune irrelevant ranks and tensors
+        if compatibility_sets:
+            relevant_tensors = set.union(
+                *[
+                    set(c.tensors)
+                    for _, s in compatibility_sets
+                    for s2 in s
+                    for c in s2.compatibility.values()
+                ]
+            )
+            relevant_ranks = set.union(
+                *[
+                    set(c.ranks)
+                    for _, s in compatibility_sets
+                    for s2 in s
+                    for c in s2.compatibility.values()
+                ]
+            )
+            ops_left = set(s for s, _ in compatibility_sets)
+        else:
+            relevant_tensors = set()
+            relevant_ranks = set()
+            ops_left = set()
+
+        print("\n\n")
+        print(f"Relevant Tensors: {relevant_tensors}")
+        print(f"Relevant Ranks: {relevant_ranks}")
+        # for s in sols:
+        #     s.drop_irrelevant(relevant_tensors, relevant_ranks)
+
+        bucketed = defaultdict(list)
+        for s in sols:
+            # ALSO NEED TO INCLDUE TILED FUSED
+            bucketed[
+                s.relevant_tuple(ops_left, relevant_tensors, relevant_ranks)
+            ].append(s)
+
+        new_sols = []
+        for k, v in bucketed.items():
+            print(f"{len(v)} Bucket\n\t- {'\n\t- '.join(str(s) for s in k)}")
+            for i in v:
+                print(f"\t\t\t{i}")
+            if len(v) > 1:
+                new_sols.append(v[0].vertical_combine(v[1:]))
+            else:
+                new_sols.append(v[0])
+        sols = new_sols
+
+# Compatibility set for a layer
+#
