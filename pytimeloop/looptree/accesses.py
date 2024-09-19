@@ -3,6 +3,7 @@ from collections.abc import Mapping
 import islpy as isl
 
 from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
+from pytimeloop.looptree.mapping_utilities import *
 
 
 def get_total_accesses(accesses: Mapping):
@@ -27,9 +28,13 @@ def reads_and_writes_from_fill_by_parent(fills: Mapping, mapping, workload):
 
     parent_buffers = get_parent_buffers(mapping, workload)
 
+    einsums_with_complete_mappings = get_einsums_with_complete_mappings(mapping)
+
     for (buffer_id, dspace_id, einsum_id), (tags, fill) in fills.items():
         dspace_name = dspace_id_to_name[dspace_id]
         einsum_name = einsum_id_to_name[einsum_id]
+        if einsum_name not in einsums_with_complete_mappings:
+            continue
         parent_buffer = parent_buffers[(buffer_id, dspace_name, einsum_name)]
         if parent_buffer is not None:
             if dspace_id in workload.tensors_written_by_einsum(einsum_id):
@@ -42,16 +47,22 @@ def reads_and_writes_from_fill_by_parent(fills: Mapping, mapping, workload):
     return reads, writes
 
 
-def reads_and_writes_from_fill_by_peer(fills: Mapping, workload):
+def reads_and_writes_from_fill_by_peer(fills: Mapping, mapping, workload):
+    mapping = mapping['nodes']
     dspace_id_to_name = workload.data_space_id_to_name()
     einsum_id_to_name = workload.einsum_id_to_name()
 
     reads = {}
     writes = {}
 
+    einsums_with_complete_mappings = get_einsums_with_complete_mappings(mapping)
+
     for (buffer_id, dspace_id, einsum_id), (tags, fill) in fills.items():
         einsum_name = einsum_id_to_name[einsum_id]
         dspace_name = dspace_id_to_name[dspace_id]
+        if einsum_name not in einsums_with_complete_mappings:
+            continue
+
         reads[(buffer_id, dspace_name, einsum_name)] = fill
         writes[(buffer_id, dspace_name, einsum_name)] = fill
 
@@ -88,15 +99,3 @@ def get_parent_buffers(mapping, workload):
                         parent_buffers[key] = dspace_to_top_buffer[dspace]
 
     return parent_buffers
-
-
-def get_paths(mapping):
-    cur_path = []
-    for node in mapping:
-        cur_path.append(node)
-        if node['type'] in ['pipeline', 'sequential']:
-            for child in node['branches']:
-                for subpath in get_paths(child):
-                    yield cur_path + subpath
-        elif node['type'] == 'compute':
-            yield cur_path.copy()
