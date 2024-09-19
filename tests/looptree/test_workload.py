@@ -27,6 +27,13 @@ class TestLooptreeWorkload(unittest.TestCase):
         id_to_name = self._workload.data_space_id_to_name()
         self.assert_maps_are_inverted_equivalent(name_to_id, id_to_name)
 
+    def test_rank_shape(self):
+        name_to_id = self._workload.dimension_name_to_id()
+        rank_shape = self._workload.get_rank_shape(name_to_id['P1'])
+        self.assertEqual((0, 8), rank_shape)
+        rank_shape = self._workload.get_rank_shape(name_to_id['M2'])
+        self.assertEqual((0, 7), rank_shape)
+
     def assert_maps_are_inverted_equivalent(self, dict1, dict2):
         for key1, value1 in dict1.items():
             self.assertEqual(key1, dict2[value1])
