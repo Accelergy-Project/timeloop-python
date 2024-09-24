@@ -1,0 +1,2 @@
+class fzs(frozenset):
+    pass
