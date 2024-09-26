@@ -11,11 +11,11 @@ class OpCompatibility:
     fused_loops: tuple[tuple[str, int]]
     fused_ranks: fzs[str]
 
-    # General information about the operation
+    # General information about the einsum
     ranks: fzs[str]
     tensors: fzs[str]
     neighbors: fzs[str]
-    op_name: str
+    einsum_id: str
 
     def get_relevant_fused_loops(
         self, relevant_ranks: set[str]
@@ -26,7 +26,7 @@ class OpCompatibility:
         return ()
 
     def compatible_with(self, other: "OpCompatibility") -> bool:
-        # Incompatible if one operation fuses a tensor that the other operation
+        # Incompatible if one einsum fuses a tensor that the other einsum
         # has & does not fuse.
         for a, b in [(self, other), (other, self)]:
             if (a.fused_tensors - b.fused_tensors) & b.tensors:
@@ -37,8 +37,8 @@ class OpCompatibility:
             return True
 
         # Check tiled fused compatibility
-        # Assume operation B fuses bigger or iso-size tiles as operation S.
-        # - B & S must exchange tiles in same order -> Rank names must match in
+        # Assume einsum B fuses bigger or iso-size tiles as einsum S.
+        # - B & S must exchange tiles in same order -> Rank ids must match in
         #   order.
         # - B tiles must be divisible by S tiles -> Rank shapes must match
         #   exactly, except for the innermost loop of B, where the loop bound of
@@ -81,7 +81,7 @@ class OpCompatibility:
             fused_loops = tuple((r, 1) for r, _ in fused_loops)
 
         return OpCompatibility(
-            op_name=self.op_name,
+            einsum_id=self.einsum_id,
             fused_tensors=self.fused_tensors & relevant_tensors,
             fused_loops=fused_loops,
             fused_ranks=fzs(r for r, _ in fused_loops),
@@ -93,20 +93,20 @@ class OpCompatibility:
     @staticmethod
     def get_co_tiled(
         compats: set["OpCompatibility"],
-        ops: set[str] = fzs(),
+        einsums: set[str] = fzs(),
     ) -> set["OpCompatibility"]:
         # Live are:
         # - All neighbors of an original node
         # - All tiled fused with a live node
         live = set()
-        to_check = [c for c in compats if c.op_name in ops]
+        to_check = [c for c in compats if c.einsum_id in einsums]
         while to_check:
             c = to_check.pop()
             live.add(c)
             to_check.extend(
                 c2
                 for c2 in compats
-                if c2.op_name in c.neighbors
+                if c2.einsum_id in c.neighbors
                 and c2.fused_ranks & c.fused_ranks
                 and c2 not in live
                 and c2 not in to_check
@@ -116,20 +116,22 @@ class OpCompatibility:
     @staticmethod
     def get_live(
         compats: set["OpCompatibility"],
-        ops: set[str] = fzs(),
+        einsums: set[str] = fzs(),
     ) -> set["OpCompatibility"]:
         # Live are:
         # - All neighbors of an original node
         # - All tiled fused with a live node
         live = set()
-        to_check = [c for c in compats if c.op_name in ops or ops & c.neighbors]
+        to_check = [
+            c for c in compats if c.einsum_id in einsums or einsums & c.neighbors
+        ]
         while to_check:
             c = to_check.pop()
             live.add(c)
             to_check.extend(
                 c2
                 for c2 in compats
-                if c2.op_name in c.neighbors
+                if c2.einsum_id in c.neighbors
                 and c2.fused_ranks & c.fused_ranks
                 and c2 not in live
                 and c2 not in to_check
@@ -144,7 +146,7 @@ class OpCompatibility:
         partitions = []
         while compats:
             c = next(iter(compats))
-            live = OpCompatibility.get_co_tiled(compats, {c.op_name})
+            live = OpCompatibility.get_co_tiled(compats, {c.einsum_id})
             assert c in live
             partitions.append(live)
             compats -= live
@@ -152,7 +154,7 @@ class OpCompatibility:
 
     def __eq__(self, other):
         return (
-            self.op_name == other.op_name
+            self.einsum_id == other.einsum_id
             and self.fused_tensors == other.fused_tensors
             and len(self.fused_loops) == len(other.fused_loops)
             and all(
@@ -162,20 +164,18 @@ class OpCompatibility:
 
     def __lt__(self, other):
         return (
-            self.op_name < other.op_name
+            self.einsum_id < other.einsum_id
             or self.fused_tensors < other.fused_tensors
             or self.fused_loops < other.fused_loops
         )
 
     def __str__(self):
         return (
-            f"{self.op_name} ftensors {self.fused_tensors}, floops {self.fused_loops}"
+            f"{self.einsum_id} ftensors {self.fused_tensors}, floops {self.fused_loops}"
         )
 
     def __repr__(self):
-        return (
-            f"OpCompatibility({self.op_name}, {self.fused_tensors}, {self.fused_loops})"
-        )
+        return f"OpCompatibility({self.einsum_id}, {self.fused_tensors}, {self.fused_loops})"
 
 
 class TestOpCompatibility(unittest.TestCase):
@@ -206,7 +206,7 @@ class TestOpCompatibility(unittest.TestCase):
         for i, l in enumerate(loopnests):
             comps.append(
                 OpCompatibility(
-                    op_name=l,
+                    einsum_id=l,
                     fused_tensors=fzs(["T1"]),
                     fused_loops=tuple((r[0], int(r[1])) for r in l.split(" ") if r),
                     fused_ranks=fzs("ABCD"),
@@ -222,7 +222,7 @@ class TestOpCompatibility(unittest.TestCase):
                 self.assertEqual(
                     c1.compatible_with(c2),
                     e,
-                    f"{c1.op_name} <-> {c2.op_name} compatible got {not e}, expected {e}",
+                    f"{c1.einsum_id} <-> {c2.einsum_id} compatible got {not e}, expected {e}",
                 )
 
     def test_get_tiled_partitions(self):
@@ -236,7 +236,7 @@ class TestOpCompatibility(unittest.TestCase):
         for i, l in enumerate(loopnests):
             comps.append(
                 OpCompatibility(
-                    op_name=l,
+                    einsum_id=l,
                     fused_tensors=fzs(["T1"]),
                     fused_loops=tuple((r[0], int(r[1])) for r in l.split(" ") if r),
                     fused_ranks=fzs("ABCD"),

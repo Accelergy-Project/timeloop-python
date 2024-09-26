@@ -12,12 +12,12 @@ if __name__ == "__main__":
     from itertools import permutations
 
     rank_sizes = {
-        "M1": 2,
-        "K1": 2,
-        "N1": 2,
-        "N2": 2,
-        "N3": 2,
-        "N4": 2,
+        "M1": 4,
+        "K1": 4,
+        "N1": 4,
+        "N2": 4,
+        "N3": 4,
+        "N4": 4,
     }
     fusable_tensors = {"A1", "C1", "C2", "C3", "C4"}
     must_fuse = set()  # set(["C1", "C2", "C3", "C4"])
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     compatibility_sets = []
 
     def get_compatibility_sets(
-        op_name: str, neighbors: set[str], tensor2rank: dict[str, set[str]]
+        einsum_id: str, neighbors: set[str], tensor2rank: dict[str, set[str]]
     ):
         # print(f"Tensor2Rank: {tensor2rank}")
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
                     def make_cs():
                         compatibility_sets.append(
                             OpCompatibility(
-                                op_name=op_name,
+                                einsum_id=einsum_id,
                                 fused_loops=tuple(
                                     (p, f) for p, f in zip(perm, factors)
                                 ),
@@ -76,7 +76,7 @@ if __name__ == "__main__":
                         if any(f == 1 for f in factors):
                             continue
                         make_cs()
-        return op_name, [FusionSet({c}, Pareto({})) for c in compatibility_sets]
+        return einsum_id, [FusionSet({c}, Pareto({})) for c in compatibility_sets]
 
     compatibility_sets = [
         get_compatibility_sets(
@@ -117,26 +117,26 @@ if __name__ == "__main__":
         ),
     ]
 
-    op, sols = compatibility_sets.pop(0)
-    ops = [op]
+    einsum, sols = compatibility_sets.pop(0)
+    einsums = [einsum]
     first_compatibility = next(iter(sols[0].compatibility))
-    seen_ops = {first_compatibility.op_name}
+    seen_einsums = {first_compatibility.einsum_id}
     seen_tensors = set(first_compatibility.tensors)
     seen_ranks = set(first_compatibility.ranks)
 
     while compatibility_sets:
         # Put together the next set of solutions
-        op, next_sols = compatibility_sets.pop(0)
+        einsum, next_sols = compatibility_sets.pop(0)
 
         first_compatibility = next(iter(next_sols[0].compatibility))
-        next_op = {first_compatibility.op_name}
+        next_einsum = {first_compatibility.einsum_id}
         next_tensors = first_compatibility.tensors
         next_ranks = first_compatibility.ranks
 
         print("\n\n")
-        print("\n\n" + "=" * 100 + f"\nProcessing op {op}")
+        print("\n\n" + "=" * 100 + f"\nProcessing einsum {einsum}")
 
-        unseen_ops = set(s for s, _ in compatibility_sets) | next_op
+        unseen_einsums = set(s for s, _ in compatibility_sets) | next_einsum
         unseen_tensors = (
             set.union(set(), *[s[1][0].tensors for s in compatibility_sets])
             | next_tensors
@@ -147,11 +147,11 @@ if __name__ == "__main__":
 
         def get_sols_a():
             prev_buckets = FusionSet.bucket(
-                sols, unseen_ops, unseen_tensors, unseen_ranks
+                sols, unseen_einsums, unseen_tensors, unseen_ranks
             )
 
             next_buckets = FusionSet.bucket(
-                next_sols, seen_ops, seen_tensors, seen_ranks
+                next_sols, seen_einsums, seen_tensors, seen_ranks
             )
 
             print(f"Number of buckets: {len(prev_buckets)} x {len(next_buckets)}")
@@ -182,11 +182,11 @@ if __name__ == "__main__":
         def get_sols_c():
             # print(f"Part 1")
             prev_buckets = FusionSet.bucket_multi_level(
-                sols, unseen_ops, unseen_tensors, unseen_ranks
+                sols, unseen_einsums, unseen_tensors, unseen_ranks
             )
 
             next_buckets = FusionSet.bucket_multi_level(
-                next_sols, seen_ops, seen_tensors, seen_ranks
+                next_sols, seen_einsums, seen_tensors, seen_ranks
             )
 
             # print(f"Part 2")
@@ -198,7 +198,7 @@ if __name__ == "__main__":
             print(f"C: Generated {len(new_sols)} from {len(sols)} x {len(next_sols)}")
             return new_sols
 
-        [s.drop_dead(unseen_ops) for s in sols]
+        [s.drop_dead(unseen_einsums) for s in sols]
 
         # import timeit
         # print(f"Time A: {timeit.timeit(get_sols_a, number=1)}")
@@ -207,7 +207,7 @@ if __name__ == "__main__":
 
         sols = get_sols_c()
         print(f"Generated {len(sols)} solutions")
-        ops.append(op)
+        einsums.append(einsum)
 
         ops_left = set(s for s, _ in compatibility_sets)
         relevant_tensors = set.union(
@@ -232,6 +232,6 @@ if __name__ == "__main__":
                 print(f"  {sorted(i.compatibility)}")
         print("")
 
-        seen_ops |= next_op
+        seen_einsums |= next_einsum
         seen_tensors |= next_tensors
         seen_ranks |= next_ranks

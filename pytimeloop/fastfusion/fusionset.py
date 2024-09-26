@@ -11,7 +11,7 @@ class FusionSet:
     def __init__(self, compatibility: set[OpCompatibility], payload: Pareto):
         self.compatibility: set[OpCompatibility] = compatibility
         self.payload: Pareto = payload
-        self.compatibility_dict = {c.op_name: c for c in compatibility}
+        self.compatibility_dict = {c.einsum_id: c for c in compatibility}
 
     def combine(self, other: "FusionSet"):
         payload = other.payload if self.payload is None else self.payload
@@ -34,26 +34,28 @@ class FusionSet:
             c.drop_irrelevant(relevant_tensors, relevant_ranks)
             for c in self.compatibility
         }
-        self.compatibility_dict = {c.op_name: c for c in self.compatibility}
+        self.compatibility_dict = {c.einsum_id: c for c in self.compatibility}
 
     def relevant_compatibility(
         self,
-        live_ops: set[str],
+        live_einsums: set[str],
         relevant_tensors: set[str],
         relevant_ranks: set[str],
         ignore_rank_sizes=False,
         ignore_live_not_neighbors=False,
     ) -> "FusionSet":
         # Important aspects:
-        # - What ops are live (connected to a live op OR tiled fused with a live
-        #   op): Effects how things are combined (can't compute a max with any
-        #   still-live ops)
+        # - What einsums are live (connected to a live einsum OR tiled fused with a live
+        #   einsum): Effects how things are combined (can't compute a max with any
+        #   still-live einsums)
         # - Relevant tensors: May be used in future decisions
         # - Relevant ranks: May be used in future decisions
-        my_live = OpCompatibility.get_live(self.compatibility, live_ops)
+        my_live = OpCompatibility.get_live(self.compatibility, live_einsums)
 
         immediate_neighbors = {
-            c for c in my_live if live_ops & c.neighbors or c.op_name in live_ops
+            c
+            for c in my_live
+            if live_einsums & c.neighbors or c.einsum_id in live_einsums
         }
         live_not_neighbors = my_live - immediate_neighbors
         if ignore_live_not_neighbors:
@@ -66,18 +68,20 @@ class FusionSet:
         live = {c.drop_irrelevant() for c in live_not_neighbors}
         return FusionSet(neighbors | live, None)
 
-    def drop_dead(self, live_ops: set[str]):
+    def drop_dead(self, live_einsums: set[str]):
         tiled_partitions = OpCompatibility.get_tiled_partitions(self.compatibility)
         live_partitions, dead_partitions = [], []
         for t in tiled_partitions:
-            if any(p.op_name in live_ops or p.neighbors & live_ops for p in t):
+            if any(
+                p.einsum_id in live_einsums or p.neighbors & live_einsums for p in t
+            ):
                 live_partitions.append(t)
             else:
                 dead_partitions.append(t)
 
         self.payload = self.payload.drop_dead(live_partitions, dead_partitions)
-        live_names = [p.op_name for p2 in live_partitions for p in p2]
-        self.compatibility_dict = {p: self.compatibility_dict[p] for p in live_names}
+        live_ids = [p.einsum_id for p2 in live_partitions for p in p2]
+        self.compatibility_dict = {p: self.compatibility_dict[p] for p in live_ids}
         self.compatibility = set(self.compatibility_dict.values())
 
     @property
@@ -98,14 +102,14 @@ class FusionSet:
     @staticmethod
     def bucket(
         fusion_sets: list["FusionSet"] | dict[Any, "FusionSet"],
-        live_ops: set[str],
+        live_einsums: set[str],
         relevant_tensors: set[str],
         relevant_ranks: set[str],
         ignore_rank_sizes=False,
         ignore_live_not_neighbors=False,
     ) -> dict[fzs[OpCompatibility], list["FusionSet"] | dict]:
         args = (
-            live_ops,
+            live_einsums,
             relevant_tensors,
             relevant_ranks,
             ignore_rank_sizes,
@@ -123,13 +127,13 @@ class FusionSet:
     @staticmethod
     def bucket_multi_level(
         fusion_sets: list["FusionSet"],
-        live_ops: set[str],
+        live_einsums: set[str],
         relevant_tensors: set[str],
         relevant_ranks: set[str],
     ) -> dict[fzs[OpCompatibility], list["FusionSet"] | dict]:
         # First bucketing: Tensors only
         kwargs = dict(
-            live_ops=live_ops,
+            live_einsums=live_einsums,
             relevant_tensors=set(),
             relevant_ranks=set(),
             ignore_rank_sizes=True,
@@ -206,7 +210,7 @@ class TestFusionSet(unittest.TestCase):
         fs = []
         for i in range(2):
             comp = OpCompatibility(
-                op_name=f"op1",
+                einsum_id=f"einsum1",
                 fused_tensors=fzs(),
                 fused_loops=(),
                 fused_ranks=fzs(),
@@ -221,7 +225,7 @@ class TestFusionSet(unittest.TestCase):
 
     def test_combine(self):
         comp1 = OpCompatibility(
-            op_name=f"op1",
+            einsum_id=f"einsum1",
             fused_tensors=fzs(),
             fused_loops=(),
             fused_ranks=fzs(),
@@ -230,7 +234,7 @@ class TestFusionSet(unittest.TestCase):
             neighbors=fzs("123"),
         )
         comp2 = OpCompatibility(
-            op_name=f"op2",
+            einsum_id=f"einsum2",
             fused_tensors=fzs(),
             fused_loops=(),
             fused_ranks=fzs(),
@@ -258,11 +262,11 @@ class TestFusionSet(unittest.TestCase):
                 neighbors=neighbors,
             )
 
-            comp1 = OpCompatibility(op_name="A", fused_loops=(("A", 1),), **kwargs)
-            comp2 = OpCompatibility(op_name="B", fused_loops=(("A", 2),), **kwargs)
+            comp1 = OpCompatibility(einsum_id="A", fused_loops=(("A", 1),), **kwargs)
+            comp2 = OpCompatibility(einsum_id="B", fused_loops=(("A", 2),), **kwargs)
 
-            comp4 = OpCompatibility(op_name="C", fused_loops=(("A", 4),), **kwargs)
-            comp5 = OpCompatibility(op_name="C", fused_loops=(("A", 3),), **kwargs)
+            comp4 = OpCompatibility(einsum_id="C", fused_loops=(("A", 4),), **kwargs)
+            comp5 = OpCompatibility(einsum_id="C", fused_loops=(("A", 3),), **kwargs)
 
             fs1 = FusionSet({comp1, comp2}, Pareto(data={}))
             fs2 = FusionSet({comp4}, Pareto(data={}))
@@ -278,7 +282,7 @@ class TestFusionSet(unittest.TestCase):
     # -
     def test_drop_dead(self):
         comp1 = OpCompatibility(
-            op_name=f"op1",
+            einsum_id=f"einsum1",
             fused_tensors=fzs(),
             fused_loops=(),
             fused_ranks=fzs(),
@@ -287,7 +291,7 @@ class TestFusionSet(unittest.TestCase):
             neighbors=fzs("123"),
         )
         comp2 = OpCompatibility(
-            op_name=f"op2",
+            einsum_id=f"einsum2",
             fused_tensors=fzs(),
             fused_loops=(),
             fused_ranks=fzs(),
@@ -296,7 +300,7 @@ class TestFusionSet(unittest.TestCase):
             neighbors=fzs("ABC"),
         )
         fs = FusionSet({comp1, comp2}, Pareto(data={}))
-        fs.drop_dead({"op1"})
+        fs.drop_dead({"einsum1"})
         self.assertEqual(len(fs.compatibility), 1)
         self.assertIn(comp1, fs.compatibility)
         self.assertEqual(fs.payload.data, {})
@@ -313,22 +317,22 @@ class TestFusionSet(unittest.TestCase):
         )
 
         a = OpCompatibility(
-            op_name="A", fused_ranks=fzs("A"), neighbors=fzs("B"), **kwargs
+            einsum_id="A", fused_ranks=fzs("A"), neighbors=fzs("B"), **kwargs
         )
         b = OpCompatibility(
-            op_name="B", fused_ranks=fzs("A"), neighbors=fzs("AC"), **kwargs
+            einsum_id="B", fused_ranks=fzs("A"), neighbors=fzs("AC"), **kwargs
         )
         c = OpCompatibility(
-            op_name="C", fused_ranks=fzs(), neighbors=fzs("BD"), **kwargs
+            einsum_id="C", fused_ranks=fzs(), neighbors=fzs("BD"), **kwargs
         )
         d = OpCompatibility(
-            op_name="D", fused_ranks=fzs("A"), neighbors=fzs("CE"), **kwargs
+            einsum_id="D", fused_ranks=fzs("A"), neighbors=fzs("CE"), **kwargs
         )
         e = OpCompatibility(
-            op_name="E", fused_ranks=fzs("A"), neighbors=fzs("DF"), **kwargs
+            einsum_id="E", fused_ranks=fzs("A"), neighbors=fzs("DF"), **kwargs
         )
         f = OpCompatibility(
-            op_name="F", fused_ranks=fzs("A"), neighbors=fzs("E"), **kwargs
+            einsum_id="F", fused_ranks=fzs("A"), neighbors=fzs("E"), **kwargs
         )
 
         for live, partition in [
@@ -344,24 +348,24 @@ class TestFusionSet(unittest.TestCase):
             fs = FusionSet({a, b, c, d, e, f}, Pareto(data={}))
             fs.drop_dead(set(live))
             partitions = OpCompatibility.get_tiled_partitions(fs.compatibility)
-            names = tuple(
-                sorted("".join(sorted(p.op_name for p in p2)) for p2 in partitions)
+            ids = tuple(
+                sorted("".join(sorted(p.einsum_id for p in p2)) for p2 in partitions)
             )
-            msg = f"Failed with {live} {partition}, got {names}"
+            msg = f"Failed with {live} {partition}, got {ids}"
             self.assertEqual(len(fs.compatibility), sum(len(l) for l in partition), msg)
-            self.assertEqual(names, partition, msg)
+            self.assertEqual(ids, partition, msg)
 
     def test_bucketing(self):
         tensor_choices = ["A", "B", "BC"]
         rank_choices = ["MN", "NM"]
         rank_size_choices = [1, 2]
-        has_other_op = [True, False]
+        has_other_einsum = [True, False]
 
         comps = []
         for t in tensor_choices:
             for r in rank_choices:
                 for rs in rank_size_choices:
-                    for other in has_other_op:
+                    for other in has_other_einsum:
                         kwargs = dict(
                             fused_tensors=fzs(t),
                             fused_loops=tuple((x, rs) for x in r),
@@ -370,9 +374,9 @@ class TestFusionSet(unittest.TestCase):
                             tensors=fzs(t),
                             neighbors=fzs(),
                         )
-                        x = {OpCompatibility(op_name="op1", **kwargs)}
+                        x = {OpCompatibility(einsum_id="einsum1", **kwargs)}
                         if other:
-                            x.add(OpCompatibility(op_name="op2", **kwargs))
+                            x.add(OpCompatibility(einsum_id="einsum2", **kwargs))
                         comps.append(FusionSet(x, Pareto(data={})))
 
         def check_bucket_sizes(bucketed, expected):
@@ -381,17 +385,25 @@ class TestFusionSet(unittest.TestCase):
                 for b in bucketed.values():
                     check_bucket_sizes(b, expected[1:])
 
-        fusion_sets = FusionSet.bucket_multi_level(comps, {"op1"}, {"A"}, {"M", "N"})
+        fusion_sets = FusionSet.bucket_multi_level(
+            comps, {"einsum1"}, {"A"}, {"M", "N"}
+        )
         check_bucket_sizes(fusion_sets, [2, 2, 2])
         fusion_sets = FusionSet.bucket_multi_level(
-            comps, {"op1", "op2"}, {"A"}, {"M", "N"}
+            comps, {"einsum1", "einsum2"}, {"A"}, {"M", "N"}
         )
         check_bucket_sizes(fusion_sets, [4, 2, 2])
-        fusion_sets = FusionSet.bucket_multi_level(comps, {"op1"}, {"A", "C"}, {"M"})
+        fusion_sets = FusionSet.bucket_multi_level(
+            comps, {"einsum1"}, {"A", "C"}, {"M"}
+        )
         check_bucket_sizes(fusion_sets, [3, 2, 2])
-        fusion_sets = FusionSet.bucket_multi_level(comps, {"op1"}, {"A", "C"}, set())
+        fusion_sets = FusionSet.bucket_multi_level(
+            comps, {"einsum1"}, {"A", "C"}, set()
+        )
         check_bucket_sizes(fusion_sets, [3, 1, 1])
-        fusion_sets = FusionSet.bucket_multi_level(comps, {"op1", "op2"}, set(), set())
+        fusion_sets = FusionSet.bucket_multi_level(
+            comps, {"einsum1", "einsum2"}, set(), set()
+        )
         check_bucket_sizes(fusion_sets, [2, 1, 1])
 
 

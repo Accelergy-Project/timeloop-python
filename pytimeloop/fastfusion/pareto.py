@@ -1,3 +1,4 @@
+import itertools
 import unittest
 from paretoset import paretoset
 import pandas as pd
@@ -5,43 +6,55 @@ from dataclasses import dataclass
 from util import fzs
 
 MAPPING = "__Mappings"
+OCCUPANCY = f"__Occupancy"
 
-UTIL = lambda x="": f"__{x} Utilization"
 DATA_SIZE = lambda x: f"__{x} Data Size"
 NUM_ELEMS = lambda x: f"__{x} Num Elems"
 
 MERGE_SUFFIXES = ["_RIGHT_MERGE", "_LEFT_MERGE"]
+
+COMBINE_FUNCTION_WITHIN_TILED_FUSED = {
+    OCCUPANCY: lambda df, c: suffix_access(df, c).sum(axis=1),
+    "default": lambda df, c: suffix_access(df, c).sum(axis=1),
+}
+
+COMBINE_FUNCTION_DEFAULT = {
+    OCCUPANCY: lambda df, c: suffix_access(df, c).max(axis=1),
+    "default": lambda df, c: suffix_access(df, c).sum(axis=1),
+}
 
 
 def suffix_access(d, c):
     return d[[c + MERGE_SUFFIXES[0], c + MERGE_SUFFIXES[1]]]
 
 
-def sum_columns(d, columns):
-    for c in columns:
-        if not c.startswith("__") or c == UTIL():
-            d[c] = suffix_access(d, c).sum(axis=1)
+def suffix_access_tuple(d, c):
+    return d[c + MERGE_SUFFIXES[0]], d[c + MERGE_SUFFIXES[1]]
 
 
 def merge_cross(
     a1: pd.DataFrame,
     a2: pd.DataFrame,
-    util_combine_sum: bool,
+    combine_functions: dict[str, callable],
     tensors: set[str] = fzs(),
 ) -> pd.DataFrame:
-    d = pd.merge(a1, a2, how="cross", suffixes=MERGE_SUFFIXES)
-    sum_columns(d, a2.columns)
+    # Before merging, subtract all shared tile size. We'll add it back later
+    for t, x in itertools.product(tensors, [a1, a2]):
+        x[OCCUPANCY] -= x[DATA_SIZE(t)] * x[NUM_ELEMS(t)]
 
-    u = suffix_access(d, UTIL())
-    d[UTIL()] = u.sum(axis=1) if util_combine_sum else u.max(axis=1)
+    d = pd.merge(a1, a2, how="cross", suffixes=MERGE_SUFFIXES)
+
+    for c in a2.columns:
+        if c == OCCUPANCY or not c.startswith("__"):
+            f = combine_functions.get(c, combine_functions.get("default"))
+            d[c] = f(d, c)
 
     for t in tensors:
-        min_data_size = suffix_access(d, DATA_SIZE(t)).min(axis=1)
-        min_num_elems = suffix_access(d, NUM_ELEMS(t)).min(axis=1)
+        # Next, add new tile size. Save the larger of the two
         max_data_size = suffix_access(d, DATA_SIZE(t)).max(axis=1)
         max_num_elems = suffix_access(d, NUM_ELEMS(t)).max(axis=1)
         d[DATA_SIZE(t)], d[NUM_ELEMS(t)] = max_data_size, max_num_elems
-        d[UTIL()] -= min_data_size * min_num_elems
+        d[OCCUPANCY] += max_data_size * max_num_elems
 
     d = Pareto.pareto(d)
     s = suffix_access(d, MAPPING)
@@ -54,20 +67,20 @@ def merge_cross(
 
 @dataclass(frozen=True)
 class OpData:
-    op_names: fzs[str] = fzs()
+    einsum_ids: fzs[str] = fzs()
     tensors: fzs[str] = fzs()
 
     def __bool__(self) -> bool:
-        return bool(self.op_names) or bool(self.tensors)
+        return bool(self.einsum_ids) or bool(self.tensors)
 
     def __and__(self, other: "OpData") -> "OpData":
-        return OpData(self.op_names & other.op_names, self.tensors & other.tensors)
+        return OpData(self.einsum_ids & other.einsum_ids, self.tensors & other.tensors)
 
     def __sub__(self, other: "OpData") -> "OpData":
-        return OpData(self.op_names - other.op_names, self.tensors - other.tensors)
+        return OpData(self.einsum_ids - other.einsum_ids, self.tensors - other.tensors)
 
     def __or__(self, other: "OpData") -> "OpData":
-        return OpData(self.op_names | other.op_names, self.tensors | other.tensors)
+        return OpData(self.einsum_ids | other.einsum_ids, self.tensors | other.tensors)
 
 
 class Pareto:
@@ -77,7 +90,7 @@ class Pareto:
 
     @staticmethod
     def pareto(data: pd.DataFrame) -> pd.DataFrame:
-        d = data[[c for c in data.columns if c == UTIL() or not c.startswith("__")]]
+        d = data[[c for c in data.columns if c == OCCUPANCY or not c.startswith("__")]]
         return data[paretoset(d)].reset_index(drop=True)
 
     @staticmethod
@@ -112,25 +125,27 @@ class Pareto:
             d = self.data.pop(key)
         else:
             d0, d1 = self.data.pop(key), self.data[dead_key]
-            d = merge_cross(d0, d1, False)
+            d = merge_cross(d0, d1, COMBINE_FUNCTION_DEFAULT)
 
         cols = [c for c in d.columns if not c.startswith("__")]
-        cols += [MAPPING, UTIL()]
+        cols += [MAPPING, OCCUPANCY]
         self.data[dead_key] = d[cols].copy()
 
     def _combine_live(self, key1: OpData, key2: OpData) -> tuple[OpData, pd.DataFrame]:
         d0, tensors0 = self.data.pop(key1), key1.tensors
         d1, tensors1 = self.data.pop(key2), key2.tensors
-        d = merge_cross(d0, d1, True, tensors0 & tensors1)
-        op_names = key1.op_names | key2.op_names
+        d = merge_cross(
+            d0, d1, COMBINE_FUNCTION_WITHIN_TILED_FUSED, tensors0 & tensors1
+        )
+        einsum_ids = key1.einsum_ids | key2.einsum_ids
         tensors = tensors0 | tensors1
-        return OpData(fzs(op_names), fzs(tensors)), d
+        return OpData(fzs(einsum_ids), fzs(tensors)), d
 
-    def _combine_by_partition(self, op_names: set[str]):
-        to_combine = [k for k in self.data if k.op_names & op_names]
+    def _combine_by_partition(self, einsum_ids: set[str]):
+        to_combine = [k for k in self.data if k.einsum_ids & einsum_ids]
         for k in to_combine:
-            if k.op_names - op_names:
-                raise ValueError(f"Partitioning mismatch {k} {op_names}")
+            if k.einsum_ids - einsum_ids:
+                raise ValueError(f"Partitioning mismatch {k} {einsum_ids}")
 
         if not to_combine:
             return
@@ -146,7 +161,7 @@ class Pareto:
     ):
         [self._combine_by_partition(t) for t in live_partitions + dead_partitions]
         for k in list(self.data.keys()):
-            if not any(k.op_names & p for p in live_partitions):
+            if not any(k.einsum_ids & p for p in live_partitions):
                 self._combine_dead(k)
         return self
 
@@ -154,7 +169,7 @@ class Pareto:
 class ParetoTest(unittest.TestCase):
     def test_pareto(self):
         od1 = OpData(fzs(["A"]))
-        data = pd.DataFrame({"A": [1, 2], UTIL(): [2, 1], MAPPING: [{"A": "A"}] * 2})
+        data = pd.DataFrame({"A": [1, 2], OCCUPANCY: [2, 1], MAPPING: [{"A": "A"}] * 2})
         Pareto({od1: data})
 
     def test_vertical_combine(self):
@@ -163,7 +178,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                UTIL(): [3, 3, 3],
+                OCCUPANCY: [3, 3, 3],
                 MAPPING: [{"A": "A"}] * 3,
             }
         )
@@ -172,7 +187,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
-                UTIL(): [3, 3, 1],
+                OCCUPANCY: [3, 3, 1],
                 MAPPING: [{"A": "A"}] * 3,
             }
         )
@@ -196,7 +211,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                UTIL(): [3, 3, 3],
+                OCCUPANCY: [3, 3, 3],
                 MAPPING: [{"A": "A"}] * 3,
             }
         )
@@ -205,7 +220,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
-                UTIL(): [3, 3, 1],
+                OCCUPANCY: [3, 3, 1],
                 MAPPING: [{"B": "B"}] * 3,
             }
         )
@@ -224,7 +239,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                UTIL(): [3, 3, 3],
+                OCCUPANCY: [3, 3, 3],
                 MAPPING: [{"A": "A"}] * 3,
             }
         )
@@ -233,7 +248,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
-                UTIL(): [3, 3, 1],
+                OCCUPANCY: [3, 3, 1],
                 MAPPING: [{"B": "B"}] * 3,
             }
         )
@@ -249,7 +264,7 @@ class ParetoTest(unittest.TestCase):
         # Column "B" should be 6, 4
         self.assertEqual(d["B"].tolist(), [6, 4])
         # Column UTIL should be 3, 3
-        self.assertEqual(d[UTIL()].tolist(), [3, 3])
+        self.assertEqual(d[OCCUPANCY].tolist(), [3, 3])
 
     def test_combine_live(self):
         od1 = OpData(fzs(["A"]), fzs(["T1"]))
@@ -257,9 +272,9 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                UTIL(): [3, 3, 3],
-                DATA_SIZE("T1"): [0.1, 0.2, 0.3],
-                NUM_ELEMS("T1"): [0.3, 0.2, 0.1],
+                OCCUPANCY: [3, 3, 3],
+                DATA_SIZE("T1"): [1, 2, 3],
+                NUM_ELEMS("T1"): [3, 2, 1],
                 MAPPING: [{"A": "A"}] * 3,
             }
         )
@@ -268,9 +283,9 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
-                UTIL(): [3, 3, 1],
-                DATA_SIZE("T1"): [0.2, 0.2, 0.2],
-                NUM_ELEMS("T1"): [0.1, 0.1, 0.1],
+                OCCUPANCY: [3, 3, 1],
+                DATA_SIZE("T1"): [2, 2, 2],
+                NUM_ELEMS("T1"): [1, 1, 1],
                 MAPPING: [{"B": "B"}] * 3,
             }
         )
@@ -286,9 +301,9 @@ class ParetoTest(unittest.TestCase):
         self.assertEqual(d["A"].tolist(), [4, 6])
         # Column "B" should be 6, 4
         self.assertEqual(d["B"].tolist(), [6, 4])
-        self.assertEqual(d[UTIL()].tolist(), [4 - 0.1 * 0.1, 4 - 0.2 * 0.1])
-        self.assertEqual(d[DATA_SIZE("T1")].tolist(), [0.2, 0.2])
-        self.assertEqual(d[NUM_ELEMS("T1")].tolist(), [0.3, 0.2])
+        self.assertEqual(d[OCCUPANCY].tolist(), [4 - 3 - 2 + 6, 4 - 4 - 2 + 4])
+        self.assertEqual(d[DATA_SIZE("T1")].tolist(), [2, 2])
+        self.assertEqual(d[NUM_ELEMS("T1")].tolist(), [3, 2])
 
 
 if __name__ == "__main__":
