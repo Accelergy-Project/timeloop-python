@@ -1,5 +1,3 @@
-Op -> einsum
-
 For layers that are TILED FUSED:
     - For NON-SHARED tensors GLB utilization: Summed
     - For SHARED tensors: GLB utilization maxed
