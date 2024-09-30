@@ -9,13 +9,16 @@ class OpCompatibility:
     # Fusion information
     fused_tensors: fzs[str]
     fused_loops: tuple[tuple[str, int]]
-    fused_ranks: fzs[str]
 
     # General information about the einsum
     ranks: fzs[str]
     tensors: fzs[str]
     neighbors: fzs[str]
     einsum_id: str
+
+    @property
+    def fused_ranks(self):
+        return fzs(r for r, _ in self.fused_loops)
 
     def get_relevant_fused_loops(
         self, relevant_ranks: set[str]
@@ -84,7 +87,6 @@ class OpCompatibility:
             einsum_id=self.einsum_id,
             fused_tensors=self.fused_tensors & relevant_tensors,
             fused_loops=fused_loops,
-            fused_ranks=fzs(r for r, _ in fused_loops),
             ranks=self.ranks & relevant_ranks,
             tensors=self.tensors & relevant_tensors,
             neighbors=self.neighbors,
@@ -209,7 +211,6 @@ class TestOpCompatibility(unittest.TestCase):
                     einsum_id=l,
                     fused_tensors=fzs(["T1"]),
                     fused_loops=tuple((r[0], int(r[1])) for r in l.split(" ") if r),
-                    fused_ranks=fzs("ABCD"),
                     ranks=fzs("ABCD"),
                     tensors=fzs(["T1"]),
                     neighbors=fzs(),
@@ -239,7 +240,6 @@ class TestOpCompatibility(unittest.TestCase):
                     einsum_id=l,
                     fused_tensors=fzs(["T1"]),
                     fused_loops=tuple((r[0], int(r[1])) for r in l.split(" ") if r),
-                    fused_ranks=fzs("ABCD"),
                     ranks=fzs("ABCD"),
                     tensors=fzs(["T1"]),
                     neighbors=fzs(),

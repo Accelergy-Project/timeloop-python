@@ -12,14 +12,15 @@ if __name__ == "__main__":
     from itertools import permutations
 
     rank_sizes = {
-        "M1": 4,
-        "K1": 4,
-        "N1": 4,
-        "N2": 4,
-        "N3": 4,
-        "N4": 4,
+        "M1": 8,
+        "K1": 8,
+        "N1": 8,
+        "N2": 8,
+        "N3": 8,
+        "N4": 8,
     }
-    fusable_tensors = {"A1", "C1", "C2", "C3", "C4"}
+    # fusable_tensors = {"A1", "C1", "C2", "C3", "C4"}
+    fusable_tensors = {"A1", "C1", "C2", "C3", "C4"} | {"B1", "B2", "B3", "B4"}
     must_fuse = set()  # set(["C1", "C2", "C3", "C4"])
 
     compatibility_sets = []
@@ -56,7 +57,6 @@ if __name__ == "__main__":
                                     (p, f) for p, f in zip(perm, factors)
                                 ),
                                 fused_tensors=fzs(tn),
-                                fused_ranks=fzs(r),
                                 ranks=fzs(all_ranks),
                                 tensors=fzs(tensors),
                                 neighbors=fzs(neighbors),
@@ -192,8 +192,19 @@ if __name__ == "__main__":
             # print(f"Part 2")
             FusionSet.call_on_buckets(prev_buckets, FusionSet.vertical_combine)
             new_sols = []
+
             for s1, s2 in FusionSet.pair_matching_buckets(prev_buckets, next_buckets):
                 new_sols.append(s1.combine(s2))
+            import joblib
+
+            # new_sols = joblib.Parallel(n_jobs=64)(
+            #     [
+            #         joblib.delayed(lambda x1, x2: x1.combine(x2))(x1, x2)
+            #         for x1, x2 in FusionSet.pair_matching_buckets(
+            #             prev_buckets, next_buckets
+            #         )
+            #     ]
+            # )
 
             print(f"C: Generated {len(new_sols)} from {len(sols)} x {len(next_sols)}")
             return new_sols
@@ -219,18 +230,18 @@ if __name__ == "__main__":
         print(f"Relevant Tensors: {relevant_tensors}")
         print(f"Relevant Ranks: {relevant_ranks}")
 
-        bucketed = defaultdict(list)
-        for s in sols:
-            bucketed[
-                s.relevant_compatibility(ops_left, relevant_tensors, relevant_ranks)
-            ].append(s)
-        for k, v in sorted(bucketed.items()):
-            print(
-                f"{len(v)} in bucket\n       {'\n       '.join(str(s) for s in k.compatibility)}"
-            )
-            for i in sorted(v):
-                print(f"  {sorted(i.compatibility)}")
-        print("")
+        # bucketed = defaultdict(list)
+        # for s in sols:
+        #     bucketed[
+        #         s.relevant_compatibility(ops_left, relevant_tensors, relevant_ranks)
+        #     ].append(s)
+        # for k, v in sorted(bucketed.items()):
+        #     print(
+        #         f"{len(v)} in bucket\n       {'\n       '.join(str(s) for s in k.compatibility)}"
+        #     )
+        #     for i in sorted(v):
+        #         print(f"  {sorted(i.compatibility)}")
+        # print("")
 
         seen_einsums |= next_einsum
         seen_tensors |= next_tensors
