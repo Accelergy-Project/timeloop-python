@@ -36,7 +36,7 @@ namespace pytimeloop::application_bindings
         .PROPERTY(stats_string, application::Mapper::Result)
         .PROPERTY(tensella_string, application::Mapper::Result)
         .PROPERTY(xml_mapping_stats_string, application::Mapper::Result)
-        .PROPERTY(oaves_string, application::Mapper::Result);
+        .PROPERTY(orojenesis_string, application::Mapper::Result);
 
     // EvaluationResult in mapper-thread.cpp
     py::class_<EvaluationResult>(m, "MapperEvaluationResult")

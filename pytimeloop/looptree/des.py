@@ -10,6 +10,8 @@ class LooptreeOutput:
         self.op_occupancy = {}
         self.fills_by_peer = {}
         self.fills_by_parent = {}
+        self.temporal_steps = {}
+        self.fanout = {}
 
 
 def deserialize_looptree_output(

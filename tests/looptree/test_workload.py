@@ -12,7 +12,7 @@ class TestLooptreeWorkload(unittest.TestCase):
     def setUpClass(cls) -> None:
         yaml_str = gather_yaml_configs(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml']
+            ['cascaded_mm.workload.yaml']
         )
         config = Config(yaml_str, 'yaml')
         cls._workload = LooptreeWorkload.parse_cfg(config.root['problem'])
@@ -34,6 +34,14 @@ class TestLooptreeWorkload(unittest.TestCase):
         rank_shape = self._workload.get_rank_shape(name_to_id['M2'])
         self.assertEqual((0, 7), rank_shape)
 
+    def test_tensor_volume(self):
+        name_to_id = self._workload.data_space_name_to_id()
+        self.assertEqual(18, self._workload.get_tensor_volume(name_to_id['Fmap1']))
+        self.assertEqual(8, self._workload.get_tensor_volume(name_to_id['Filter1']))
+        self.assertEqual(36, self._workload.get_tensor_volume(name_to_id['Fmap2']))
+        self.assertEqual(32, self._workload.get_tensor_volume(name_to_id['Filter2']))
+        self.assertEqual(72, self._workload.get_tensor_volume(name_to_id['Fmap3']))
+
     def assert_maps_are_inverted_equivalent(self, dict1, dict2):
         for key1, value1 in dict1.items():
             self.assertEqual(key1, dict2[value1])
@@ -50,7 +58,7 @@ class TestLooptreeWorkloadDependencyAnalyzer(unittest.TestCase):
     def setUpClass(cls) -> None:
         yaml_str = gather_yaml_configs(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml']
+            ['cascaded_mm.workload.yaml']
         )
         config = Config(yaml_str, 'yaml')
         cls._workload = LooptreeWorkload.parse_cfg(config.root['problem'])
@@ -147,3 +155,20 @@ class TestLooptreeWorkloadDependencyAnalyzer(unittest.TestCase):
                     self._data_space_name_to_id[tensor]
                 )
         )
+
+    def test_equivalent_ranks(self):
+        ARG_TO_ANSWER = {
+            ('Fc1', 'P1'): {'P1', 'P2'},
+            ('Fc1', 'C1'): {'C1'},
+            ('Fc1', 'M1'): {'M1', 'C2'},
+            ('Fc2', 'P2'): {'P1', 'P2'},
+            ('Fc2', 'C2'): {'M1', 'C2'},
+            ('Fc2', 'M2'): {'M2'},
+        }
+        for (einsum, einsum_rank), answer in ARG_TO_ANSWER.items():
+            equiv_ranks = self._analyzer.equivalent_dimensions(
+                self._einsum_name_to_id[einsum],
+                self._dimension_name_to_id[einsum_rank]
+            )
+            answer_id = {self._dimension_name_to_id[r] for r in answer}
+            self.assertTrue(answer_id, equiv_ranks)

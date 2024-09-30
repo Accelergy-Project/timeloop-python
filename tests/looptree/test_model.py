@@ -7,7 +7,7 @@ import islpy as isl
 from bindings.config import Config
 from bindings.looptree import *
 from pytimeloop.looptree.des import deserialize_looptree_output
-from.make_model_app import make_model_app
+from .make_model_app import make_model_app
 from tests.util import TEST_TMP_DIR, gather_yaml_configs
 
 class LooptreeModelAppTest(unittest.TestCase):

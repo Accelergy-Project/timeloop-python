@@ -23,6 +23,8 @@ TIMELOOP_EXAMPLES_DIR = (
 # The directory of the test temp files.
 TEST_TMP_DIR = PROJECT_DIR / "tests/tmp-files"
 
+CONFIG_DIR = PROJECT_DIR / "tests/test_configs"
+
 
 def gather_yaml_files(input_patterns: map) -> str:
     """Combines YAML files specified into one big string.

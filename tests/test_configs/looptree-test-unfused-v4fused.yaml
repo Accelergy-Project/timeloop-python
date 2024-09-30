@@ -1,42 +1,54 @@
 variables:
   global_cycle_seconds: 1e-9
-  technology: "40nm"
+  technology: "45nm"
 
 mapping:
   type: fused
   nodes:
   - type: storage
     target: 0
-    dspace: [Filter1, Filter2, Fmap1, Fmap3]
-  - type: storage
-    target: 1
-    dspace: [Filter1, Filter2]
-  - type: temporal
-    rank: P2
-    tile_shape: 3
-  - type: storage
-    target: 1
-    dspace: [Fmap1, Fmap3]
-  - type: storage
-    target: 2
-    dspace: [Fmap2]
-  - type: pipeline
+    dspace: [Filter1, Filter2, Fmap1, Fmap2, Fmap3]
+  - type: sequential
     branches:
-    - - type: temporal
+    - - type: storage
+        target: 1
+        dspace: [Filter1]
+      - type: temporal
+        rank: P1
+        tile_shape: 1
+      - type: storage
+        target: 1
+        dspace: [Fmap1]
+      - type: spatial
         rank: M1
         tile_shape: 1
-      - type: spatial
+      - type: storage
+        target: 2
+        dspace: [Fmap2]
+      - type: temporal
         rank: C1
         tile_shape: 1
       - type: compute
         einsum: Fc1
         target: 3
-    - - type: temporal
-        rank: C2
+    - - type: storage
+        target: 1
+        dspace: [Filter2]
+      - type: temporal
+        rank: P2
+        tile_shape: 1
+      - type: storage
+        target: 1
+        dspace: [Fmap3]
+      - type: spatial
+        rank: M2
         tile_shape: 1
       - type: spatial
-        rank: M3
+        rank: C2
         tile_shape: 1
+      - type: storage
+        target: 2
+        dspace: [Fmap2]
       - type: compute
         einsum: Fc2
         target: 3
@@ -55,7 +67,7 @@ problem:
       - name: Fmap2
         dimensions: [ Fmap2_C, Fmap2_P ]
         projection: '[ M1, P1 ]'
-        read-write: True
+        read_write: True
 
     instance: >-
       0 <= P1 < 9 and 0 <= M1 < 4 and 0 <= C1 < 2
@@ -73,7 +85,7 @@ problem:
       - name: Fmap3
         dimensions: [ Fmap3_C, Fmap3_P ]
         projection: '[ M2, P2 ]'
-        read-write: True
+        read_write: True
 
     instance: >-
       0 <= P2 < 9 and 0 <= M2 < 8 and 0 <= C2 < 4

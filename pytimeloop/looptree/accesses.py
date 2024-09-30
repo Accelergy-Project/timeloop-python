@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from numbers import Number
 
 import islpy as isl
 
@@ -9,11 +10,16 @@ from pytimeloop.looptree.mapping_utilities import *
 def get_total_accesses(accesses: Mapping):
     result = {}
     for k, v in accesses.items():
-        sum = get_sum_of_pw_qpolynomial(v)
-        if sum.is_nan():
-            result[k] = 0
+        if isinstance(v, isl.PwQPolynomial):
+            sum = get_sum_of_pw_qpolynomial(v)
+            if sum.is_nan():
+                result[k] = 0
+            else:
+                result[k] = sum.to_python()
+        elif isinstance(v, Number):
+            result[k] = v
         else:
-            result[k] = sum.to_python()
+            result[k] = v
 
     return result
 

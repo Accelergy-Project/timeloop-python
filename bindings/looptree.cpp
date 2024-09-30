@@ -25,7 +25,8 @@ namespace pytimeloop::looptree_bindings
   void BindLooptree(py::module& m)
   {
     py::class_<application::LooptreeModel>(m, "LooptreeModelApp")
-        .def(py::init<config::CompoundConfig*, std::string, std::string>())
+        .def(py::init<config::CompoundConfig*>())
+        .def(py::init<const problem::FusedWorkload&, const mapping::FusedMapping&>())
         .def("run", &application::LooptreeModel::Run);
 
     py::class_<analysis::Temporal>(m, "TemporalTag").def(py::init<>());
@@ -41,6 +42,9 @@ namespace pytimeloop::looptree_bindings
         .def_readwrite("fills_by_peer", &application::LooptreeModel::Result::fills_by_peer)
         .def_readwrite("occupancy", &application::LooptreeModel::Result::occupancy)
         .def_readwrite("temporal_steps", &application::LooptreeModel::Result::temporal_steps);
+
+    py::class_<mapping::FusedMapping>(m, "FusedMapping")
+        .def_static("parse", &mapping::ParseMapping);
 
     py::class_<problem::FusedWorkload>(m, "LooptreeWorkload")
         .FUSED_WORKLOAD_METHOD(einsum_name_to_id, EinsumNameToId)
@@ -58,6 +62,8 @@ namespace pytimeloop::looptree_bindings
         .FUSED_WORKLOAD_METHOD(reader_einsums, ReaderEinsums)
         .FUSED_WORKLOAD_METHOD(writer_einsum, WriterEinsum)
         .FUSED_WORKLOAD_METHOD(get_rank_shape, GetRankShape)
+        .FUSED_WORKLOAD_METHOD(get_tensor_volume, GetTensorSize)
+        .FUSED_WORKLOAD_METHOD(get_operation_space_volume, GetOspaceVolume)
         .def_static("parse_cfg", &problem::ParseFusedWorkload);
 
     py::class_<problem::FusedWorkloadDependencyAnalyzer>(m, "LooptreeWorkloadDependencyAnalyzer")
@@ -66,7 +72,8 @@ namespace pytimeloop::looptree_bindings
         .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dim_is_directly_relevant_to_tensor, EinsumDimIsDirectlyRelevantToTensor)
         .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dim_is_relevant_to_tensor, EinsumDimIsRelevantToTensor)
         .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dims_directly_relevant_to_tensor, EinsumDimsDirectlyRelevantToTensor)
-        .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dims_relevant_to_tensor, EinsumDimsRelevantToTensor);
+        .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dims_relevant_to_tensor, EinsumDimsRelevantToTensor)
+        .FUSED_WORKLOAD_ANALYZER_METHOD(equivalent_dimensions, EquivalentDimensions);
   }
 }
 
