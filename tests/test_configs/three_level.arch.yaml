@@ -1,0 +1,22 @@
+variables:
+  global_cycle_seconds: 1e-9
+  technology: "45nm"
+
+architecture:
+  version: 0.4
+  nodes:
+  - !Component
+    name: MainMemory
+    class: DRAM
+    attributes: {width: 256, block_size: 32, word_bits: 8, datawidth: 8}
+    required_actions: ['read', 'write']
+  - !Component
+    name: GlobalBuffer
+    class: SRAM
+    attributes: {depth: 8192, width: 256, block_size: 32, word_bits: 8, datawidth: 8}
+    required_actions: ['read', 'write']
+  - !Component
+    name: MACC
+    class: intmac
+    attributes: {datawidth: 8, width: 8}
+    required_actions: ['compute']

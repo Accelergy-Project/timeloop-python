@@ -1,4 +1,5 @@
 from ..common.nodes import ListNode
+from ..v4.arch import Architecture
 from ..v4.art import Art
 from ..v4.ert import Ert
 from ..v4.variables import Variables
@@ -34,7 +35,7 @@ class Specification(BaseSpecification):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
-        super().add_attr("architecture", dict)
+        super().add_attr("architecture", Architecture)
         super().add_attr(
             "components", Components, {"version": 0.4}, part_name_match=True
         )

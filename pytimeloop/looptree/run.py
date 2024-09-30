@@ -18,16 +18,17 @@ from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     yaml_str = gather_yaml_configs(config_dir, paths)
     config = Config(yaml_str, 'yaml')
-    if isinstance(tmp_path, Path):
-        tmp_path = str(tmp_path)
-    model = LooptreeModelApp(config, tmp_path, 'looptree-model')
+    model = LooptreeModelApp(config)
 
     workload = LooptreeWorkload.parse_cfg(config.root['problem'])
 
     spec = Specification.from_yaml_files([
         str(config_dir / p) for p in paths
     ])
+
     if call_accelergy:
+        if isinstance(tmp_path, Path):
+            tmp_path = str(tmp_path)
         call_accelergy_verbose(spec, tmp_path)
         spec = Specification.from_yaml_files([
             str(config_dir / p) for p in paths

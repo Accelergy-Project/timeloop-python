@@ -10,20 +10,20 @@ mapping:
         target: 1
         dspace: [Filter1]
       - type: temporal
-        dimension: P1
-        tile_size: 1
+        rank: P1
+        tile_shape: 1
       - type: storage
         target: 1
         dspace: [Fmap1]
       - type: spatial
-        dimension: M1
-        tile_size: 1
+        rank: M1
+        tile_shape: 1
       - type: storage
         target: 2
         dspace: [Fmap2]
       - type: temporal
-        dimension: C1
-        tile_size: 1
+        rank: C1
+        tile_shape: 1
       - type: compute
         einsum: Fc1
         target: 3
@@ -31,17 +31,17 @@ mapping:
         target: 1
         dspace: [Filter2]
       - type: temporal
-        dimension: P2
-        tile_size: 1
+        rank: P2
+        tile_shape: 1
       - type: storage
         target: 1
         dspace: [Fmap3]
       - type: spatial
-        dimension: M2
-        tile_size: 1
+        rank: M2
+        tile_shape: 1
       - type: spatial
-        dimension: C2
-        tile_size: 1
+        rank: C2
+        tile_shape: 1
       - type: storage
         target: 2
         dspace: [Fmap2]
@@ -87,36 +87,17 @@ problem:
       0 <= P2 < 9 and 0 <= M2 < 8 and 0 <= C2 < 4
 
 architecture:
-  version: 0.2
-
-  subtree:
-  - name: System
-    
-    local:
-    - name: MainMemory
-      class: DRAM
-      attributes:
-        width: 256
-        block_size: 32
-        word_bits: 8
-
-    subtree:
-    - name: Chip
-      attributes:
-        technology: 40nm
-      local:
-      - name: GlobalBuffer
-        class: SRAM
-        attributes:
-          depth: 8192
-          width: 256
-          block_size: 32
-          word_bits: 8
-
-      subtree:
-      - name: PE
-        local:
-        - name: MACC[0..15]
-          class: intmac
-          attributes:
-            datawidth: 8
+  version: 0.4
+  nodes:
+  - !Component
+    name: MainMemory
+    class: DRAM
+    attributes: {width: 256, block_size: 32, word_bits: 8, datawidth: 8}
+  - !Component
+    name: GlobalBuffer
+    class: SRAM
+    attributes: {depth: 8192, width: 256, block_size: 32, word_bits: 8, datawidth: 8}
+  - !Component
+    name: MACC
+    class: intmac
+    attributes: {datawidth: 8}
