@@ -1,10 +1,14 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from functools import partial
 
 from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
 
-from bindings.looptree import LooptreeWorkloadDependencyAnalyzer
+from bindings.looptree import (
+    LooptreeWorkload,
+    LooptreeWorkloadDependencyAnalyzer
+)
 
 from pytimeloop.fastfusion.pareto import OpData, Pareto
 
@@ -17,7 +21,7 @@ def mapper(config, spec, workload, name_of_einsum_to_eval, tmp_path):
     einsum_name_to_id = workload.einsum_name_to_id()
     id_of_einsum_to_eval = einsum_name_to_id[name_of_einsum_to_eval]
 
-    bindings, max_spatial = get_hardware_levels(spec.architecture)
+    bindings, max_spatial, max_capacity = get_hardware_levels(spec.architecture)
 
     ranks = workload.einsum_ospace_dimensions(id_of_einsum_to_eval)
     tensors = (
@@ -27,6 +31,8 @@ def mapper(config, spec, workload, name_of_einsum_to_eval, tmp_path):
     )
 
     adj_list = get_neighbors(workload)
+
+    fusable_tensors = tensors & get_intermediate_tensors(workload)
 
     # Shape is given as *inclusive* (min, max) by workload
     einsum_shape = {
@@ -68,6 +74,7 @@ def mapper(config, spec, workload, name_of_einsum_to_eval, tmp_path):
                                                ranks,
                                                tensors,
                                                max_spatial=max_spatial[hw_level],
+                                               max_capacity=max_capacity,
                                                can_bypass=False,
                                                lower_mapper=None,
                                                partial_model=partial(final_model,
@@ -78,6 +85,7 @@ def mapper(config, spec, workload, name_of_einsum_to_eval, tmp_path):
                                                ranks,
                                                tensors,
                                                max_spatial=max_spatial[hw_level],
+                                               max_capacity=max_capacity,
                                                can_bypass=True,
                                                lower_mapper=cur_mapper,
                                                partial_model=partial(partial_model,
@@ -108,11 +116,16 @@ def mapper(config, spec, workload, name_of_einsum_to_eval, tmp_path):
 def get_hardware_levels(arch):
     bindings = {}
     fanout = {}
+    max_capacity = {}
     for node in arch['nodes']:
         bindings_id = len(bindings)
         bindings[bindings_id] = node['name']
         fanout[bindings_id] = (node.spatial.meshX, node.spatial.meshY)
-    return bindings, fanout
+        attribute = node.attribute
+        if 'width' in attribute and 'height' in attribute:
+            max_capacity[bindings_id] = \
+                attribute.width * attribute.height / attribute.datawidth
+    return bindings, fanout, max_capacity
 
 
 def get_neighbors(workload):
@@ -131,3 +144,18 @@ def get_neighbors(workload):
                 adj_list[einsum_u_id].append(einsum_v_id)
                 adj_list[einsum_v_id].append(einsum_u_id)
     return adj_list
+
+
+def get_intermediate_tensors(workload: LooptreeWorkload):
+    tensor_id_to_name = workload.data_space_id_to_name()
+    result = set()
+    for einsum in workload.einsum_id_to_name():
+        written_tensors = workload.tensors_written_by_einsum(einsum)
+        for tensor in written_tensors:
+            reader_einsums = workload.reader_einsums(tensor)
+            for reader in reader_einsums:
+                if reader in workload.einsum_id_to_name():
+                    result.add(tensor_id_to_name[tensor])
+                    break
+
+    return result
