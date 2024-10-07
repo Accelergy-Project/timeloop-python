@@ -1,4 +1,5 @@
 from copy import deepcopy
+from collections import defaultdict
 from functools import reduce
 from itertools import permutations, product
 from more_itertools import powerset
@@ -20,26 +21,30 @@ class TopLevelMapper:
                  id_of_einsum_to_eval,
                  neighbors,
                  lower_mapper,
+                 model,
                  partial_model,
                  step_back_model,
+                 bits_per_word,
                  max_spatial=(1,),
                  max_capacity=None,
                  mapping_filter=None,
                  stats_filter=None):
         self.hw_level = hw_level
-        self.ranks = ranks
-        self.tensors = tensors
+        self.ranks = frozenset(ranks)
+        self.tensors = frozenset(tensors)
         self.fusable_tensors = fusable_tensors
         self.id_of_einsum_to_eval = id_of_einsum_to_eval
-        self.neighbors = neighbors
+        self.neighbors = frozenset(neighbors)
         self.lower_mapper = lower_mapper
         self.mapping_filter = mapping_filter
         self.stats_filter = stats_filter
+        self.model = model
         self.partial_model = partial_model
         self.step_back_model = step_back_model
         self.max_spatial = max_spatial
         self.max_capacity = max_capacity
-        self.compatibility_to_df = {}
+        self.compatibility_to_df = defaultdict(lambda: defaultdict(lambda: list()))
+        self.bits_per_word = bits_per_word
 
     def store_evaluation_result(self, fused_tensors, fused_loops, metrics):
         op_compatibility = OpCompatibility(
@@ -52,15 +57,13 @@ class TopLevelMapper:
         )
         df = self.compatibility_to_df[op_compatibility]
 
-        df['__Occupancy'].append(sum(metrics['__Occupancy'].values()))
+        df['__Occupancy'].append(sum(metrics.capacity.values()))
         for tensor in self.tensors:
-            df[f'__{tensor} Data Size'] = self.bits_per_word
-            df[f'__{tensor} Num Elems'] = metrics['__Occupancy'][tensor]
+            df[f'__{tensor} Data Size'].append(self.bits_per_word)
+            df[f'__{tensor} Num Elems'].append(metrics.capacity[(self.hw_level, tensor)])
 
-        for key, value in metrics.items():
-            if key in ['__Occupancy']:
-                continue
-            df[key].append(value)
+        df['Latency'] = metrics.latency
+        df['Energy'] = metrics.energy
 
     def get_result(self):
         return {
@@ -75,6 +78,7 @@ class TopLevelMapper:
             t for t in self.tensors if t not in self.fusable_tensors
         }
         for fused_tensors in powerset(self.fusable_tensors):
+            fused_tensors = frozenset(fused_tensors)
             unfused_tensors = \
                 unfusable_tensors | (self.fusable_tensors - fused_tensors)
             state = SteppedModelState()
@@ -110,12 +114,12 @@ class TopLevelMapper:
                             spatial_tile_shapes.append(tile_shape[start:start+num_ranks])
                             start += num_ranks
 
-                        temporal_loops = list(zip(temporal_ranks, temporal_tile_shape))
+                        temporal_loops = tuple(zip(temporal_ranks, temporal_tile_shape))
                         if not self.check_mapping(temporal_loops, tile_shape, fused_tensors):
                             continue
 
                         spatial_loops = [
-                            list(zip(ranks, spatial_tile_shape))
+                            tuple(zip(ranks, spatial_tile_shape))
                             for ranks, spatial_tile_shape
                             in zip(spatial_ranks, spatial_tile_shapes)
                         ]
@@ -136,10 +140,14 @@ class TopLevelMapper:
                                 if invalid_spatial:
                                     break
 
+                                total_capacity = 0
+                                for (level, _), capacity in stats.capacity.items():
+                                    if level == self.hw_level:
+                                        total_capacity += capacity
                                 invalid_capacity = (
                                     self.max_capacity is not None
                                     and
-                                    stats.capacity[self.hw_level] > self.max_capacity
+                                    total_capacity > self.max_capacity
                                 )
                                 if invalid_capacity:
                                     tile_shape_iterator.skip_current_rank_iteration()
@@ -159,10 +167,14 @@ class TopLevelMapper:
                             if invalid_spatial:
                                 continue
 
+                            total_capacity = 0
+                            for (level, _), capacity in stats.capacity.items():
+                                if level == self.hw_level:
+                                    total_capacity += capacity
                             invalid_capacity = (
                                 self.max_capacity is not None
                                 and
-                                stats.capacity[self.hw_level] > self.max_capacity
+                                total_capacity > self.max_capacity
                             )
                             if invalid_capacity:
                                 tile_shape_iterator.skip_current_rank_iteration()

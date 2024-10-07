@@ -1,7 +1,7 @@
 import copy
 from dataclasses import dataclass
 import unittest
-from util import fzs
+from .util import fzs
 
 
 @dataclass(frozen=True)

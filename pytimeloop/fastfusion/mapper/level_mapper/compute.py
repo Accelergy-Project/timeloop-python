@@ -6,7 +6,7 @@ from operator import mul
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 
 
-class ExhaustiveLevelMapper:
+class ComputeLevelMapper:
     def __init__(self,
                  hw_level: str,
                  ranks,
@@ -41,7 +41,7 @@ class ExhaustiveLevelMapper:
 
         n_spatial = len(self.max_spatial)
         for bypassing in bypass_choices:
-            temporal_ranks_choices = permutations(self.ranks, len(self.ranks))
+            temporal_ranks_choices = [tuple(self.ranks)]
             spatial_ranks_choices = permutations(self.ranks)
             if reduce(mul, self.max_spatial, 1) == 1:
                 spatial_ranks_choices = [[]]
@@ -49,23 +49,20 @@ class ExhaustiveLevelMapper:
                 spatial_ranks_choices = product(spatial_ranks_choices, repeat=n_spatial)
             for temporal_ranks in temporal_ranks_choices:
                 for spatial_ranks in spatial_ranks_choices:
-                    n_temporal_ranks = len(temporal_ranks)
                     n_spatial_ranks = tuple(len(ranks) for ranks in spatial_ranks)
                     all_ranks = (
-                        list(temporal_ranks) 
-                        +
                         sum((list(ranks) for ranks in spatial_ranks), start=[])
                     )
                     tile_shape_subspace = ShapeSubspace(rank_shapes, all_ranks)
                     tile_shape_iterator = iter(tile_shape_subspace)
                     for tile_shape, leftover_rank_shapes in tile_shape_iterator:
-                        temporal_tile_shape = tile_shape[:n_temporal_ranks]
-                        start = n_temporal_ranks
+                        start = 0
                         spatial_tile_shapes = []
                         for num_ranks in n_spatial_ranks:
                             spatial_tile_shapes.append(tile_shape[start:start+num_ranks])
                             start += num_ranks
 
+                        temporal_tile_shape = tuple(1 for _ in range(len(self.ranks)))
                         temporal_loops = tuple(zip(temporal_ranks, temporal_tile_shape))
                         if not self.check_mapping(temporal_loops, tile_shape, bypassing):
                             continue

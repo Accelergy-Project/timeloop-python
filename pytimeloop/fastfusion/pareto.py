@@ -3,7 +3,7 @@ import unittest
 from paretoset import paretoset
 import pandas as pd
 from dataclasses import dataclass
-from util import fzs
+from .util import fzs
 
 MAPPING = "__Mappings"
 OCCUPANCY = f"__Occupancy"

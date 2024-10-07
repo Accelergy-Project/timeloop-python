@@ -113,6 +113,7 @@ class SteppedModel:
         # config = Config(config_str, 'yaml')
 
         # model = LooptreeModelApp(config)
+        self.eval_count += 1
         result = run_fastmodel({'nodes': state.mapping},
                                state.id_of_einsum_to_eval,
                                self.workload,
@@ -131,12 +132,9 @@ class SteppedModel:
 
         stats = Stats()
         stats.energy = energy
-        stats.latency = result.temporal_steps
+        stats.latency = result.temporal_steps[state.id_of_einsum_to_eval]
         stats.spatial = result.fanout
-        levels = {level for (level, tensor) in result.occupancy}
-        stats.capacity = {level: 0 for level in levels}
-        for (level, tensor), occupancy in result.occupancy.items():
-            stats.capacity[level] += occupancy
+        stats.capacity = result.occupancy
 
         return stats
 
