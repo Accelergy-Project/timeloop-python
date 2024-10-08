@@ -14,7 +14,11 @@ class TestCapacityAggregators(unittest.TestCase):
     def test_capacity_analysis(self):
         model, spec, workload = make_model_app(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml'],
+            [
+                'looptree-test-fused.yaml',
+                'cascaded_mm.workload.yaml',
+                'three_level.arch.yaml'
+            ],
             TEST_TMP_DIR,
             False
         )

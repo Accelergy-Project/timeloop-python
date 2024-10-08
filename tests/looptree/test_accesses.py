@@ -12,6 +12,7 @@ from pytimeloop.looptree.des import deserialize_looptree_output
 from pytimeloop.looptree.accesses import *
 
 from tests.util import TEST_TMP_DIR, gather_yaml_configs
+from .make_model_app import make_model_app
 
 
 class TestLoopTreeAccess(unittest.TestCase):
@@ -19,7 +20,11 @@ class TestLoopTreeAccess(unittest.TestCase):
         self.maxDiff = None
         self.check_accesses(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml'],
+            [
+                'looptree-test-fused.yaml',
+                'cascaded_mm.workload.yaml',
+                'three_level.arch.yaml'
+            ],
             TEST_TMP_DIR,
             {
                 (0, 'Fmap1', 'Fc1'): 18,
@@ -45,7 +50,11 @@ class TestLoopTreeAccess(unittest.TestCase):
     def test_accesses_with_two_level_mm_unfused(self):
         self.check_accesses(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-unfused.yaml'],
+            [
+                'looptree-test-unfused.yaml',
+                'cascaded_mm.workload.yaml',
+                'three_level.arch.yaml'
+            ],
             TEST_TMP_DIR,
             {
                 (0, 'Fmap1', 'Fc1'): 18,
@@ -85,9 +94,9 @@ class TestLoopTreeAccess(unittest.TestCase):
     def check_accesses(
         self, config_dir, paths, tmp_path, read_refs, write_refs
     ):
-        model, config, workload = self.make_model_app(config_dir,
-                                                      paths,
-                                                      tmp_path)
+        model, config, workload = make_model_app(config_dir,
+                                                 paths,
+                                                 tmp_path)
 
         result = model.run()
         result = deserialize_looptree_output(result, isl.DEFAULT_CONTEXT)
@@ -104,6 +113,7 @@ class TestLoopTreeAccess(unittest.TestCase):
 
         reads, writes = reads_and_writes_from_fill_by_peer(
             result.fills_by_peer,
+            config['mapping'],
             workload
         )
         reads = get_total_accesses(reads)

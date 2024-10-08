@@ -1,0 +1,268 @@
+processors: []
+_required_processors: []
+architecture:
+    version: 0.3
+    subtree:
+      - name: system
+        local:
+          - name: DRAM
+            class: DRAM
+            attributes:
+                type: "LPDDR4"
+                width: 64
+                block_size: 8
+                word_bits: 8
+                technology: -1
+            required_actions:
+              - read
+              - write
+              - update
+              - leak
+        subtree:
+          - name: eyeriss
+            attributes:
+                technology: "32nm"
+            local:
+              - name: shared_glb
+                class: smartbuffer_SRAM
+                attributes:
+                    memory_depth: 16384
+                    memory_width: 64
+                    n_banks: 32
+                    block_size: 8
+                    word_bits: 8
+                    read_bandwidth: 16
+                    write_bandwidth: 16
+                    technology: -1
+                required_actions:
+                  - read
+                  - write
+                  - update
+                  - leak
+              - name: DummyBuffer[0..13]
+                class: regfile
+                attributes:
+                    depth: 16
+                    width: 16
+                    word_bits: 16
+                    block_size: 1
+                    meshX: 14
+                    technology: -1
+                required_actions:
+                  - read
+                  - write
+                  - update
+                  - leak
+            subtree:
+              - name: PE[0..167]
+                local:
+                  - name: ifmap_spad
+                    class: smartbuffer_RF
+                    attributes:
+                        memory_depth: 12
+                        memory_width: 16
+                        block_size: 2
+                        word_bits: 8
+                        meshX: 14
+                        read_bandwidth: 2
+                        write_bandwidth: 2
+                        technology: -1
+                    required_actions:
+                      - read
+                      - write
+                      - update
+                      - leak
+                  - name: weights_spad
+                    class: smartbuffer_RF
+                    attributes:
+                        memory_depth: 192
+                        memory_width: 16
+                        block_size: 2
+                        word_bits: 8
+                        meshX: 14
+                        read_bandwidth: 2
+                        write_bandwidth: 2
+                        technology: -1
+                    required_actions:
+                      - read
+                      - write
+                      - update
+                      - leak
+                  - name: psum_spad
+                    class: smartbuffer_RF
+                    attributes:
+                        memory_depth: 16
+                        memory_width: 16
+                        update_fifo_depth: 2
+                        block_size: 1
+                        word_bits: 16
+                        meshX: 14
+                        read_bandwidth: 2
+                        write_bandwidth: 2
+                        technology: -1
+                    required_actions:
+                      - read
+                      - write
+                      - update
+                      - leak
+                  - name: mac
+                    class: intmac
+                    attributes:
+                        meshX: 14
+                        multiplier_width: 8
+                        adder_width: 16
+                        technology: -1
+                    required_actions:
+                      - read
+                      - write
+                      - update
+                      - leak
+architecture_constraints:
+    version: 0.4
+    targets:
+      - target: psum_spad
+        type: bypass
+        bypass:
+          - Inputs
+          - Weights
+        keep:
+          - Outputs
+      - target: weights_spad
+        type: bypass
+        bypass:
+          - Inputs
+          - Outputs
+        keep:
+          - Weights
+      - target: ifmap_spad
+        type: bypass
+        bypass:
+          - Weights
+          - Outputs
+        keep:
+          - Inputs
+      - target: DummyBuffer
+        type: bypass
+        bypass:
+          - Inputs
+          - Outputs
+          - Weights
+      - target: shared_glb
+        type: bypass
+        bypass:
+          - Weights
+        keep:
+          - Inputs
+          - Outputs
+      - target: DummyBuffer
+        type: spatial
+        split: 4
+        permutation: NPQR SCM
+        factors: N=1 P=1 Q=1 R=1
+      - target: shared_glb
+        type: spatial
+        split: 7
+        permutation: NCPRSQM
+        factors: N=1 C=1 P=1 R=1 S=1
+      - target: psum_spad
+        type: temporal
+        permutation: NCPQRS M
+        factors: N=1 C=1 R=1 S=1 P=1 Q=1
+      - target: weights_spad
+        type: temporal
+        permutation: NMPQS CR
+        factors: N=1 M=1 P=1 Q=1 S=1
+      - target: ifmap_spad
+        type: temporal
+        permutation: NMCPQRS
+        factors: N=1 M=1 C=1 P=1 Q=1 R=1 S=1
+      - target: DummyBuffer
+        type: temporal
+        factors: N=1 M=1 C=1 P=1 Q=1 R=1 S=1
+        permutation: NMCPQRS
+mapper:
+    version: 0.4
+    optimization_metrics:
+      - edp
+    live_status: false
+    num_threads: 1
+    timeout: 100000
+    victory_condition: 1
+    algorithm: random_pruned
+    diagnostics: false
+variables:
+    version: 0.4
+    technology: 1
+    global_cycle_seconds: 1
+problem:
+    version: 0.4
+    instance:
+        C: 3
+        H: 224
+        Hdilation: 1
+        Hpad: 1
+        Hstride: 2
+        M: 32
+        N: 1
+        P: 112
+        Q: 112
+        R: 3
+        S: 3
+        W: 224
+        Wdilation: 1
+        Wpad: 1
+        Wstride: 2
+    shape:
+        coefficients:
+          - default: 1
+            name: Wstride
+          - default: 1
+            name: Hstride
+          - default: 1
+            name: Wdilation
+          - default: 1
+            name: Hdilation
+        data_spaces:
+          - name: Weights
+            projection:
+              -   -   - C
+              -   -   - M
+              -   -   - R
+              -   -   - S
+          - name: Inputs
+            projection:
+              -   -   - N
+              -   -   - C
+              -   -   - R
+                      - Wdilation
+                  -   - P
+                      - Wstride
+              -   -   - S
+                      - Hdilation
+                  -   - Q
+                      - Hstride
+          - name: Outputs
+            projection:
+              -   -   - N
+              -   -   - M
+              -   -   - Q
+              -   -   - P
+            read_write: true
+        dimensions:
+          - C
+          - M
+          - R
+          - S
+          - N
+          - P
+          - Q
+        name: conv2D
+_parsed_expressions: true
+_processors_run:
+  - <class 'pytimeloop.timeloopfe.common.processor.References2CopiesProcessor'>
+_processors_run_pre_parse: []
+components: {}
+constraints: {}
+mapping: []
+sparse_optimizations: {}
+mapspace: {}

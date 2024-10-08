@@ -11,7 +11,7 @@ from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 def make_model_app(config_dir: Path, paths: list, tmp_path, call_accelergy: bool = True):
     yaml_str = gather_yaml_configs(config_dir, paths)
     config = Config(yaml_str, 'yaml')
-    model = LooptreeModelApp(config, str(tmp_path), 'looptree-model')
+    model = LooptreeModelApp(config)
 
     spec = Specification.from_yaml_files([
         str(config_dir / p) for p in paths

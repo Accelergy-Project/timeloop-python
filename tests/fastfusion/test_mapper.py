@@ -1,8 +1,8 @@
 import unittest
 
-from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
+from bindings.looptree import LooptreeWorkload
 
-from pytimeloop.fastfusion.mapper import mapper, get_neighbors, get_intermediate_tensors
+from pytimeloop.fastfusion.mapper.mapper import mapper
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 
 from tests.load_config_mixin import LoadConfigMixin
@@ -15,31 +15,11 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
             'cascaded_mm.workload.yaml',
             'three_level.arch.yaml'
         ])
-
-        workload = LooptreeWorkload.parse_cfg(config.root['problem'])
-        analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
-        NAME_OF_EINSUM_TO_MAP = 'Fc1'
-        einsum_name_to_id = workload.einsum_name_to_id()
-        id_of_einsum_to_eval = einsum_name_to_id[NAME_OF_EINSUM_TO_MAP]
-        tensors = (
-            workload.tensors_read_by_einsum(id_of_einsum_to_eval)
-            |
-            workload.tensors_written_by_einsum(id_of_einsum_to_eval)
-        )
-        fusable_tensors = tensors & get_intermediate_tensors(workload)
-
-        adj_list = get_neighbors(workload)
-
+        print('start')
 
         result = mapper(config,
-                        NAME_OF_EINSUM_TO_MAP,
-                        fusable_tensors,
-                        adj_list[id_of_einsum_to_eval],
-                        workload,
-                        analyzer,
                         spec,
                         TEST_TMP_DIR)
-        print(result)
 
 
 class TestShapeSubspace(LoadConfigMixin, unittest.TestCase):

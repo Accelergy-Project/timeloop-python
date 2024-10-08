@@ -12,7 +12,9 @@ from tests.load_config_mixin import LoadConfigMixin
 class TestLooptreeFastModel(LoadConfigMixin, unittest.TestCase):
     def test_with_fused(self):
         config, spec = self.load_config([
-            'looptree-test-fused.yaml'
+            'looptree-test-fused.yaml',
+            'cascaded_mm.workload.yaml',
+            'three_level.arch.yaml'
         ])
 
         BINDINGS = {

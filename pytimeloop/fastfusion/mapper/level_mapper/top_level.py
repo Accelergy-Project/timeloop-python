@@ -2,8 +2,9 @@ from copy import deepcopy
 from collections import defaultdict
 from functools import reduce
 from itertools import permutations, product
-from more_itertools import powerset
 from operator import mul
+
+from more_itertools import powerset
 
 import pandas as pd
 

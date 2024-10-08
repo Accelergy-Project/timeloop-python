@@ -4,7 +4,10 @@ from functools import partial
 from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
 
-from bindings.looptree import LooptreeWorkload
+from bindings.looptree import (
+    LooptreeWorkload,
+    LooptreeWorkloadDependencyAnalyzer
+)
 
 from pytimeloop.fastfusion.pareto import OpData, Pareto
 
@@ -14,14 +17,42 @@ from .level_mapper.top_level import TopLevelMapper
 from .stepped_model import Stats, SteppedModel, SteppedModelState
 
 
-def mapper(config,
-           name_of_einsum_to_eval,
-           fusable_tensors,
-           neighbors,
-           workload,
-           analyzer,
-           spec,
-           tmp_path):
+def mapper(config, spec, tmp_path):
+    workload = LooptreeWorkload.parse_cfg(config.root['problem'])
+    analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+
+    adj_list = get_neighbors(workload)
+
+    einsum_name_to_id = workload.einsum_name_to_id()
+    einsum_to_initial_data = {}
+    for einsum_name, einsum_id in einsum_name_to_id.items():
+        tensors = (
+            workload.tensors_read_by_einsum(einsum_id)
+            |
+            workload.tensors_written_by_einsum(einsum_id)
+        )
+        fusable_tensors = tensors & get_intermediate_tensors(workload)
+
+        data = layer_mapper(config,
+                            einsum_name,
+                            fusable_tensors,
+                            adj_list[einsum_id],
+                            workload,
+                            analyzer,
+                            spec,
+                            tmp_path)
+        einsum_to_initial_data[einsum_name] = data
+    return einsum_to_initial_data
+
+
+def layer_mapper(config,
+                 name_of_einsum_to_eval,
+                 fusable_tensors,
+                 neighbors,
+                 workload,
+                 analyzer,
+                 spec,
+                 tmp_path):
     einsum_name_to_id = workload.einsum_name_to_id()
     id_of_einsum_to_eval = einsum_name_to_id[name_of_einsum_to_eval]
 

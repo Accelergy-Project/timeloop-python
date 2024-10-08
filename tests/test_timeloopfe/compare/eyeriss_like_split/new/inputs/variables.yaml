@@ -1,0 +1,6 @@
+# May get overridden by the architecture specification.
+variables:
+  version: 0.4
+  technology: 1
+  global_cycle_seconds: 1
+

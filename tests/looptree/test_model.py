@@ -14,22 +14,19 @@ class LooptreeModelAppTest(unittest.TestCase):
     def test_model_with_two_level_mm(self):
         self.check_model_app(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml'],
+            [
+                'looptree-test-fused.yaml',
+                'cascaded_mm.workload.yaml',
+                'three_level.arch.yaml'
+            ],
             TEST_TMP_DIR
         )
 
-    @staticmethod
-    def make_model_app(config_dir, paths, tmp_path):
-        yaml_str = gather_yaml_configs(config_dir, paths)
-        config = Config(yaml_str, 'yaml')
-        model = LooptreeModelApp(config, str(tmp_path), 'looptree-model')
-        return model
-    
     def check_model_app(
         self, config_dir, paths, tmp_path
     ):
         self.maxDiff = None
-        model = self.make_model_app(config_dir, paths, tmp_path)
+        model, _, _ = make_model_app(config_dir, paths, tmp_path)
         result = model.run()
 
         def compare_dim(d, dtype):
@@ -59,19 +56,16 @@ class TestLooptreeOutputDeserializer(unittest.TestCase):
     def test_deserializer_with_two_level_mm(self):
         self.check_deserializer(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml'],
+            [
+                'looptree-test-fused.yaml',
+                'cascaded_mm.workload.yaml',
+                'three_level.arch.yaml'
+            ],
             TEST_TMP_DIR
         )
 
-    @staticmethod
-    def make_model_app(config_dir, paths, tmp_path):
-        yaml_str = gather_yaml_configs(config_dir, paths)
-        return LooptreeModelApp(Config(yaml_str, 'yaml'),
-                                str(tmp_path),
-                                'looptree-model')
-    
     def check_deserializer(self, config_dir, paths, tmp_path):
-        model = self.make_model_app(config_dir, paths, tmp_path)
+        model, _, _ = make_model_app(config_dir, paths, tmp_path)
         result = model.run()
 
         des_result = deserialize_looptree_output(result, isl.DEFAULT_CONTEXT)

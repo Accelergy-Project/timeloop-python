@@ -18,7 +18,11 @@ class TestCompleteRun(unittest.TestCase):
 
         latency, energy = run_looptree(
             Path(__file__).parent.parent / 'test_configs',
-            ['looptree-test-fused.yaml'],
+            [
+                'looptree-test-fused.yaml',
+                'cascaded_mm.workload.yaml',
+                'three_level.arch.yaml'
+            ],
             TEST_TMP_DIR,
             BINDINGS,
             True
@@ -29,9 +33,9 @@ class TestCompleteRun(unittest.TestCase):
         ENERGY_REFS = {
             ('MainMemory', 'read'): 266240,
             ('MainMemory', 'write'): 147456,
-            ('GlobalBuffer', 'read'): 116260.16,
-            ('GlobalBuffer', 'write'): 35009.79,
-            ('MACC', 'compute'): 360
+            ('GlobalBuffer', 'read'): 137983.99,
+            ('GlobalBuffer', 'write'): 41436.72,
+            ('MACC', 'compute'): 304.2
         }
 
         for k, v in energy.items():
