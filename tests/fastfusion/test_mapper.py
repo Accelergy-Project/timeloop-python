@@ -1,3 +1,4 @@
+import sys
 import unittest
 
 from bindings.looptree import LooptreeWorkload
@@ -15,11 +16,11 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
             'cascaded_mm.workload.yaml',
             'three_level.arch.yaml'
         ])
-        print('start')
 
         result = mapper(config,
                         spec,
-                        TEST_TMP_DIR)
+                        TEST_TMP_DIR,
+                        verbose_stream=sys.stdout)
 
 
 class TestShapeSubspace(LoadConfigMixin, unittest.TestCase):

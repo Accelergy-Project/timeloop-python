@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, deque
 from functools import partial
 
 from ruamel.yaml import YAML
@@ -9,6 +9,8 @@ from bindings.looptree import (
     LooptreeWorkloadDependencyAnalyzer
 )
 
+from pytimeloop.fastfusion.exploration import explore_fusion_sets
+from pytimeloop.fastfusion.fusionset import FusionSet
 from pytimeloop.fastfusion.pareto import OpData, Pareto
 
 from .level_mapper.compute import ComputeLevelMapper
@@ -17,14 +19,18 @@ from .level_mapper.top_level import TopLevelMapper
 from .stepped_model import Stats, SteppedModel, SteppedModelState
 
 
-def mapper(config, spec, tmp_path):
+def mapper(config, spec, tmp_path, verbose_stream=None):
     workload = LooptreeWorkload.parse_cfg(config.root['problem'])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+
+    def print_info(s):
+        if verbose_stream is not None:
+            print(s, file=verbose_stream)
 
     adj_list = get_neighbors(workload)
 
     einsum_name_to_id = workload.einsum_name_to_id()
-    einsum_to_initial_data = {}
+    per_einsum_mappings = deque()
     for einsum_name, einsum_id in einsum_name_to_id.items():
         tensors = (
             workload.tensors_read_by_einsum(einsum_id)
@@ -33,6 +39,7 @@ def mapper(config, spec, tmp_path):
         )
         fusable_tensors = tensors & get_intermediate_tensors(workload)
 
+        print_info(f'Generating mappings for Einsum {einsum_name}')
         data = layer_mapper(config,
                             einsum_name,
                             fusable_tensors,
@@ -41,8 +48,12 @@ def mapper(config, spec, tmp_path):
                             analyzer,
                             spec,
                             tmp_path)
-        einsum_to_initial_data[einsum_name] = data
-    return einsum_to_initial_data
+        per_einsum_mappings.append((
+            einsum_id,
+            [FusionSet({op_comp}, pareto) for op_comp, pareto in data.items()]
+        ))
+    print_info('Exploring fusion sets')
+    explore_fusion_sets(per_einsum_mappings, verbose_stream)
 
 
 def layer_mapper(config,

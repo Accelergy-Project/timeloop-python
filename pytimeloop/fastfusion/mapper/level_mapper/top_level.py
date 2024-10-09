@@ -62,6 +62,7 @@ class TopLevelMapper:
         for tensor in self.tensors:
             df[f'__{tensor} Data Size'].append(self.bits_per_word)
             df[f'__{tensor} Num Elems'].append(metrics.capacity[(self.hw_level, tensor)])
+        df['__Mappings'].append(metrics.state.mapping_of_interest)
 
         df['Latency'] = metrics.latency
         df['Energy'] = metrics.energy

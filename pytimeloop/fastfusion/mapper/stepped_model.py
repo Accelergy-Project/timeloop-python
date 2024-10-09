@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,7 @@ class Stats:
     energy: float = 0
     spatial: list = None
     capacity: dict = None
+    state = None
 
     def __add__(self, other: 'Stats'):
         stats = Stats()
@@ -122,6 +124,7 @@ class SteppedModel:
         #                           self.workload)
 
         stats = Stats()
+        stats.state = deepcopy(state)
         stats.energy = energy
         stats.latency = result.temporal_steps[state.id_of_einsum_to_eval]
         stats.spatial = result.fanout
