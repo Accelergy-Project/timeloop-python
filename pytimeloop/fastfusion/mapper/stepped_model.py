@@ -1,3 +1,4 @@
+from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,7 +79,6 @@ class SteppedModel:
 
         state.id_of_einsum_to_eval = id_of_einsum_to_eval
 
-
     def add_storage(self, state, level, temporal_loops, spatial_loops, retained_tensors):
         self.add_temporal_and_spatial_loops(state, temporal_loops, spatial_loops)
         state.mapping_of_interest.append({
@@ -87,6 +87,30 @@ class SteppedModel:
             'dspace': [self.tensor_id_to_name[tensor_id]
                        for tensor_id in retained_tensors]
         })
+
+    def add_level_uneven(self, state, level, temporal_loops, spatial_loops, retained_tensors):
+        idx_to_tensor = defaultdict(lambda: list())
+        for tensor, idx in retained_tensors:
+            idx_to_tensor[idx].append(tensor)
+
+        self.add_spatial_loops(state, spatial_loops)
+
+        for i, l in enumerate(temporal_loops):
+            if i in idx_to_tensor:
+                state.mapping_of_interest.append({
+                    'type': 'storage',
+                    'target': level,
+                    'dspace': [self.tensor_id_to_name[tensor_id]
+                               for tensor_id in idx_to_tensor[i]]
+                })
+            self.add_temporal_loops(state, [l])
+        state.mapping_of_interest.append({
+            'type': 'storage',
+            'target': level,
+            'dspace': [self.tensor_id_to_name[tensor_id]
+                        for tensor_id in idx_to_tensor[len(temporal_loops)]]
+        })
+        
 
     def add_compute(self, state, level, einsum_name, temporal_loops, spatial_loops):
         self.add_temporal_and_spatial_loops(state, temporal_loops, spatial_loops)
@@ -107,6 +131,8 @@ class SteppedModel:
 
         # model = LooptreeModelApp(config)
         self.eval_count += 1
+        if self.eval_count % 1000 == 0:
+            print(self.eval_count // 1000)
         result = run_fastmodel({'nodes': state.mapping},
                                state.id_of_einsum_to_eval,
                                self.workload,
@@ -133,13 +159,19 @@ class SteppedModel:
         return stats
 
     def add_temporal_and_spatial_loops(self, state, temporal_loops, spatial_loops):
-        for rank, shape in temporal_loops:
+        self.add_spatial_loops(state, spatial_loops)
+        self.add_temporal_loops(state, temporal_loops)
+
+    def add_temporal_loops(self, state, loops):
+        for rank, shape in loops:
             state.mapping_of_interest.append({
                 'type': 'temporal',
                 'rank': self.dimension_id_to_name[rank],
                 'tile_shape': shape
             })
-        for spatial_idx, loops in enumerate(spatial_loops):
+
+    def add_spatial_loops(self, state, loops):
+        for spatial_idx, loops in enumerate(loops):
             for rank, shape in loops:
                 state.mapping_of_interest.append({
                     'type': 'spatial',

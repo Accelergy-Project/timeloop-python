@@ -98,11 +98,11 @@ def layer_mapper(config,
         return model.run(state)
 
     def partial_model(level, state, temporal_loops, spatial_loops, retained_tensors):
-        model.add_storage(state,
-                          level,
-                          temporal_loops,
-                          spatial_loops,
-                          retained_tensors)
+        model.add_level_uneven(state,
+                               level,
+                               temporal_loops,
+                               spatial_loops,
+                               retained_tensors)
         return Stats()
 
 
@@ -132,6 +132,7 @@ def layer_mapper(config,
                                                max_capacity=level_max_cap,
                                                can_bypass=True,
                                                lower_mapper=cur_mapper,
+                                               analyzer=analyzer,
                                                partial_model=partial(partial_model,
                                                                      level=hw_level),
                                                step_back_model=step_back_model)
@@ -150,6 +151,7 @@ def layer_mapper(config,
                                 lower_mapper=cur_mapper,
                                 model=model,
                                 bits_per_word=8,
+                                analyzer=analyzer,
                                 partial_model=partial(partial_model, level=0),
                                 step_back_model=step_back_model,
                                 max_spatial=max_spatial[hw_level],
@@ -158,11 +160,19 @@ def layer_mapper(config,
     cur_mapper.run(einsum_shape)
 
     result = cur_mapper.get_result()
+    before_pareto_size = sum(v.shape[0] for v in result.values())
 
     result_dict = {}
     op_data = OpData(frozenset({id_of_einsum_to_eval}), frozenset(tensors))
+    after_pareto_size = 0
     for op_comp, data in result.items():
         result_dict[op_comp] = Pareto({op_data: data})
+        after_pareto_size += sum(
+            v.shape[0] for v in result_dict[op_comp].data.values()
+        )
+
+    print('mapspace size:', before_pareto_size)
+    print('mapspace after pareto size:', after_pareto_size)
 
     return result_dict
 

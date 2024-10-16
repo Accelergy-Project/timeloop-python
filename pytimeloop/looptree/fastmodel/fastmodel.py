@@ -85,6 +85,10 @@ def run_fastmodel(mapping,
                     tensor_size[tensor_id] //= factor
                 else:
                     potential_tensor_access_multiplier[tensor_id] *= factor
+        elif node['type'] == 'sequential':
+            for tensor_id in tensors:
+                actual_tensor_access_multiplier[tensor_id] = \
+                    potential_tensor_access_multiplier[tensor_id]
         elif node['type'] == 'spatial':
             rank_name = node['rank']
             rank_id = rank_name_to_id[rank_name]
@@ -126,7 +130,8 @@ def run_fastmodel(mapping,
                     )
                 )
 
-                fanout[target] = cur_fanout
+                if target not in fanout:
+                    fanout[target] = cur_fanout
                 cur_fanout = [1]
         elif node['type'] == 'compute':
             target = node['target']
