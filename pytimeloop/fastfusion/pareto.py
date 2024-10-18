@@ -3,14 +3,14 @@ from paretoset import paretoset
 import pandas as pd
 from dataclasses import dataclass
 
-from .util import fzs
+from util import fzs
 
 
 MAPPING = "__Mappings"
 OCCUPANCY = f"__Occupancy"
 
 
-DATA_SIZE = lambda x: f"__{x} Data Size"
+DATA_SIZE = lambda x: f"__{x} Datawidth"
 NUM_ELEMS = lambda x: f"__{x} Num Elems"
 
 
@@ -70,28 +70,9 @@ def merge_cross(
     return d
 
 
-@dataclass(frozen=True)
-class OpData:
-    einsum_ids: fzs[str] = fzs()
-    tensors: fzs[str] = fzs()
-
-    def __bool__(self) -> bool:
-        return bool(self.einsum_ids) or bool(self.tensors)
-
-    def __and__(self, other: "OpData") -> "OpData":
-        return OpData(self.einsum_ids & other.einsum_ids, self.tensors & other.tensors)
-
-    def __sub__(self, other: "OpData") -> "OpData":
-        return OpData(self.einsum_ids - other.einsum_ids, self.tensors - other.tensors)
-
-    def __or__(self, other: "OpData") -> "OpData":
-        return OpData(self.einsum_ids | other.einsum_ids, self.tensors | other.tensors)
-
-
 class Pareto:
-    def __init__(self, data: dict[OpData, pd.DataFrame]):
-        self.data: dict[OpData, pd.DataFrame] = data
-        self.data = {k: Pareto.pareto(v) for k, v in self.data.items()}
+    def __init__(self, data: pd.DataFrame):
+        self.data: pd.DataFrame = Pareto.pareto(data)
 
     @staticmethod
     def pareto(data: pd.DataFrame) -> pd.DataFrame:
@@ -100,72 +81,161 @@ class Pareto:
 
     @staticmethod
     def vertical_combine(paretos: list["Pareto"]) -> "Pareto":
-        allkeys = set([tuple(sorted(p.data.keys())) for p in paretos])
-        if len(allkeys) > 1:
-            raise ValueError("Cannot vertical combine pareto sets with different keys")
-        newdata = {}
-        for k in next(iter(allkeys)):
-            newdata[k] = Pareto.pareto(pd.concat([p.data[k] for p in paretos]))
-        return Pareto(newdata)
+        return Pareto(pd.concat([p.data for p in paretos]))
 
-    def combine(self, other: "Pareto") -> "Pareto":
-        for k1 in self.data.keys():
-            for k2 in other.data.keys():
-                if k1 & k2:
-                    raise ValueError("Cannot combine pareto sets with overlapping keys")
-        return Pareto({**self.data, **other.data})
+    def combine_dead(self, other: "Pareto") -> "Pareto":
+        d0, d1 = self.data, other.data
+        d = merge_cross(d0, d1, COMBINE_FUNCTION_DEFAULT)
+        return Pareto(d)
+
+    def combine_live(self, other: "Pareto") -> "Pareto":
+        d0, d1 = self.data, other.data
+        d = merge_cross(d0, d1, COMBINE_FUNCTION_WITHIN_TILED_FUSED)
+        return Pareto(d)
 
     @staticmethod
-    def get_dead_key():
-        return OpData(fzs(), fzs())
+    def combine_dead_all(paretos: list["Pareto"]) -> "Pareto":
+        p = None
+        for p2 in paretos:
+            p = p.combine_dead(p2) if p is not None else p2
+        return p
 
     @staticmethod
-    def _merge(a, b):
-        return pd.merge(a, b, how="cross")
+    def combine_live_all(paretos: list["Pareto"]) -> "Pareto":
+        p = None
+        for p2 in paretos:
+            p = p.combine_live(p2) if p is not None else p2
+        return p
 
-    def _combine_dead(self, key: OpData):
-        dead_key = Pareto.get_dead_key()
+    @staticmethod
+    def get_dummy() -> "Pareto":
+        df = pd.DataFrame({OCCUPANCY: [1, 2], MAPPING: [{"A": "A"}] * 2})
+        return Pareto(df)
 
-        if dead_key not in self.data:
-            d = self.data.pop(key)
-        else:
-            d0, d1 = self.data.pop(key), self.data[dead_key]
-            d = merge_cross(d0, d1, COMBINE_FUNCTION_DEFAULT)
 
-        cols = [c for c in d.columns if not c.startswith("__")]
-        cols += [MAPPING, OCCUPANCY]
-        self.data[dead_key] = d[cols].copy()
+import unittest
 
-    def _combine_live(self, key1: OpData, key2: OpData) -> tuple[OpData, pd.DataFrame]:
-        d0, tensors0 = self.data.pop(key1), key1.tensors
-        d1, tensors1 = self.data.pop(key2), key2.tensors
-        d = merge_cross(
-            d0, d1, COMBINE_FUNCTION_WITHIN_TILED_FUSED, tensors0 & tensors1
+
+class ParetoTest(unittest.TestCase):
+    def test_pareto(self):
+        data = pd.DataFrame({"A": [1, 2], OCCUPANCY: [2, 1], MAPPING: [{"A": "A"}] * 2})
+        Pareto(data)
+
+    def test_vertical_combine(self):
+        data1 = pd.DataFrame(
+            {
+                "A": [1, 3, 3],
+                "B": [3, 1, 3],
+                OCCUPANCY: [3, 3, 3],
+                MAPPING: [{"A": "A"}] * 3,
+            }
         )
-        einsum_ids = key1.einsum_ids | key2.einsum_ids
-        tensors = tensors0 | tensors1
-        return OpData(fzs(einsum_ids), fzs(tensors)), d
+        data2 = pd.DataFrame(
+            {
+                "A": [3, 3, 3],
+                "B": [3, 3, 3],
+                OCCUPANCY: [3, 3, 1],
+                MAPPING: [{"A": "A"}] * 3,
+            }
+        )
 
-    def _combine_by_partition(self, einsum_ids: set[str]):
-        to_combine = [k for k in self.data if k.einsum_ids & einsum_ids]
-        for k in to_combine:
-            if k.einsum_ids - einsum_ids:
-                raise ValueError(f"Partitioning mismatch {k} {einsum_ids}")
+        p1 = Pareto(data1)
+        self.assertEqual(len(p1.data), 2)
+        p2 = Pareto(data2)
+        self.assertEqual(len(p2.data), 1)
 
-        if not to_combine:
-            return
+        pd12 = Pareto.vertical_combine([p1, p2])
+        self.assertEqual(len(pd12.data), 3)
 
-        key = to_combine.pop(0)
-        while to_combine:
-            key2 = to_combine.pop(0)
-            key, d = self._combine_live(key, key2)
-            self.data[key] = d
+    # def test_combine(self):
+    #     data1 = pd.DataFrame(
+    #         {
+    #             "A": [1, 3, 3],
+    #             "B": [3, 1, 3],
+    #             OCCUPANCY: [3, 3, 3],
+    #             MAPPING: [{"A": "A"}] * 3,
+    #         }
+    #     )
+    #     data2 = pd.DataFrame(
+    #         {
+    #             "A": [3, 3, 3],
+    #             "B": [3, 3, 3],
+    #             OCCUPANCY: [3, 3, 1],
+    #             MAPPING: [{"B": "B"}] * 3,
+    #         }
+    #     )
 
-    def drop_dead(
-        self, live_partitions: list[set[str]], dead_partitions: list[set[str]]
-    ):
-        [self._combine_by_partition(t) for t in live_partitions + dead_partitions]
-        for k in list(self.data.keys()):
-            if not any(k.einsum_ids & p for p in live_partitions):
-                self._combine_dead(k)
-        return self
+    #     p1 = Pareto(data1)
+    #     p2 = Pareto(data2)
+
+    #     pd12 = p1.combine(p2)
+    #     x = pd12.data
+    #     self.assertEqual(len(next(x)), 2)
+    #     self.assertEqual(len(next(x)), 1)
+
+    def test_combine_dead(self):
+        data1 = pd.DataFrame(
+            {
+                "A": [1, 3, 3],
+                "B": [3, 1, 3],
+                OCCUPANCY: [3, 3, 3],
+                MAPPING: [{"A": "A"}] * 3,
+            }
+        )
+        data2 = pd.DataFrame(
+            {
+                "A": [3, 3, 3],
+                "B": [3, 3, 3],
+                OCCUPANCY: [3, 3, 1],
+                MAPPING: [{"B": "B"}] * 3,
+            }
+        )
+        p = Pareto(data1).combine_dead(Pareto(data2))
+        self.assertEqual(len(p.data), 2)
+
+        d = p.data
+        # Column "A" should be 4, 6
+        self.assertEqual(d["A"].tolist(), [4, 6])
+        # Column "B" should be 6, 4
+        self.assertEqual(d["B"].tolist(), [6, 4])
+        # Column UTIL should be 3, 3
+        self.assertEqual(d[OCCUPANCY].tolist(), [3, 3])
+
+    def test_combine_live(self):
+        data1 = pd.DataFrame(
+            {
+                "A": [1, 3, 3],
+                "B": [3, 1, 3],
+                OCCUPANCY: [3, 3, 3],
+                DATA_SIZE("T1"): [1, 2, 3],
+                NUM_ELEMS("T1"): [3, 2, 1],
+                MAPPING: [{"A": "A"}] * 3,
+            }
+        )
+        data2 = pd.DataFrame(
+            {
+                "A": [3, 3, 3],
+                "B": [3, 3, 3],
+                OCCUPANCY: [3, 3, 1],
+                DATA_SIZE("T1"): [2, 2, 2],
+                NUM_ELEMS("T1"): [1, 1, 1],
+                MAPPING: [{"B": "B"}] * 3,
+            }
+        )
+        p = Pareto.combine_live_all([Pareto(data1), Pareto(data2)])
+
+        self.assertEqual(len(p.data), 2)
+
+        d = p.data
+
+        # Column "A" should be 4, 6
+        self.assertEqual(d["A"].tolist(), [4, 6])
+        # Column "B" should be 6, 4
+        self.assertEqual(d["B"].tolist(), [6, 4])
+        self.assertEqual(d[OCCUPANCY].tolist(), [4 - 3 - 2 + 6, 4 - 4 - 2 + 4])
+        self.assertEqual(d[DATA_SIZE("T1")].tolist(), [2, 2])
+        self.assertEqual(d[NUM_ELEMS("T1")].tolist(), [3, 2])
+
+
+if __name__ == "__main__":
+    unittest.main()

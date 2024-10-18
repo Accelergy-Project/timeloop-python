@@ -1,12 +1,11 @@
 from collections import deque
 from io import TextIOBase
 
-from .fusionset import FusionSet
+from .fusionset import Cascade
 
 
 def explore_fusion_sets(
-    compatibility_set_queue: deque,
-    verbose_stream: TextIOBase=None
+    compatibility_set_queue: deque, verbose_stream: TextIOBase = None
 ):
     einsum, sols = compatibility_set_queue.popleft()
     einsums = [einsum]
@@ -17,7 +16,7 @@ def explore_fusion_sets(
 
     def print(str):
         if verbose_stream is not None:
-            verbose_stream.write(str + '\n')
+            verbose_stream.write(str + "\n")
 
     while compatibility_set_queue:
         einsum, next_sols = compatibility_set_queue.popleft()
@@ -36,15 +35,16 @@ def explore_fusion_sets(
             | next_tensors
         )
         unseen_ranks = (
-            set.union(set(), *[s[1][0].ranks for s in compatibility_set_queue]) | next_ranks
+            set.union(set(), *[s[1][0].ranks for s in compatibility_set_queue])
+            | next_ranks
         )
 
         def get_sols_a():
-            prev_buckets = FusionSet.bucket(
+            prev_buckets = Cascade.bucket(
                 sols, unseen_einsums, unseen_tensors, unseen_ranks
             )
 
-            next_buckets = FusionSet.bucket(
+            next_buckets = Cascade.bucket(
                 next_sols, seen_einsums, seen_tensors, seen_ranks
             )
 
@@ -52,12 +52,12 @@ def explore_fusion_sets(
 
             # We can vertical combine the previous buckets now because we know that the choice within
             # each bucket is independent of future choices.
-            FusionSet.call_on_buckets(
-                prev_buckets, lambda x: [FusionSet.vertical_combine(x)]
+            Cascade.call_on_buckets(
+                prev_buckets, lambda x: [Cascade.vertical_combine(x)]
             )
 
             new_sols = []
-            for s1, s2 in FusionSet.pair_matching_buckets(prev_buckets, next_buckets):
+            for s1, s2 in Cascade.pair_matching_buckets(prev_buckets, next_buckets):
                 new_sols.append(s1.combine(s2))
 
             print(f"A: Generated {len(new_sols)} from {len(sols)} x {len(next_sols)}")
@@ -75,26 +75,26 @@ def explore_fusion_sets(
 
         def get_sols_c():
             # print(f"Part 1")
-            prev_buckets = FusionSet.bucket_multi_level(
+            prev_buckets = Cascade.bucket_multi_level(
                 sols, unseen_einsums, unseen_tensors, unseen_ranks
             )
 
-            next_buckets = FusionSet.bucket_multi_level(
+            next_buckets = Cascade.bucket_multi_level(
                 next_sols, seen_einsums, seen_tensors, seen_ranks
             )
 
             # print(f"Part 2")
-            FusionSet.call_on_buckets(prev_buckets, FusionSet.vertical_combine)
+            Cascade.call_on_buckets(prev_buckets, Cascade.vertical_combine)
             new_sols = []
 
-            for s1, s2 in FusionSet.pair_matching_buckets(prev_buckets, next_buckets):
+            for s1, s2 in Cascade.pair_matching_buckets(prev_buckets, next_buckets):
                 new_sols.append(s1.combine(s2))
             import joblib
 
             # new_sols = joblib.Parallel(n_jobs=64)(
             #     [
             #         joblib.delayed(lambda x1, x2: x1.combine(x2))(x1, x2)
-            #         for x1, x2 in FusionSet.pair_matching_buckets(
+            #         for x1, x2 in Cascade.pair_matching_buckets(
             #             prev_buckets, next_buckets
             #         )
             #     ]
@@ -118,7 +118,9 @@ def explore_fusion_sets(
         relevant_tensors = set.union(
             set(), *[s[1][0].tensors for s in compatibility_set_queue]
         )
-        relevant_ranks = set.union(set(), *[s[1][0].ranks for s in compatibility_set_queue])
+        relevant_ranks = set.union(
+            set(), *[s[1][0].ranks for s in compatibility_set_queue]
+        )
 
         print("\n\n")
         print(f"Relevant Tensors: {relevant_tensors}")
