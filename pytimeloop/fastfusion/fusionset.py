@@ -1,119 +1,115 @@
+import functools
 from typing import Any, Generator, Union
 
 import pandas as pd
+import tqdm
 from pareto import Pareto
-from compatibility import OpCompatibility, TensorTiling, Loop, SharedResource
+from compatibility import Compatibility, TensorTiling, Loop, SharedResource
 from collections import defaultdict
 import unittest
 import itertools
 from util import fzs
 
 
-class FusionSet:
+class InterchangeableSet:
     def __init__(
         self,
-        compatibility: set[OpCompatibility],
-        payload: Union[dict[fzs[str], Pareto], Pareto],
-        shared_resources: list[SharedResource],
+        compatibility: set[Compatibility],
+        payload: Union[dict[str, Pareto], Pareto],
+        shared_resources: Union[
+            dict[str, list[SharedResource]], list[SharedResource]
+        ] = (),
     ):
-        self.compatibility: set[OpCompatibility] = compatibility
-        self.payload: dict[str, Pareto] = {}
-        self.shared_resources: list[SharedResource] = shared_resources
+        self.compatibility: set[Compatibility] = compatibility
 
-        if isinstance(payload, dict):
-            self.payload = payload
-        else:
-            assert len(compatibility) == 1, "Payload must be a dict if multiple einsums"
-            self.payload[fzs((next(iter(compatibility)).einsum_id,))] = payload
+        def cast(x, name):
+            if isinstance(x, dict):
+                return x
+            assert len(compatibility) == 1, f"{name} must be a dict if multiple einsums"
+            return {next(iter(compatibility)).einsum_id: x}
 
-    def combine(self, other: "FusionSet"):
-        return FusionSet(
-            self.compatibility | other.compatibility, {**self.payload, **other.payload}
+        self.payload: dict[str, Pareto] = cast(payload, "payload")
+        self.shared_resources: dict[str, list[SharedResource]] = cast(
+            shared_resources, "shared_resources"
         )
 
-    def compatible_with(self, other: "FusionSet") -> bool:
+    def compatible_with(self, other: "InterchangeableSet") -> bool:
         return all(
             c.compatible_with(c2)
             for c in self.compatibility
             for c2 in other.compatibility
         )
 
-    def relevant_compatibility(self, live_tensors: set[str]) -> "FusionSet":
-        # Important aspects:
-        # - What einsums are live (connected to a live einsum OR tiled fused with a live
-        #   einsum): Effects how things are combined (can't compute a max with any
-        #   still-live einsums)
-        # - Relevant tensors: May be used in future decisions
-        # - Relevant ranks: May be used in future decisions
+    def relevant_compatibility(self, live_tensors: set[str]) -> "InterchangeableSet":
         compatibility = {
             c.drop_dead(live_tensors)
             for c in self.compatibility
             if c.tensors & live_tensors
         }
-        return OpCompatibility.vertical_combine(compatibility)
+        return Compatibility.vertical_combine(compatibility)
+
+    def combine(self, other: "InterchangeableSet"):
+        return InterchangeableSet(
+            self.compatibility | other.compatibility,
+            {**self.payload, **other.payload},
+            {**self.shared_resources, **other.shared_resources},
+        )
 
     @staticmethod
-    def combine_combineable(fusion_sets: list["FusionSet"]) -> "FusionSet":
+    def combine_combineable(
+        fusion_sets: list["InterchangeableSet"] | dict[Any, list["InterchangeableSet"]]
+    ) -> list["InterchangeableSet"]:
+        if isinstance(fusion_sets, dict):
+            return {
+                k: InterchangeableSet.combine_combineable(v)
+                for k, v in tqdm.tqdm(list(fusion_sets.items()), desc="Combining")
+            }
         if len(fusion_sets) == 1:
             return [fusion_sets[0]]
         buckets = defaultdict(list)
-        for fs in fusion_sets:
-            buckets[
-                (
-                    fzs(fs.compatibility),
-                    fzs(fs.payload.keys()),
-                    fzs(fs.shared_resources),
-                )
-            ].append(fs)
-        return [FusionSet.vertical_combine(v) for v in buckets.values()]
+        for fs in tqdm.tqdm(fusion_sets, desc="Combining", leave=False):
+            buckets[fs._hash_keys()].append(fs)
+        return [InterchangeableSet.vertical_combine(v) for v in buckets.values()]
 
     def drop_dead(self, live_tensors: set[str]):
-        # Drop all dead compatibility
-        new_compatibility = {c for c in self.compatibility if c.tensors & live_tensors}
-        live_ops = {c.einsum_id for c in new_compatibility}
+        # Live: Connected to a live einsum OR tiled fused with a live einsum
+        live, dead = set(), self.compatibility
+        next_live = {c for c in dead if c.tensors & live_tensors}
+        while next_live:
+            live |= next_live
+            next_live = {c for c in dead if c.co_tiled_with(next_live)}
+            dead -= next_live
+
+        # Apply shared resources
+        for d in dead:
+            if d.einsum_id not in self.shared_resources:
+                continue
+            resource = self.shared_resources.pop(d.einsum_id)
+            for r, d2 in itertools.product(resource, dead):
+                if r.n_loops_above < d2.n_shared_loops(d):
+                    p = self.payload[d2.einsum_id]
+                    self.payload[d2.einsum_id] = p.add_shared_resource(resource)
 
         # Combine dead payloads
-        new_payload_keys = []
-        payload_keys = list(self.payload.keys())
-        cd = {c.einsum_id: c for c in self.compatibility}
-        while payload_keys:
-            to_check = [payload_keys.pop()]
-            new_key = set(to_check[0])
-            while to_check:
-                t = to_check.pop()
-                for k2 in payload_keys:
-                    for c0, c1 in itertools.product(t, k2):
-                        if cd[c0].co_tiled_with(cd[c1]):
-                            new_key |= k2
-                            to_check.append(k2)
-                            payload_keys.remove(k2)
-                            break
-            new_payload_keys.append(fzs(new_key))
-
-        new_payload = {}
-        for k in new_payload_keys:
-            new = Pareto.combine_live_all(
-                p for k, p in self.payload.items() if k & new_key or k == new_key
-            )
-            k &= live_ops
-            new = new_payload[k].combine_dead(new) if k in new_payload else new
-            new_payload[k] = new
-
-        self.payload = new_payload
-        self.compatibility = {c.drop_dead(live_tensors) for c in new_compatibility}
+        dead_payload_keys = set(self.payload.keys()) - set(c.einsum_id for c in live)
+        dead_payloads = {self.payload.pop(k) for k in dead_payload_keys}
+        if dead_payloads:
+            self.payload[""] = Pareto.combine_all(dead_payloads)
+        self.compatibility = live
 
     @property
     def tensors(self) -> set[str]:
         return set.union(*(set(c.tensors) for c in self.compatibility))
 
     @staticmethod
-    def vertical_combine(fusion_sets: list["FusionSet"]) -> "FusionSet":
+    def vertical_combine(
+        fusion_sets: list["InterchangeableSet"],
+    ) -> "InterchangeableSet":
         if len(fusion_sets) == 1:
             return fusion_sets[0]
         fs = fusion_sets[0]
-        keys = set(fzs(f.payload.keys()) for f in fusion_sets)
-        assert len(keys) == 1, "Keys must be the same"
-        return FusionSet(
+        assert len(set(hash(f) for f in fusion_sets)) == 1, "Hashes must be match"
+        return InterchangeableSet(
             fs.compatibility,
             {
                 k: Pareto.vertical_combine([f.payload[k] for f in fusion_sets])
@@ -123,34 +119,35 @@ class FusionSet:
 
     @staticmethod
     def bucket(
-        fusion_sets: list["FusionSet"] | dict[Any, "FusionSet"],
+        fusion_sets: list["InterchangeableSet"] | dict[Any, "InterchangeableSet"],
         live_tensors: set[str],
-    ) -> dict[fzs[OpCompatibility], list["FusionSet"] | dict]:
+    ) -> dict[fzs[Compatibility], list["InterchangeableSet"] | dict]:
         if isinstance(fusion_sets, dict):
             return {
-                k: FusionSet.bucket(v, live_tensors) for k, v in fusion_sets.items()
+                k: InterchangeableSet.bucket(v, live_tensors)
+                for k, v in fusion_sets.items()
             }
         bucketed = defaultdict(list)
-        for fs in fusion_sets:
+        for fs in tqdm.tqdm(fusion_sets, desc="Bucketing"):
             bucketed[fs.relevant_compatibility(live_tensors)].append(fs)
         return bucketed
 
     @staticmethod
     def pair_matching_buckets(
-        buckets_a: dict[fzs[OpCompatibility], list["FusionSet"] | dict],
-        buckets_b: dict[fzs[OpCompatibility], list["FusionSet"] | dict],
-    ) -> Generator[tuple["FusionSet", "FusionSet"], None, None]:
+        buckets_a: dict[fzs[Compatibility], list["InterchangeableSet"] | dict],
+        buckets_b: dict[fzs[Compatibility], list["InterchangeableSet"] | dict],
+    ) -> Generator[tuple["InterchangeableSet", "InterchangeableSet"], None, None]:
         def cast(x):
             if isinstance(x, dict):
                 return x.items()
             if isinstance(x, list):
                 return [(v, v) for v in x]
-            if isinstance(x, FusionSet):
+            if isinstance(x, InterchangeableSet):
                 return [(x, x)]
             raise ValueError(f"Invalid type {type(x)}")
 
         def _pair_recursive(a, b):
-            if isinstance(a, FusionSet) and isinstance(b, FusionSet):
+            if isinstance(a, InterchangeableSet) and isinstance(b, InterchangeableSet):
                 yield a, b
                 return
             for (k1, v1), (k2, v2) in itertools.product(cast(a), cast(b)):
@@ -161,8 +158,8 @@ class FusionSet:
 
     @staticmethod
     def pair_matching_buckets_query(
-        buckets_a: dict[fzs[OpCompatibility], list["FusionSet"]],
-        buckets_b: dict[fzs[OpCompatibility], list["FusionSet"]],
+        buckets_a: dict[fzs[Compatibility], list["InterchangeableSet"]],
+        buckets_b: dict[fzs[Compatibility], list["InterchangeableSet"]],
     ):
         for k, v in buckets_a.items():
             if k in buckets_b:
@@ -171,7 +168,7 @@ class FusionSet:
 
     @staticmethod
     def call_on_buckets(
-        buckets: dict[fzs[OpCompatibility], list["FusionSet"] | dict],
+        buckets: dict[fzs[Compatibility], list["InterchangeableSet"] | dict],
         func,
     ):
         def _call_recursive(b):
@@ -183,47 +180,54 @@ class FusionSet:
 
         _call_recursive(buckets)
 
+    def _hash_keys(self):
+        return (
+            fzs(self.compatibility),
+            fzs(self.payload.keys()),
+            fzs(self.shared_resources),
+        )
+
     def __hash__(self) -> int:
         return hash(fzs(self.compatibility))
 
     def __str__(self):
-        c = " ".join(f"[{c}]" for c in self.compatibility)
-        payload_keys = list(",".join(sorted(k)) for k in self.payload.keys())
+        c = " ".join(f"[{c}]" for c in sorted(self.compatibility))
+        payload_keys = sorted(self.payload.keys())
         return c + " " + " ".join(f"[{k}]" for k in payload_keys)
 
     def __eq__(self, value: object) -> bool:
         return fzs(self.compatibility) == fzs(value.compatibility)
 
-    def __lt__(self, other: "FusionSet") -> bool:
+    def __lt__(self, other: "InterchangeableSet") -> bool:
         return tuple(sorted(self.compatibility)) < tuple(sorted(other.compatibility))
 
     def __repr__(self):
-        return f"FusionSet({self.compatibility})"
+        return f"InterchangeableSet({self.compatibility})"
 
 
-class TestFusionSet(unittest.TestCase):
+class TestInterchangeableSet(unittest.TestCase):
     def test_vertical_combine(self):
         fs = []
         for i in range(2):
-            comp = OpCompatibility(
+            comp = Compatibility(
                 einsum_id=f"einsum1",
                 tiling={},
             )
-            fs.append(FusionSet({comp}, Pareto.get_dummy()))
-        new_fs = FusionSet.vertical_combine(fs)
+            fs.append(InterchangeableSet({comp}, Pareto.get_dummy()))
+        new_fs = InterchangeableSet.vertical_combine(fs)
         self.assertEqual(len(new_fs.compatibility), 1)
 
     def test_combine(self):
-        comp1 = OpCompatibility(
+        comp1 = Compatibility(
             einsum_id=f"einsum1",
             tiling={"Q": TensorTiling("GLB", (Loop("A", 1, False),))},
         )
-        comp2 = OpCompatibility(
+        comp2 = Compatibility(
             einsum_id=f"einsum2",
             tiling={"V": TensorTiling("GLB", (Loop("A", 1, False),))},
         )
-        fs1 = FusionSet({comp1}, Pareto.get_dummy())
-        fs2 = FusionSet({comp2}, Pareto.get_dummy())
+        fs1 = InterchangeableSet({comp1}, Pareto.get_dummy())
+        fs2 = InterchangeableSet({comp2}, Pareto.get_dummy())
         new_fs = fs1.combine(fs2)
         self.assertEqual(len(new_fs.compatibility), 2)
         self.assertIn(comp1, new_fs.compatibility)
@@ -234,20 +238,20 @@ class TestFusionSet(unittest.TestCase):
         def get_tiling(rank_size: int):
             return {"T": TensorTiling("GLB", (Loop("A", rank_size, False),))}
 
-        comp1 = OpCompatibility(einsum_id="A", tiling=get_tiling(1))
-        comp2 = OpCompatibility(einsum_id="B", tiling=get_tiling(1))
+        comp1 = Compatibility(einsum_id="A", tiling=get_tiling(1))
+        comp2 = Compatibility(einsum_id="B", tiling=get_tiling(1))
 
-        comp4 = OpCompatibility(einsum_id="C", tiling=get_tiling(1))
-        comp5 = OpCompatibility(einsum_id="C", tiling=get_tiling(2))
+        comp4 = Compatibility(einsum_id="C", tiling=get_tiling(1))
+        comp5 = Compatibility(einsum_id="C", tiling=get_tiling(2))
 
-        fs1 = FusionSet({comp1}, Pareto.get_dummy()).combine(
-            FusionSet({comp2}, Pareto.get_dummy())
+        fs1 = InterchangeableSet({comp1}, Pareto.get_dummy()).combine(
+            InterchangeableSet({comp2}, Pareto.get_dummy())
         )
-        fs2 = FusionSet({comp4}, Pareto.get_dummy())
+        fs2 = InterchangeableSet({comp4}, Pareto.get_dummy())
         self.assertEqual(fs1.compatible_with(fs2), True)
 
-        fs1 = FusionSet({comp1}, Pareto.get_dummy())
-        fs2 = FusionSet({comp5}, Pareto.get_dummy())
+        fs1 = InterchangeableSet({comp1}, Pareto.get_dummy())
+        fs2 = InterchangeableSet({comp5}, Pareto.get_dummy())
         # Not neighbors --> compatible becuase there's nothing overlapping to check
         self.assertEqual(fs1.compatible_with(fs2), False)
 
@@ -256,16 +260,16 @@ class TestFusionSet(unittest.TestCase):
     # - Finding live neighbors
     # -
     def test_drop_dead(self):
-        comp1 = OpCompatibility(
+        comp1 = Compatibility(
             einsum_id=f"einsum1",
             tiling={"Q": TensorTiling("GLB", (Loop("A", 1, False),))},
         )
-        comp2 = OpCompatibility(
+        comp2 = Compatibility(
             einsum_id=f"einsum2",
             tiling={"V": TensorTiling("GLB", (Loop("A", 1, False),))},
         )
-        fs = FusionSet({comp1}, Pareto.get_dummy()).combine(
-            FusionSet({comp2}, Pareto.get_dummy())
+        fs = InterchangeableSet({comp1}, Pareto.get_dummy()).combine(
+            InterchangeableSet({comp2}, Pareto.get_dummy())
         )
         self.assertEqual(len(fs.compatibility), 2)
         fs.drop_dead({"Q"})
@@ -281,26 +285,26 @@ class TestFusionSet(unittest.TestCase):
         de = {"DE": TensorTiling("GLB", (Loop("DE", 1, False),))}
         ef = {"EF": TensorTiling("GLB", (Loop("EF", 1, False),))}
 
-        a = OpCompatibility(einsum_id="A", tiling={**ab})
-        b = OpCompatibility(einsum_id="B", tiling={**ab, **bc})
-        c = OpCompatibility(einsum_id="C", tiling={**bc, **cd})
-        d = OpCompatibility(einsum_id="D", tiling={**cd, **de})
-        e = OpCompatibility(einsum_id="E", tiling={**de, **ef})
-        f = OpCompatibility(einsum_id="F", tiling={**ef})
+        a = Compatibility(einsum_id="A", tiling={**ab})
+        b = Compatibility(einsum_id="B", tiling={**ab, **bc})
+        c = Compatibility(einsum_id="C", tiling={**bc, **cd})
+        d = Compatibility(einsum_id="D", tiling={**cd, **de})
+        e = Compatibility(einsum_id="E", tiling={**de, **ef})
+        f = Compatibility(einsum_id="F", tiling={**ef})
 
         for live, partition in [
-            (("AB",), ("", "AB")),
-            (("BC",), ("", "B", "C")),
-            (("CD",), ("", "C", "D")),
-            (("DE",), ("", "DE")),
-            (("EF",), ("", "EF")),
-            (("AB", "EF"), ("", "AB", "EF")),
-            (("BC", "EF"), ("B", "C", "EF")),
+            (("AB",), ("", "A", "B")),
+            (("BC",), ("", "A", "B", "C")),
+            (("CD",), ("", "C", "D", "E", "F")),
+            (("DE",), ("", "D", "E", "F")),
+            (("EF",), ("", "D", "E", "F")),
+            (("AB", "EF"), ("", "A", "B", "D", "E", "F")),
+            (("BC", "EF"), ("A", "B", "C", "D", "E", "F")),
             ((), ("",)),
         ]:
-            fs = FusionSet({a}, Pareto.get_dummy())
+            fs = InterchangeableSet({a}, Pareto.get_dummy())
             for z in (b, c, d, e, f):
-                fs = fs.combine(FusionSet({z}, Pareto.get_dummy()))
+                fs = fs.combine(InterchangeableSet({z}, Pareto.get_dummy()))
             fs.drop_dead(set(live))
             ids = tuple(sorted("".join(sorted(p for p in p2)) for p2 in fs.payload))
             partition = list(partition)

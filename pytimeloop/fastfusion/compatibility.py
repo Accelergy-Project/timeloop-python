@@ -1,11 +1,9 @@
 import copy
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any
+from typing import Any, Iterable
 
 from util import fzs
-
-UNEVEN_FUSION_ALLOWED = False
 
 
 class Loop:
@@ -71,7 +69,7 @@ class TensorTiling:
 
 
 @dataclass(frozen=True)
-class OpCompatibility:
+class Compatibility:
     # Fusion information
     tiling: dict[str, TensorTiling]
     einsum_id: str
@@ -84,24 +82,26 @@ class OpCompatibility:
     def tensors(self):
         return fzs(self.tiling.keys())
 
-    def iter_matched_tilings(self, other: "OpCompatibility") -> tuple[tuple[str, str]]:
+    def iter_matched_tilings(self, other: "Compatibility") -> tuple[tuple[str, str]]:
         for t in self.tensors & other.tensors:
             yield t, self.tiling[t], other.tiling[t]
 
-    def compatible_with(self, other: "OpCompatibility") -> bool:
+    def compatible_with(self, other: "Compatibility") -> bool:
         if any(t1 != t2 for _, t1, t2 in self.iter_matched_tilings(other)):
             return False
         return True
 
-    def co_tiled_with(self, other: "OpCompatibility") -> bool:
+    def co_tiled_with(self, other: "Compatibility" | Iterable["Compatibility"]) -> bool:
+        if isinstance(other, Iterable):
+            return any(self.co_tiled_with(c) for c in other)
         return any(
             t1.co_tiled_with(t2) for _, t1, t2 in self.iter_matched_tilings(other)
         )
 
     @staticmethod
     def get_co_tiled(
-        compats: set["OpCompatibility"], live_tensors: set[str] = fzs()
-    ) -> set["OpCompatibility"]:
+        compats: set["Compatibility"], live_tensors: set[str] = fzs()
+    ) -> set["Compatibility"]:
         # Live are:
         # - Has a live tensor
         # - Co-tiled with a live Einsum
@@ -123,15 +123,15 @@ class OpCompatibility:
 
     @staticmethod
     def vertical_combine(
-        compats: set["OpCompatibility"], live_tensors: set[str] = fzs()
-    ) -> set["OpCompatibility"]:
+        compats: set["Compatibility"], live_tensors: set[str] = fzs()
+    ) -> set["Compatibility"]:
         tiling = {}
         for c in compats:
             for t, tt in c.tiling.items():
                 if t in tiling:
                     assert tt == tiling[t], "Mismatched tilings"
                 tiling[t] = tt
-        return OpCompatibility(einsum_id="", tiling=tiling)
+        return Compatibility(einsum_id="", tiling=tiling)
 
     def __eq__(self, other):
         return (
@@ -140,7 +140,10 @@ class OpCompatibility:
         )
 
     def __lt__(self, other):
-        return self.tiling_tupled < other.tiling_tupled
+        return (self.einsum_id, self.tiling_tupled) < (
+            other.einsum_id,
+            other.tiling_tupled,
+        )
 
     def __str__(self):
         f = []
@@ -149,29 +152,35 @@ class OpCompatibility:
         return self.einsum_id + ":" + ",".join(f)
 
     def __repr__(self):
-        return f"OpCompatibility({self.einsum_id}, {self.tiling})"
+        return f"Compatibility({self.einsum_id}, {self.tiling})"
 
     def __hash__(self):
         return hash((self.einsum_id, self.tiling_tupled))
 
-    def drop_dead(self, live_tensors: set[str]) -> "OpCompatibility":
-        return OpCompatibility(
+    def drop_dead(self, live_tensors: set[str]) -> "Compatibility":
+        return Compatibility(
             einsum_id=self.einsum_id,
             tiling={t: self.tiling[t] for t in self.tensors & live_tensors},
         )
+
+    def n_shared_loops(self, other: "Compatibility") -> int:
+        matched = self.iter_matched_tilings(other)
+        if not matched:
+            return 0
+        return max(len(t1.loops_above_backer) for t1, _, _ in matched)
 
 
 @dataclass(frozen=True)
 class SharedResource:
     resource_id: str
-    loops_below: tuple[Loop, ...]
     data: frozenset[tuple[str, float]]
+    n_loops_above: int
 
 
 import unittest
 
 
-class TestOpCompatibility(unittest.TestCase):
+class TestCompatibility(unittest.TestCase):
     def test_compatible_with(self):
         loopnests = [
             "A1 B2 C3 D4",
@@ -185,35 +194,22 @@ class TestOpCompatibility(unittest.TestCase):
             "A1 B2 C3 D4",
         ]
 
-        if UNEVEN_FUSION_ALLOWED:
-            compatibilities = [
-                (1, 1, 1, 0, 0, 0, 0, 1, 1),
-                (1, 1, 1, 1, 1, 0, 0, 1, 1),
-                (1, 1, 1, 0, 0, 0, 0, 1, 1),
-                (0, 1, 0, 1, 0, 0, 0, 1, 0),
-                (0, 1, 0, 0, 1, 0, 0, 1, 0),
-                (0, 0, 0, 0, 0, 1, 0, 1, 0),
-                (0, 0, 0, 0, 0, 0, 1, 1, 0),
-                (1, 1, 1, 1, 1, 1, 1, 1, 1),
-                (1, 1, 1, 0, 0, 0, 0, 1, 1),
-            ]
-        else:  # No uneven fusion
-            compatibilities = [
-                (1, 0, 0, 0, 0, 0, 0, 0, 1),
-                (0, 1, 0, 0, 0, 0, 0, 0, 0),
-                (0, 0, 1, 0, 0, 0, 0, 0, 0),
-                (0, 0, 0, 1, 0, 0, 0, 0, 0),
-                (0, 0, 0, 0, 1, 0, 0, 0, 0),
-                (0, 0, 0, 0, 0, 1, 0, 0, 0),
-                (0, 0, 0, 0, 0, 0, 1, 0, 0),
-                (0, 0, 0, 0, 0, 0, 0, 1, 0),
-                (1, 0, 0, 0, 0, 0, 0, 0, 1),
-            ]
+        compatibilities = [
+            (1, 0, 0, 0, 0, 0, 0, 0, 1),
+            (0, 1, 0, 0, 0, 0, 0, 0, 0),
+            (0, 0, 1, 0, 0, 0, 0, 0, 0),
+            (0, 0, 0, 1, 0, 0, 0, 0, 0),
+            (0, 0, 0, 0, 1, 0, 0, 0, 0),
+            (0, 0, 0, 0, 0, 1, 0, 0, 0),
+            (0, 0, 0, 0, 0, 0, 1, 0, 0),
+            (0, 0, 0, 0, 0, 0, 0, 1, 0),
+            (1, 0, 0, 0, 0, 0, 0, 0, 1),
+        ]
 
         comps = []
         for i, l in enumerate(loopnests):
             comps.append(
-                OpCompatibility(
+                Compatibility(
                     einsum_id=l,
                     tiling={
                         "T1": TensorTiling(
@@ -234,39 +230,6 @@ class TestOpCompatibility(unittest.TestCase):
                     e,
                     f"{c1.einsum_id} <-> {c2.einsum_id} compatible got {not e}, expected {e}",
                 )
-
-    # def test_get_tiled_partitions(self):
-    #     loopnests = [
-    #         "A1 B2 C3 D4",
-    #         "A1",
-    #         "",
-    #         "A1 B2 C3 D4",
-    #     ]
-    #     comps = []
-    #     for i, l in enumerate(loopnests):
-    #         comps.append(
-    #             OpCompatibility(
-    #                 einsum_id=l,
-    #                 # fused_tensors=fzs(["T1"]),
-    #                 # fused_loops=tuple(
-    #                 #     Loop(r[0], int(r[1]), False) for r in l.split(" ") if r
-    #                 # ),
-    #                 tiling={
-    #                     "T1": TensorTiling(
-    #                         "GLB",
-    #                         tuple(
-    #                             Loop(r[0], int(r[1]), False) for r in l.split(" ") if r
-    #                         ),
-    #                     )
-    #                 },
-    #                 ranks=fzs("ABCD"),
-    #                 tensors=fzs(["T1"]),
-    #                 neighbors=fzs(),
-    #             )
-    #         )
-
-    #     partitions = OpCompatibility.get_tiled_partitions(set(comps))
-    #     self.assertEqual(len(partitions), 3)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from collections import deque
 from io import TextIOBase
 
-from .fusionset import Cascade
+from .InterchangeableSet import Cascade
 
 
 def explore_fusion_sets(

@@ -4,8 +4,8 @@ import itertools
 import tqdm
 from util import fzs
 
-from compatibility import Loop, OpCompatibility, TensorTiling
-from fusionset import FusionSet
+from compatibility import Loop, Compatibility, TensorTiling
+from fusionset import InterchangeableSet
 from pareto import Pareto
 from more_itertools import powerset
 from itertools import permutations
@@ -13,12 +13,12 @@ from itertools import permutations
 
 def get_compatibility_sets():
     rank_sizes = {
-        "M1": 2048,
-        "K1": 2048,
-        "N1": 2048,
-        "N2": 2048,
-        "N3": 2048,
-        "N4": 2048,
+        "M1": 32,
+        "K1": 32,
+        "N1": 32,
+        "N2": 32,
+        "N3": 32,
+        "N4": 32,
     }
     # fusable_tensors = {"A1", "C1", "C2", "C3", "C4"}
     fusable_tensors = {
@@ -67,7 +67,7 @@ def get_compatibility_sets():
                             tiling[t] = TensorTiling("DRAM", tuple())
 
                         compatibility_sets.append(
-                            OpCompatibility(einsum_id=einsum_id, tiling=tiling)
+                            Compatibility(einsum_id=einsum_id, tiling=tiling)
                         )
 
                     if not factors:
@@ -84,7 +84,7 @@ def get_compatibility_sets():
                             continue
                         make_cs()
         return einsum_id, [
-            FusionSet({c}, Pareto.get_dummy()) for c in compatibility_sets
+            InterchangeableSet({c}, Pareto.get_dummy()) for c in compatibility_sets
         ]
 
     compatibility_sets = [
@@ -132,13 +132,13 @@ def run(compatibility_sets):
         print("\n\n" + "=" * 100 + f"\nProcessing einsum {einsum}")
 
         def get_sols_a():
-            prev_buckets = FusionSet.bucket(sols, live_tensors)
-            next_buckets = FusionSet.bucket(next_sols, seen_tensors)
-            # FusionSet.call_on_buckets(
-            #     prev_buckets, lambda x: FusionSet.combine_combineable(x)
+            prev_buckets = InterchangeableSet.bucket(sols, live_tensors)
+            next_buckets = InterchangeableSet.bucket(next_sols, seen_tensors)
+            # InterchangeableSet.call_on_buckets(
+            #     prev_buckets, lambda x: InterchangeableSet.combine_combineable(x)
             # )
-            # FusionSet.call_on_buckets(
-            #     next_buckets, lambda x: FusionSet.combine_combineable(x)
+            # InterchangeableSet.call_on_buckets(
+            #     next_buckets, lambda x: InterchangeableSet.combine_combineable(x)
             # )
 
             # for k, v in prev_buckets.items():
@@ -146,7 +146,7 @@ def run(compatibility_sets):
             #     for i in v:
             #         print(f"\t{i}")
             #     prev_len = len(v)
-            #     v = FusionSet.combine_combineable(v)
+            #     v = InterchangeableSet.combine_combineable(v)
             #     print(f"\t{prev_len}->{len(v)}")
             #     for i in v:
             #         print(f"\t{i}")
@@ -157,19 +157,15 @@ def run(compatibility_sets):
 
             # We can vertical combine the previous buckets now because we know that the choice within
             # each bucket is independent of future choices.
-            FusionSet.call_on_buckets(
-                prev_buckets, lambda x: FusionSet.combine_combineable(x)
-            )
-            FusionSet.call_on_buckets(
-                next_buckets, lambda x: FusionSet.combine_combineable(x)
-            )
+            prev_buckets = InterchangeableSet.combine_combineable(prev_buckets)
+            next_buckets = InterchangeableSet.combine_combineable(next_buckets)
             print(
                 f"Number of post-combined solutions: {sum(len(v) for v in prev_buckets.values())} x {sum(len(v) for v in next_buckets.values())}"
             )
 
             new_sols = []
             for s1, s2 in tqdm.tqdm(
-                FusionSet.pair_matching_buckets(prev_buckets, next_buckets)
+                InterchangeableSet.pair_matching_buckets(prev_buckets, next_buckets)
             ):
                 new_sols.append(s1.combine(s2))
                 # print(f"Combined {s1} with {s2}")
@@ -178,15 +174,15 @@ def run(compatibility_sets):
             return new_sols
 
         def get_sols_b():
-            prev_buckets = FusionSet.bucket(sols, live_tensors)
-            next_buckets = FusionSet.bucket(next_sols, seen_tensors)
+            prev_buckets = InterchangeableSet.bucket(sols, live_tensors)
+            next_buckets = InterchangeableSet.bucket(next_sols, seen_tensors)
             print(f"Number of solutions: {len(sols)} x {len(next_sols)}")
             print(f"Number of buckets: {len(prev_buckets)} x {len(next_buckets)}")
-            FusionSet.call_on_buckets(
-                prev_buckets, lambda x: FusionSet.combine_combineable(x)
+            InterchangeableSet.call_on_buckets(
+                prev_buckets, lambda x: InterchangeableSet.combine_combineable(x)
             )
-            FusionSet.call_on_buckets(
-                next_buckets, lambda x: FusionSet.combine_combineable(x)
+            InterchangeableSet.call_on_buckets(
+                next_buckets, lambda x: InterchangeableSet.combine_combineable(x)
             )
             size_a = sum(len(v) for v in prev_buckets.values())
             size_b = sum(len(v) for v in next_buckets.values())
@@ -206,17 +202,28 @@ def run(compatibility_sets):
             assert prev_tensors == next_tensors
             new_sols = []
             for s1, s2 in tqdm.tqdm(
-                FusionSet.pair_matching_buckets_query(prev_buckets, next_buckets)
+                InterchangeableSet.pair_matching_buckets_query(
+                    prev_buckets, next_buckets
+                )
             ):
                 new_sols.append(s1.combine(s2))
             count_total.append(len(new_sols))
 
             print(f"B: Generated {len(new_sols)} from {len(sols)} x {len(next_sols)}")
+            if False:
+                for s in new_sols:
+                    print(f"\t{s}")
+                print("\n\n")
+                new_sols = InterchangeableSet.combine_combineable(new_sols)
+                print(f"Combined {len(new_sols)}")
+                for s in new_sols:
+                    print(f"\t{s}")
+
             return new_sols
 
         def get_sols_c():
             # print(f"Part 1")
-            prev_buckets = FusionSet.bucket_multi_level(sols, live_tensors)
+            prev_buckets = InterchangeableSet.bucket_multi_level(sols, live_tensors)
 
             def print_buckets_recursive(buckets, indent=0):
                 if isinstance(buckets, dict):
@@ -226,22 +233,31 @@ def run(compatibility_sets):
 
             print_buckets_recursive(prev_buckets)
 
-            next_buckets = FusionSet.bucket_multi_level(
+            next_buckets = InterchangeableSet.bucket_multi_level(
                 next_sols, seen_tensors | next_live_tensors
             )
-            FusionSet.call_on_buckets(prev_buckets, FusionSet.combine_combineable)
+            InterchangeableSet.call_on_buckets(
+                prev_buckets, InterchangeableSet.combine_combineable
+            )
             new_sols = []
-            for s1, s2 in FusionSet.pair_matching_buckets(prev_buckets, next_buckets):
+            for s1, s2 in InterchangeableSet.pair_matching_buckets(
+                prev_buckets, next_buckets
+            ):
                 new_sols.append(s1.combine(s2))
 
             print(f"C: Generated {len(new_sols)} from {len(sols)} x {len(next_sols)}")
             return new_sols
 
         overlap_tensors = next_live_tensors | seen_tensors
-        [s.drop_dead(live_tensors) for s in sols]
-        [s.drop_dead(overlap_tensors) for s in next_sols]
+        # sols = InterchangeableSet.combine_combineable(sols)
+        # next_sols = InterchangeableSet.combine_combineable(next_sols)
+        [s.drop_dead(live_tensors) for s in tqdm.tqdm(sols, desc="Dropping Dead 1")]
+        [
+            s.drop_dead(overlap_tensors)
+            for s in tqdm.tqdm(next_sols, desc="Dropping Dead 2")
+        ]
 
-        import timeit
+        # import timeit
 
         # sols_a = get_sols_a()
         # sols_b = get_sols_b()
@@ -266,19 +282,6 @@ def run(compatibility_sets):
 
         print("\n\n")
         print(f"Relevant Tensors: {relevant_tensors}")
-
-        # bucketed = defaultdict(list)
-        # for s in sols:
-        #     bucketed[
-        #         s.relevant_compatibility(ops_left, relevant_tensors)
-        #     ].append(s)
-        # for k, v in sorted(bucketed.items()):
-        #     print(
-        #         f"{len(v)} in bucket\n       {'\n       '.join(str(s) for s in k.compatibility)}"
-        #     )
-        #     for i in sorted(v):
-        #         print(f"  {sorted(i.compatibility)}")
-        # print("")
 
         seen_tensors |= next_tensors
 
