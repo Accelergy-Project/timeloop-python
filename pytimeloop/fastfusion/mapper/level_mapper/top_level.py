@@ -12,7 +12,7 @@ from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 from pytimeloop.fastfusion.compatibility import OpCompatibility
 from pytimeloop.fastfusion.mapper.stepped_model import SteppedModelState
 
-from .helper import gather_relevant_boundary_idxs
+from ..helper import gather_relevant_boundary_idxs
 
 
 class TopLevelMapper:

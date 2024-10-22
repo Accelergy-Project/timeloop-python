@@ -5,7 +5,7 @@ from operator import mul
 
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 
-from .helper import gather_relevant_boundary_idxs
+from ..helper import gather_relevant_boundary_idxs
 
 
 class ExhaustiveLevelMapper:
