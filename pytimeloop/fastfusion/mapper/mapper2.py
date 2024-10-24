@@ -1,6 +1,8 @@
-from collections import defaultdict, deque
-from functools import partial
+from collections import defaultdict
+from dataclasses import dataclass
 from itertools import product, permutations
+from functools import reduce
+from operator import or_, mul
 
 from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
@@ -10,12 +12,37 @@ from bindings.looptree import (
     LooptreeWorkloadDependencyAnalyzer
 )
 
-from pytimeloop.fastfusion.fastmodel import compile_mapping
+from pytimeloop.fastfusion.fastmodel import compile_mapping, LooptreeOutput
+from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 
 
 class LinearMapping:
-    def add_compute(self, einsum_name):
-        self.mapping.append({'type': 'compute', 'einsum': einsum_name})
+    def __init__(self):
+        self.mapping = []
+
+    def __iter__(self):
+        return iter(self.mapping)
+
+    def __getitem__(self, key):
+        return self.mapping[key]
+
+    def __len__(self):
+        return len(self.mapping)
+
+    def __repr__(self):
+        return repr(self.mapping)
+
+    def copy(self):
+        lm = LinearMapping()
+        lm.mapping = self.mapping.copy()
+        return lm
+
+    def add_compute(self, einsum_name, target):
+        self.mapping.append({
+            'type': 'compute',
+            'einsum': einsum_name,
+            'target': target
+        })
 
     def add_temporal(self, rank_name, tile_shape=None):
         node = {'type': 'temporal', 'rank': rank_name}
@@ -29,23 +56,58 @@ class LinearMapping:
             node['tile_shape'] = tile_shape
         self.mapping.append(node)
 
-    def add_sequential(self):
-        self.mapping.append({'type': 'sequential'})
+    def add_sequential(self, idx=None):
+        node = {'type': 'sequential'}
+        if idx is None:
+            self.mapping.append(node)
+        else:
+            self.mapping.insert(idx, node)
 
     def add_pipeline(self):
         self.mapping.append({'type': 'pipeline'})
 
-    def add_storage(self, target, dspaces):
-        self.mapping.append({
+    def add_storage(self, target, dspaces, idx=None):
+        node = {
             'type': 'storage',
             'target': target,
             'dspace': dspaces
-        })
+        }
+        if idx is None:
+            self.mapping.append(node)
+        else:
+            self.mapping.insert(idx, node)
 
 
-def mapper(config, spec, tmp_path, verbose_stream=None):
+@dataclass
+class MacArrayConstraint:
+    array_shape_in_parallel_dimension: str
+    array_shape_in_reduced_dimension: str
+
+    weight_tensor: dict[str, str]
+    parallel_rank: dict[str, str]
+    reduced_rank: dict[str, str]
+
+
+def mapper(config,
+           mac_array_constraint: MacArrayConstraint,
+           spec,
+           tmp_path,
+           verbose_stream=None):
+
     workload = LooptreeWorkload.parse_cfg(config.root['problem'])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+
+    einsum_id_to_name = workload.einsum_id_to_name()
+    rank_name_to_id = workload.dimension_name_to_id()
+    tensor_name_to_id = workload.data_space_name_to_id()
+
+    mac_parallel_shape = mac_array_constraint.array_shape_in_parallel_dimension
+    mac_reduced_shape = mac_array_constraint.array_shape_in_reduced_dimension
+
+    einsum_name_to_parallel_rank_name = mac_array_constraint.parallel_rank
+    einsum_name_to_reduced_rank_name = mac_array_constraint.reduced_rank
+
+    bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
 
     einsum_name_to_id = workload.einsum_name_to_id()
     for einsum_id in einsum_name_to_id.values():
@@ -56,28 +118,66 @@ def mapper(config, spec, tmp_path, verbose_stream=None):
         )
         intermediate_tensors = tensors & get_intermediate_tensors(workload)
 
+        einsum_name = einsum_id_to_name[einsum_id]
+        mac_parallel_rank_name = einsum_name_to_parallel_rank_name[einsum_name]
+        mac_parallel_rank_id = rank_name_to_id[mac_parallel_rank_name]
+        mac_reduced_rank_name = einsum_name_to_reduced_rank_name[einsum_name]
+        mac_reduced_rank_id = rank_name_to_id[mac_reduced_rank_name]
+
+        weight_tensor_name = mac_array_constraint.weight_tensor[einsum_name]
+        weight_tensor_id = tensor_name_to_id[weight_tensor_name]
+        weight_ranks = analyzer.einsum_dims_relevant_to_tensor(einsum_id,
+                                                               weight_tensor_id)
+        other_weight_ranks = \
+            weight_ranks - {mac_parallel_rank_id, mac_reduced_rank_id}
+        all_ranks = workload.einsum_ospace_dimensions(einsum_id)
+        non_weight_ranks = set(all_ranks) - weight_ranks
+
+        tensor_to_relevant_ranks = {
+            tensor: analyzer.einsum_dims_relevant_to_tensor(einsum_id, tensor)
+            for tensor in tensors
+        }
+
+        einsum_shape = {
+            rank_id: workload.get_rank_shape(rank_id)[1]+1 for rank_id in all_ranks
+        }
+
+
+        count = 0
         mapping = LinearMapping()
-        for partial_mapping in make_top_loops(mapping, einsum_id, workload):
+        top_level_ranks = reduce(
+            or_,
+            (tensor_to_relevant_ranks[t] for t in intermediate_tensors),
+            set()
+        )
+        for partial_mapping in make_top_loops(mapping, top_level_ranks):
             for partial_mapping in place_fusion_level(partial_mapping,
-                                                    intermediate_tensors):
+                                                      intermediate_tensors,
+                                                      tensor_to_relevant_ranks):
                 for partial_mapping in make_pe_spatial_fors(partial_mapping,
-                                                            einsum_id,
-                                                            workload):
+                                                            all_ranks):
                     for partial_mapping in make_pe_temporal_fors(partial_mapping,
-                                                                einsum_id,
-                                                                workload):
+                                                                 all_ranks):
                         for partial_mapping in place_pe_level(partial_mapping,
-                                                            tensors):
+                                                              tensors,
+                                                              tensor_to_relevant_ranks):
                             for partial_mapping in make_mac_level_loops(partial_mapping,
                                                                         einsum_id,
-                                                                        parallel_rank,
-                                                                        parallel_rank_shape,
-                                                                        reduced_rank,
-                                                                        reduced_rank_shape,
+                                                                        mac_parallel_rank_id,
+                                                                        mac_parallel_shape,
+                                                                        mac_reduced_rank_id,
+                                                                        mac_reduced_shape,
                                                                         non_weight_ranks,
                                                                         other_weight_ranks):
-                                compiled_results = compile_mapping(partial_mapping)
-                                explore_tile_shape(partial_mapping, compiled_results)
+                                _, compiled_results = compile_mapping(partial_mapping,
+                                                                      workload,
+                                                                      analyzer)
+                                count += explore_tile_shape(partial_mapping,
+                                                            einsum_shape,
+                                                            compiled_results,
+                                                            max_capacity,
+                                                            max_fanout)
+                    print(count/1e6)
 
 
 # Determine all relevant ranks for top loops
@@ -88,16 +188,21 @@ def mapper(config, spec, tmp_path, verbose_stream=None):
 # Add temporal loops (for MAC)
 
 
-def make_top_loops(mapping: LinearMapping, einsum_id, workload):
-    ranks = workload.einsum_ospace_dimensions(einsum_id)
+def make_top_loops(mapping: LinearMapping, ranks):
+    original = mapping
+    print('n_top_loops:',
+          sum(reduce(mul, range(i, len(ranks)+1), 1) for i in range(1, len(ranks)+1)))
     for r in range(len(ranks)+1):
         for ordered_ranks in permutations(ranks, r=r):
+            mapping = original.copy()
             for r in ordered_ranks:
-                mapping.add_temporal_loop(r)
+                mapping.add_temporal(r)
             yield mapping
 
 
-def place_fusion_level(mapping: LinearMapping, intermediate_tensors):
+def place_fusion_level(mapping: LinearMapping,
+                       intermediate_tensors,
+                       tensor_to_relevant_ranks):
     top_idx = 0
     for node in mapping:
         if node['type'] != 'storage':
@@ -110,50 +215,67 @@ def place_fusion_level(mapping: LinearMapping, intermediate_tensors):
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
+        untiled = True
         for i, node in enumerate(mapping[top_idx:], start=top_idx):
             if node['type'] == 'temporal':
+                untiled = False
                 rank_id = node['rank']
                 is_relevant = rank_id in relevant_ranks
                 if last_is_relevant and not is_relevant:
                     # Choice 1: fused
-                    tensor_choices.append((i, 'GLB'))
-                    # If untiled, choice 2: unfused
-                    if i == top_idx:
-                        tensor_choices.append((i, 'DRAM'))
+                    tensor_choices.append((i, 1))
                 last_is_relevant = is_relevant
+        if last_is_relevant:
+            tensor_choices.append((len(mapping), 1))
+
+        # If untiled, another choice: unfused
+        if untiled:
+            tensor_choices.append((len(mapping), 0))
+
         all_tensor_choices.append(tensor_choices)
 
+    original = mapping.copy()
+    print('n_fusion_level:', count(product(*all_tensor_choices)))
+    for choice in product(*all_tensor_choices):
+        print(choice)
     for choices in product(*all_tensor_choices):
         if not any(c == len(mapping) for (c, level) in choices):
             continue
+        mapping = original.copy()
         for choice, tensor in sorted(zip(choices, intermediate_tensors),
                                      key=lambda pair: pair[0],
                                      reverse=True):
             idx, level = choice
-            mapping.insert_sequential(idx)
-            mapping.insert_storage(idx, level, tensor)
+            mapping.add_sequential(idx)
+            mapping.add_storage(level, {tensor}, idx=idx)
         yield mapping
 
 
-def make_pe_spatial_fors(mapping, einsum_id, workload):
-    ranks = workload.einsum_ospace_dimensions(einsum_id)
+def make_pe_spatial_fors(mapping, ranks):
+    original = mapping.copy()
+    print('n_pe_spatial:',
+          sum(reduce(mul, range(i, len(ranks)+1), 1) for i in range(1, len(ranks)+1)))
     for r in range(len(ranks)+1):
         for ordered_ranks in permutations(ranks, r=r):
+            mapping = original.copy()
             for r in ordered_ranks:
-                mapping.add_spatial_loop(r)
+                mapping.add_spatial(r)
             yield mapping
 
 
-def make_pe_temporal_fors(mapping, einsum_id, workload):
-    ranks = workload.einsum_ospace_dimensions(einsum_id)
+def make_pe_temporal_fors(mapping, ranks):
+    original = mapping.copy()
+    print('n_pe_temporal:',
+          sum(reduce(mul, range(i, len(ranks)+1), 1) for i in range(1, len(ranks)+1)))
     for r in range(len(ranks)+1):
         for ordered_ranks in permutations(ranks, r=r):
+            mapping = original.copy()
             for r in ordered_ranks:
-                mapping.add_spatial_loop(r)
+                mapping.add_spatial(r)
             yield mapping
 
 
-def place_pe_level(mapping, tensors):
+def place_pe_level(mapping, tensors, tensor_to_relevant_ranks):
     all_tensor_choices = []
     for tensor_id in tensors:
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
@@ -164,16 +286,20 @@ def place_pe_level(mapping, tensors):
                 rank_id = node['rank']
                 is_relevant = rank_id in relevant_ranks
                 if last_is_relevant and not is_relevant:
-                    tensor_choices.append((i, 'PE'))
+                    tensor_choices.append((i, 2))
                 last_is_relevant = is_relevant
+        if last_is_relevant:
+            tensor_choices.append((len(mapping), 2))
         all_tensor_choices.append(tensor_choices)
 
+    original = mapping.copy()
     for choices in product(*all_tensor_choices):
+        mapping = original.copy()
         for choice, tensor in sorted(zip(choices, tensors),
                                      key=lambda pair: pair[0],
                                      reverse=True):
             idx, level = choice
-            mapping.insert_storage(idx, level, tensor)
+            mapping.add_storage(level, {tensor}, idx=idx)
         yield mapping
 
 
@@ -185,17 +311,119 @@ def make_mac_level_loops(mapping,
                          reduced_rank_shape,
                          non_weight_ranks,
                          other_weight_ranks):
+    mapping = mapping.copy()
     for rank in other_weight_ranks:
-        mapping.add_temporal_loop(rank, 1)
-    mapping.add_temporal_loop(parallel_rank, parallel_rank_shape)
-    mapping.add_temporal_loop(reduced_rank, reduced_rank_shape)
+        mapping.add_temporal(rank, 1)
+    mapping.add_temporal(parallel_rank, parallel_rank_shape)
+    mapping.add_temporal(reduced_rank, reduced_rank_shape)
     for rank in non_weight_ranks:
-        mapping.add_temporal_loop(rank, 1)
-    mapping.add_spatial_loop(parallel_rank, 1)
-    mapping.add_spatial_loop(reduced_rank, 1)
-    mapping.add_compute(einsum_id)
+        mapping.add_temporal(rank, 1)
+    mapping.add_spatial(parallel_rank, 1)
+    mapping.add_spatial(reduced_rank, 1)
+    mapping.add_compute(einsum_id, 3)
     yield mapping
 
 
-def explore_tile_shape(mapping, compiled_results):
-    pass
+def explore_tile_shape(mapping,
+                       rank_shapes,
+                       compiled_result,
+                       max_capacity,
+                       max_fanout,
+                       only_count=False):
+    ranks = []
+    for node in mapping:
+        if node['type'] in ['temporal', 'spatial'] and 'tile_shape' not in node:
+            ranks.append(node['rank'])
+
+    num_tile_shapes = 0
+
+    shape_subspace = iter(ShapeSubspace(rank_shapes, ranks))
+    for shape in shape_subspace:
+        num_tile_shapes += 1
+        if only_count:
+            continue
+
+        result = LooptreeOutput()
+        result.ops = call_with_arg(compiled_result.ops, shape)
+        result.temporal_steps = call_with_arg(compiled_result.temporal_steps, shape)
+        result.fanout = call_with_arg(compiled_result.fanout, shape)
+        result.occupancy = call_with_arg(compiled_result.occupancy, shape)
+        result.fills_by_parent = call_with_arg(compiled_result.fills_by_parent, shape)
+
+        skip = False
+
+        total_capacity = defaultdict(lambda: 0)
+        for (level, _), capacity in result.occupancy.items():
+            total_capacity[level] += capacity
+        for level, capacity in total_capacity.items():
+            if level in max_capacity and capacity > max_capacity[level]:
+                skip = True
+                break
+
+        if skip == True:
+            shape_subspace.skip_current_rank_iteration()
+            continue
+
+        for level, fanout in result.fanout.items():
+            if level in max_fanout:
+                invalid_spatial = any(
+                    spatial_fanout_in_dim > max_fanout_in_dim
+                    for spatial_fanout_in_dim, max_fanout_in_dim
+                    in zip(fanout, max_fanout[level])
+                )
+                # if invalid_spatial:
+                #     skip = True
+                #     break
+
+        if skip == True:
+            shape_subspace.skip_current_rank_iteration()
+            continue
+
+    return num_tile_shapes
+
+
+def get_intermediate_tensors(workload: LooptreeWorkload):
+    result = set()
+    for einsum in workload.einsum_id_to_name():
+        written_tensors = workload.tensors_written_by_einsum(einsum)
+        for tensor in written_tensors:
+            reader_einsums = workload.reader_einsums(tensor)
+            for reader in reader_einsums:
+                if reader in workload.einsum_id_to_name():
+                    result.add(tensor)
+                    break
+
+    return result
+
+
+def get_hardware_levels(arch):
+    bindings = {}
+    fanout = {}
+    max_capacity = {}
+    for node in arch['nodes']:
+        bindings_id = len(bindings)
+        bindings[bindings_id] = node['name']
+        fanout[bindings_id] = (node.spatial.meshX, node.spatial.meshY)
+        attribute = node.attributes
+        if 'width' in attribute and 'depth' in attribute:
+            width = attribute.width
+            depth = attribute.depth
+            datawidth = attribute.datawidth
+            if all(x is not None for x in (width, depth, datawidth)):
+                max_capacity[bindings_id] = \
+                    attribute.width * attribute.depth / attribute.datawidth
+    return bindings, fanout, max_capacity
+
+
+def call_with_arg(f, arg):
+    if isinstance(next(iter(f.values())), tuple):
+        return { k: (v[0], v[1](*arg)) for k, v in f.items() }
+    else:
+        return { k: v(*arg) for k, v in f.items() }
+
+
+def count(it):
+    count = 0
+    for _ in it:
+        count += 1
+    return count

@@ -53,6 +53,8 @@ class ShapeSubspaceIterator:
                     break
                 except StopIteration as e:
                     pass
+            if len(self.choice_iterators) == 0:
+                idx = 0
             for j in range(idx+1, len(self.choice_iterators)):
                 self.restart_iterator(j)
         else:
@@ -73,7 +75,10 @@ class ShapeSubspaceIterator:
                 idx = len(self.choice_iterators)-i-1
                 if not self.is_first_choice[idx]:
                     break
-            skip_limit = i+1
+            if len(self.choice_iterators) == 0:
+                skip_limit = 0
+            else:
+                skip_limit = i+1
 
         if skip_limit == len(self.choice_iterators):
             self.is_done = True
@@ -95,13 +100,18 @@ class ShapeSubspaceIterator:
 
     def make_choice_generators(self, shape_subspace: ShapeSubspace):
         choice_generators = []
-        for _ in shape_subspace.ranks:
-            choice_generators.append(
-                lambda shape: [
+
+        def gen(shape):
+            if shape == 1:
+                return [1]
+            else:
+                return [
                     s[0] for s in
                     integer_factorizations_to_n_parts(shape, 2)
-                ]
-            )
+                ][:-1]
+
+        for _ in shape_subspace.ranks:
+            choice_generators.append(gen)
         return choice_generators
 
     def initialize_choice_iterators(self):

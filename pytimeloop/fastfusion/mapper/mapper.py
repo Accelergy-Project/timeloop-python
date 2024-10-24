@@ -215,7 +215,6 @@ def get_neighbors(workload):
 
 
 def get_intermediate_tensors(workload: LooptreeWorkload):
-    tensor_id_to_name = workload.data_space_id_to_name()
     result = set()
     for einsum in workload.einsum_id_to_name():
         written_tensors = workload.tensors_written_by_einsum(einsum)

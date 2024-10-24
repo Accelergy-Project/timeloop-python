@@ -17,7 +17,10 @@ def compile_mapping(mapping,
     tensor_name_to_id = workload.data_space_name_to_id()
 
     einsum_name = mapping[-1]['einsum']
-    einsum_id = einsum_name_to_id[einsum_name]
+    if isinstance(einsum_name, int):
+        einsum_id = einsum_name
+    else:
+        einsum_id = einsum_name_to_id[einsum_name]
 
     tensors = (
         workload.tensors_read_by_einsum(einsum_id)
@@ -63,12 +66,18 @@ def compile_mapping(mapping,
     for node in mapping:
         if node['type'] == 'temporal':
             rank_name = node['rank']
-            rank_id = rank_name_to_id[rank_name]
+            if isinstance(rank_name, int):
+                rank_id = rank_name
+            else:
+                rank_id = rank_name_to_id[rank_name]
             group_id = rank_groups.rank_to_group_id[rank_id]
 
-            tile_shape = sympy.symbols(f'tileshape{len(tile_shapes)}')
-            tile_shapes.append(tile_shape)
-            factor = einsum_shape[group_id] // tile_shape
+            if 'tile_shape' not in node:
+                tile_shape = sympy.symbols(f'tileshape{len(tile_shapes)}')
+                tile_shapes.append(tile_shape)
+            else:
+                tile_shape = node['tile_shape']
+            factor = einsum_shape[group_id] / tile_shape
             einsum_shape[group_id] = tile_shape
 
             latency *= factor
@@ -78,7 +87,7 @@ def compile_mapping(mapping,
                 if group_id in relevant_ranks:
                     actual_tensor_access_multiplier[tensor_id] = \
                         potential_tensor_access_multiplier[tensor_id]
-                    tensor_size[tensor_id] //= factor
+                    tensor_size[tensor_id] /= factor
                 else:
                     potential_tensor_access_multiplier[tensor_id] *= factor
         elif node['type'] == 'sequential':
@@ -87,13 +96,24 @@ def compile_mapping(mapping,
                     potential_tensor_access_multiplier[tensor_id]
         elif node['type'] == 'spatial':
             rank_name = node['rank']
-            rank_id = rank_name_to_id[rank_name]
+            if isinstance(rank_name, int):
+                rank_id = rank_name
+            else:
+                rank_id = rank_name_to_id[rank_name]
             group_id = rank_groups.rank_to_group_id[rank_id]
 
-            tile_shape = sympy.symbols(f'tileshape{len(tile_shapes)}')
-            tile_shapes.append(tile_shape)
-            factor = einsum_shape[group_id] // tile_shape
+            if 'tile_shape' not in node:
+                tile_shape = sympy.symbols(f'tileshape{len(tile_shapes)}')
+                tile_shapes.append(tile_shape)
+            else:
+                tile_shape = node['tile_shape']
+            factor = einsum_shape[group_id] / tile_shape
             einsum_shape[group_id] = tile_shape
+ 
+            for tensor_id in tensors:
+                relevant_ranks = tensor_to_relevant_ranks[tensor_id]
+                if group_id in relevant_ranks:
+                    tensor_size[tensor_id] /= factor
 
             if 'spatial' not in node:
                 spatial = 0
@@ -107,7 +127,10 @@ def compile_mapping(mapping,
             target = node['target']
             tensor_names = node['dspace']
             for tensor_name in tensor_names:
-                tensor_id = tensor_name_to_id[tensor_name]
+                if isinstance(tensor_name, int):
+                    tensor_id = tensor_name
+                else:
+                    tensor_id = tensor_name_to_id[tensor_name]
                 if tensor_id not in tensors:
                     continue
 
@@ -166,5 +189,6 @@ def compile_mapping(mapping,
     output.temporal_steps = lambdify(output.temporal_steps)
     output.fanout = lambdify(output.fanout)
     output.occupancy = lambdify(output.occupancy)
+    output.fills_by_parent = lambdify(output.fills_by_parent)
 
     return tile_shapes, output
