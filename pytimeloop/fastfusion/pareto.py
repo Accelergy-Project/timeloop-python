@@ -126,8 +126,8 @@ class Pareto:
         self.data = free_to_loop_index(self.data, n)
         self.data = makepareto(self.data)
 
-    def alloc(self, resource_name: str, size: int, nloops: int):
-        n = nameloop2col(resource_name, nloops)
+    def alloc(self, resource_name: str, size: int, above_loop_index: int):
+        n = nameloop2col(resource_name, above_loop_index)
         if n in self.data:
             self.data[n] += size
         else:
