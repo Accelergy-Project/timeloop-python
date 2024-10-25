@@ -67,22 +67,28 @@ class TensorStorage:
     def ts(self):
         return self.tile_size
 
+    def __str__(self):
+        return f"{self.tensor_id}({self.backer_id},{self.above_loop_index})"
+
+    def __repr__(self):
+        return f"{self.tensor_id}({self.backer_id},{self.above_loop_index})"
+
 
 @dataclass(frozen=True)
 class Tiling:
     loops: tuple[Loop, ...]
-    tensors: tuple[TensorStorage]
+    tensors: fzs[TensorStorage]
 
     @cached_property
     def tensor_names(self) -> set[str]:
         return {t.tensor_id for t in self.tensors}
 
+    def _shared_loop_index(self, live_tensors: set[str]) -> int:
+        n = [t.above_loop_index for t in self.tensors if t.tensor_id in live_tensors]
+        return max(n) - 1 if n else -1
+
     def shared_loop_index(self, other: "Tiling") -> int:
-        shared_tensors = self.tensor_names & other.tensor_names
-        n = [t.above_loop_index for t in self.tensors if t.tensor_id in shared_tensors]
-        if n:
-            return max(n) - 1
-        return -1
+        return self._shared_loop_index(other.tensor_names)
 
     def __eq__(self, other):
         return self.loops == other.loops
@@ -93,30 +99,50 @@ class Tiling:
                 return Tiling(self.loops[: i + 1])
         return Tiling(())
 
-    def __getitem__(self, key: int) -> Loop:
-        return Tiling(self.loops[key])
-
     def __len__(self) -> int:
         return len(self.loops)
 
     def __hash__(self):
-        return hash(self.loops, sorted(self.tensors))
+        return hash((self.loops, self.tensors))
+
+    def clear_dead_tensors(self, live_tensors: set[str]) -> "Tiling":
+        return Tiling(
+            self.loops[: self._shared_loop_index(live_tensors) + 1],
+            tuple(t for t in self.tensors if t.tensor_id in live_tensors),
+        )
 
 
 class SIM:
-    def __init__(self, tiling: Tiling, mapping: Pareto):
-        self.tilings: list[Tiling] = [tiling]
-        self.mappings: list[Pareto] = [mapping]
+    def __init__(self, tiling: Tiling | list[Tiling], mapping: Pareto | list[Pareto]):
+        self.tilings: list[Tiling] = tiling if isinstance(tiling, list) else [tiling]
+        self.mappings: list[Pareto] = (
+            mapping if isinstance(mapping, list) else [mapping]
+        )
         self.tensors: dict[str, TensorStorage] = {
-            t.tensor_id: t for t in tiling.tensors
+            t2.tensor_id: t2 for t in self.tilings for t2 in t.tensors
         }
+
+    def tiling_str(self):
+        tilings = [",".join(str(l) for l in t.loops) for t in self.tilings]
+        tilings = " | ".join(tilings)
+        tilings += " || " + ", ".join(str(t) for t in self.tensors.values())
+        return tilings
+
+    @cached_property
+    def tensor_names(self) -> set[str]:
+        return set(self.tensors)
 
     def _free_tensor(self, tensor_id: str):
         self.tensors.pop(tensor_id)
 
+    def copy(self) -> "SIM":
+        return SIM(list(self.tilings), [m.copy() for m in self.mappings])
+
     def merge_next(self, n: "SIM", implied_tensors: set[str]) -> "SIM":
         shared_loop_index = self.tilings[-1].shared_loop_index(n.tilings[0])
         self.tilings.extend(n.tilings)
+        # TODO: This copy() may not be needed because we squish together left mappings,
+        # so each right mapping will be merged with only one?
         self.mappings.extend([m.copy() for m in n.mappings])
         self.tensors.update(n.tensors)
 
@@ -134,6 +160,8 @@ class SIM:
                     )
 
     def consolidate(self, final: bool = False):
+        if len(self) <= 1:
+            return
         # Can merge mappings that have the same # of co-tiled loops as total loops
         tl = self.tilings
         shared_loop_index = [
@@ -154,12 +182,11 @@ class SIM:
         if final:
             self.mappings[0].free_to_loop_index(-1)
 
-    @staticmethod
-    def group(sets: Iterable["SIM"], live_tensors: set[str]) -> list["SIM"]:
-        grouped = defaultdict(list)
-        for s in sets:
-            grouped[tuple(s.tilings)].append(s)
-        return list(grouped.values())
+    def clear_dead_tensors(self, live_tensors: set[str]):
+        dead_tensors = set(self.tensors) - live_tensors
+        for t in dead_tensors:
+            self._free_tensor(t)
+        self.tilings = [t.clear_dead_tensors(live_tensors) for t in self.tilings]
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
@@ -169,6 +196,44 @@ class SIM:
 
     def __len__(self):
         return len(self.tilings)
+
+    @staticmethod
+    def concat(sims: Iterable["SIM"]) -> "SIM":
+        sims = list(sims)
+        assert len(sims) > 0, "Cannot concat empty list of SIMs"
+        maplen = set(len(s.mappings) for s in sims)
+        assert (
+            len(maplen) == 1
+        ), f"Cannot concat SIMs with different # of mappings: {maplen}"
+        mapping = []
+        for i in range(maplen.pop()):
+            mapping.append(Pareto.concat([s.mappings[i] for s in sims]))
+        return SIM(list(sims[0].tilings), mapping)
+
+    @staticmethod
+    def _group(
+        sims: list["SIM"], live_tensors: set[str], index: int = None
+    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
+        grouped = defaultdict(list)
+        for s in sims:
+            tiling = [s.tilings[index]] if index is not None else s.tilings
+            key = tuple(t.clear_dead_tensors(live_tensors) for t in tiling)
+            grouped[key].append(s)
+        return grouped
+
+    @staticmethod
+    def combine_combineable(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
+        return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
+
+    def group_by_right(
+        sims: list["SIM"], live_tensors: set[str]
+    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
+        return SIM._group(sims, live_tensors, -1)
+
+    def group_by_left(
+        sims: list["SIM"], live_tensors: set[str]
+    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
+        return SIM._group(sims, live_tensors, 0)
 
 
 import unittest
@@ -199,7 +264,7 @@ class TestSIM(unittest.TestCase):
 
         sims: list[SIM] = []
         for tensors, loops in zip([tensors0, tensors1, tensors2, tensors3], loops):
-            tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), tuple(tensors))
+            tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), fzs(tensors))
             mapping = Pareto(pd.DataFrame({"Energy": [1]}))
             mapping.data[MAPPING] = [{}]
             for t in tensors:
@@ -243,7 +308,7 @@ class TestSIM(unittest.TestCase):
 
         sims: list[SIM] = []
         for tensors, loops in zip([tensors0, tensors1, tensors2, tensors3], loops):
-            tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), tuple(tensors))
+            tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), fzs(tensors))
             mapping = Pareto(pd.DataFrame({"Energy": [1]}))
             mapping.data[MAPPING] = [{}]
             for t in tensors:

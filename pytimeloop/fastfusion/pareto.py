@@ -111,7 +111,7 @@ class Pareto:
         self.data: pd.DataFrame = makepareto(data)
 
     @staticmethod
-    def vertical_combine(paretos: list["Pareto"]) -> "Pareto":
+    def concat(paretos: list["Pareto"]) -> "Pareto":
         return Pareto(pd.concat([p.data for p in paretos]))
 
     def merge(self, other: "Pareto", shared_loop_index: int) -> "Pareto":
@@ -169,7 +169,7 @@ class ParetoTest(unittest.TestCase):
         self.assertEqual(len(p1.data), 2)
         p2 = Pareto(data2)
         self.assertEqual(len(p2.data), 1)
-        pd12 = Pareto.vertical_combine([p1, p2])
+        pd12 = Pareto.concat([p1, p2])
         self.assertEqual(len(pd12.data), 3)
 
     def test_merge(self):
