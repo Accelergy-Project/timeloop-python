@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from itertools import product, permutations
 from functools import reduce
 from operator import or_, mul
+from pathlib import Path
 
 from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
@@ -12,9 +13,14 @@ from bindings.looptree import (
     LooptreeWorkloadDependencyAnalyzer
 )
 
+from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
 from pytimeloop.fastfusion.fastmodel import compile_mapping, LooptreeOutput
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
+from pytimeloop.fastfusion.pareto import nameloop2col
+from pytimeloop.fastfusion.compatibility import Compatibility, Loop, TensorTiling
 
+from pytimeloop.timeloopfe.v4 import Ert
+from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 
 class LinearMapping:
     def __init__(self):
@@ -110,7 +116,16 @@ def mapper(config,
     bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
 
     einsum_name_to_id = workload.einsum_name_to_id()
+
+    if isinstance(tmp_path, Path):
+        tmp_path = str(tmp_path)
+    call_accelergy_verbose(spec, tmp_path)
+    ert_dict = yaml.load(Path(tmp_path) / 'ERT.yaml')
+    ert = Ert(ert_dict['ERT'])
+
+    data = {}
     for einsum_id in einsum_name_to_id.values():
+        data[einsum_id] = defaultdict(lambda: defaultdict(lambda: list()))
         tensors = (
             workload.tensors_read_by_einsum(einsum_id)
             |
@@ -145,6 +160,7 @@ def mapper(config,
 
         count = 0
         mapping = LinearMapping()
+        mapping.add_storage(0, tensors-intermediate_tensors)
         top_level_ranks = reduce(
             or_,
             (tensor_to_relevant_ranks[t] for t in intermediate_tensors),
@@ -172,26 +188,23 @@ def mapper(config,
                                 _, compiled_results = compile_mapping(partial_mapping,
                                                                       workload,
                                                                       analyzer)
-                                count += explore_tile_shape(partial_mapping,
-                                                            einsum_shape,
-                                                            compiled_results,
-                                                            max_capacity,
-                                                            max_fanout)
-                    print(count/1e6)
-
-
-# Determine all relevant ranks for top loops
-# Place fusion (GLB, but maybe PE as well?) level
-# Add spatial-fors (for PE)
-# Add temporal loops
-# Add spatial-fors (for MAC)
-# Add temporal loops (for MAC)
+                                for shape, res in explore_tile_shape(partial_mapping,
+                                                                     einsum_shape,
+                                                                     compiled_results,
+                                                                     max_capacity,
+                                                                     max_fanout):
+                                    process_result(res,
+                                                   shape,
+                                                   data[einsum_id],
+                                                   einsum_id,
+                                                   partial_mapping,
+                                                   bindings,
+                                                   workload,
+                                                   ert)
 
 
 def make_top_loops(mapping: LinearMapping, ranks):
     original = mapping
-    print('n_top_loops:',
-          sum(reduce(mul, range(i, len(ranks)+1), 1) for i in range(1, len(ranks)+1)))
     for r in range(len(ranks)+1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
@@ -235,9 +248,6 @@ def place_fusion_level(mapping: LinearMapping,
         all_tensor_choices.append(tensor_choices)
 
     original = mapping.copy()
-    print('n_fusion_level:', count(product(*all_tensor_choices)))
-    for choice in product(*all_tensor_choices):
-        print(choice)
     for choices in product(*all_tensor_choices):
         if not any(c == len(mapping) for (c, level) in choices):
             continue
@@ -253,8 +263,6 @@ def place_fusion_level(mapping: LinearMapping,
 
 def make_pe_spatial_fors(mapping, ranks):
     original = mapping.copy()
-    print('n_pe_spatial:',
-          sum(reduce(mul, range(i, len(ranks)+1), 1) for i in range(1, len(ranks)+1)))
     for r in range(len(ranks)+1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
@@ -265,8 +273,6 @@ def make_pe_spatial_fors(mapping, ranks):
 
 def make_pe_temporal_fors(mapping, ranks):
     original = mapping.copy()
-    print('n_pe_temporal:',
-          sum(reduce(mul, range(i, len(ranks)+1), 1) for i in range(1, len(ranks)+1)))
     for r in range(len(ranks)+1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
@@ -379,7 +385,73 @@ def explore_tile_shape(mapping,
             shape_subspace.skip_current_rank_iteration()
             continue
 
+        yield shape, result
     return num_tile_shapes
+
+
+def process_result(result,
+                   shape,
+                   compatibility_to_df,
+                   einsum_id,
+                   mapping,
+                   bindings,
+                   workload,
+                   ert):
+    actions = gather_actions(result,
+                             {'type': 'fused', 'nodes': mapping},
+                             workload,
+                             bindings,
+                             is_path=True)
+    energy = compute_energy_from_actions(actions, ert)
+    energy = sum(energy.values())
+
+    target_nloops_to_tensors = defaultdict(lambda: list())
+    compat_tiling = defaultdict(lambda: list())
+    cur_idx = 0
+    cur_loops = []
+    for node in mapping:
+        if node['type'] == 'temporal':
+            if 'tile_shape' in node:
+                tile_shape = node['tile_shape']
+            else:
+                tile_shape = shape[cur_idx]
+                cur_idx += 1
+            cur_loops.append(Loop(node['rank'], tile_shape, False))
+        elif node['type'] == 'spatial':
+            if 'tile_shape' in node:
+                tile_shape = node['tile_shape']
+            else:
+                tile_shape = shape[cur_idx]
+                cur_idx += 1
+            cur_loops.append(Loop(node['rank'], tile_shape, False))
+        elif node['type'] == 'storage':
+            dspaces = node['dspace']
+            target = node['target']
+            tensor_tiling = TensorTiling(target,
+                                         tuple(cur_loops))
+            for tensor in dspaces:
+                if tensor not in compat_tiling:
+                    compat_tiling[tensor] = tensor_tiling
+
+                target_nloops_to_tensors[(target, len(cur_loops))].append(tensor)
+
+    compatibility = Compatibility(
+        tiling=compat_tiling,
+        einsum_id=einsum_id
+    )
+
+    df = compatibility_to_df[compatibility]
+    df['Latency'].append(result.temporal_steps[einsum_id])
+    df['Energy'].append(energy)
+    # Store PE spatial utilization
+    df['PE_Utilization'].append(result.fanout[3])  # bindings[3] == 'PE'
+    # Store footprints
+    for (target, nloops), tensors in target_nloops_to_tensors.items():
+        key = nameloop2col(target, nloops)
+        lis = df[key]
+        lis += [0]*(len(df['Latency'])-len(lis))  # lis may be added just now. Need to be padded
+        for tensor in tensors:
+            lis[-1] += result.occupancy[(target, tensor)]
 
 
 def get_intermediate_tensors(workload: LooptreeWorkload):

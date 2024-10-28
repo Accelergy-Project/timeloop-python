@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Iterable
 
-from util import fzs
+from .util import fzs
 
 
 class Loop:
@@ -61,7 +61,7 @@ class TensorTiling:
     def __hash__(self):
         return hash((self.backer, self.loops_above_backer))
 
-    def co_tiled_with(self, other: "TensortensorTiling") -> bool:
+    def co_tiled_with(self, other: "TensorTiling") -> bool:
         return any(not f.is_spatial for f in self.loops_above_backer)
 
     def __repr__(self):

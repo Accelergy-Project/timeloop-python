@@ -7,18 +7,20 @@ from pytimeloop.looptree.accesses import *
 from pytimeloop.looptree.mapping_utilities import *
 
 
-def gather_actions(looptree_results, mapping, workload, bindings):
+def gather_actions(looptree_results, mapping, workload, bindings, is_path=False):
     reads, writes = reads_and_writes_from_fill_by_parent(
         looptree_results.fills_by_parent,
         mapping,
-        workload
+        workload,
+        is_path
     )
     reads, writes = get_total_accesses(reads), get_total_accesses(writes)
 
     peer_reads, peer_writes = reads_and_writes_from_fill_by_peer(
         looptree_results.fills_by_peer,
         mapping,
-        workload
+        workload,
+        is_path
     )
     peer_reads = get_total_accesses(peer_reads)
     peer_writes = get_total_accesses(peer_writes)
@@ -37,9 +39,10 @@ def gather_actions(looptree_results, mapping, workload, bindings):
 
     einsum_name_to_id = workload.einsum_name_to_id()
 
-    einsums_with_complete_mapping = get_einsums_with_complete_mappings(mapping['nodes'])
+    einsums_with_complete_mapping = get_einsums_with_complete_mappings(mapping['nodes'], workload, is_path)
     einsums_with_complete_mapping = {
-        einsum_name_to_id[e] for e in einsums_with_complete_mapping
+        e if isinstance(e, int) else einsum_name_to_id[e]
+        for e in einsums_with_complete_mapping
     }
 
     ops = gather_ops(looptree_results.ops, einsums_with_complete_mapping)

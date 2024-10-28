@@ -7,7 +7,7 @@ from ..nodes import isempty
 import logging
 
 
-def transpile(spec: Specification, for_model: bool = False):
+def transpile(spec: Specification, for_model: bool = False, add_spatial_dummy = True):
     """Dump a v4 specification to v3 format.
     !@param spec Specification object to dump.
     !@param for_model If True, dump the specification for timelooop-model.
@@ -93,7 +93,8 @@ def transpile(spec: Specification, for_model: bool = False):
             next_meshX *= spatial.get("meshX", 1)
             next_meshY *= spatial.get("meshY", 1)
 
-            if has_fanout:
+            to_place = []
+            if has_fanout and add_spatial_dummy:
                 logging.debug("Adding dummy for %s", node.get_name())
                 dummy_name = f"inter_{node.name}_spatial"
                 dummy = arch.dummy_storage(dummy_name)
@@ -105,9 +106,8 @@ def transpile(spec: Specification, for_model: bool = False):
                 # dummy.spatial = node.spatial
                 logging.debug("Dummy name is %s", dummy.get_name())
                 # dummy.attributes = node.attributes
+                to_place[dummy]
 
-            if has_fanout:
-                to_place = [dummy]
             if not is_container:
                 to_place.append(node)
                 node.constraints.spatial = None

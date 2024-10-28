@@ -56,7 +56,7 @@ def _specification_to_yaml_string(
         input_content = v4_to_v3.transpile(specification, for_model=for_model)
         input_content = to_yaml_string(input_content)
     elif isinstance(specification, v4fusedspec.Specification):
-        input_content = v4_to_v3.transpile(specification)
+        input_content = v4_to_v3.transpile(specification, add_spatial_dummy=False)
         input_content = to_yaml_string(input_content)
     else:
         raise TypeError(f"Can not call Timeloop with {type(specification)}")

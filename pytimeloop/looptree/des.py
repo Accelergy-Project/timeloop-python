@@ -13,6 +13,14 @@ class LooptreeOutput:
         self.temporal_steps = {}
         self.fanout = {}
 
+    def __repr__(self):
+        return (
+            f'LooptreeOutput(' +
+            f'ops={self.ops}, ' +
+            f'occupancy={self.occupancy}, ' +
+            f'fills_by_parent={self.fills_by_parent})'
+        )
+
 
 def deserialize_looptree_output(
     looptree_output: bindings.looptree.LooptreeResult,
