@@ -319,7 +319,7 @@ class ToDiagramProcessor(Processor):
             for cname in names:
                 node = pydot.Node(
                     cname,
-                    label="..." if "..." in cname else cname,
+                    label='\"...\"' if "..." in cname else cname,
                     **self.get_node_kwargs(**node_kwargs),
                 )
                 sub_cluster.add_node(node)
