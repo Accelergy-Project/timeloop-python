@@ -106,7 +106,7 @@ def transpile(spec: Specification, for_model: bool = False, add_spatial_dummy = 
                 # dummy.spatial = node.spatial
                 logging.debug("Dummy name is %s", dummy.get_name())
                 # dummy.attributes = node.attributes
-                to_place[dummy]
+                to_place.append(dummy)
 
             if not is_container:
                 to_place.append(node)
