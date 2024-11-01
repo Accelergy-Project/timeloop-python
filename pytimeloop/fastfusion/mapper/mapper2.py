@@ -2,7 +2,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from itertools import product, permutations
 from functools import reduce
-from operator import or_, mul
+from operator import or_
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -14,6 +14,7 @@ from bindings.looptree import (
 )
 
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
+from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.fastfusion.fastmodel import compile_mapping, LooptreeOutput
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 from pytimeloop.fastfusion.pareto import nameloop2col
@@ -102,6 +103,7 @@ def mapper(config,
 
     workload = LooptreeWorkload.parse_cfg(config.root['problem'])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+    equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
     einsum_id_to_name = workload.einsum_id_to_name()
     rank_name_to_id = workload.dimension_name_to_id()
@@ -200,7 +202,8 @@ def mapper(config,
                                                    partial_mapping,
                                                    bindings,
                                                    workload,
-                                                   ert)
+                                                   ert,
+                                                   equivalent_groups)
 
 
 def make_top_loops(mapping: LinearMapping, ranks):
@@ -396,7 +399,8 @@ def process_result(result,
                    mapping,
                    bindings,
                    workload,
-                   ert):
+                   ert,
+                   equiv_groups: EquivalentGroups):
     actions = gather_actions(result,
                              {'type': 'fused', 'nodes': mapping},
                              workload,
@@ -416,14 +420,22 @@ def process_result(result,
             else:
                 tile_shape = shape[cur_idx]
                 cur_idx += 1
-            cur_loops.append(Loop(node['rank'], tile_shape, False))
+            cur_loops.append(Loop(
+                str(equiv_groups.rank_to_group_id[node['rank']]),
+                tile_shape,
+                False
+            ))
         elif node['type'] == 'spatial':
             if 'tile_shape' in node:
                 tile_shape = node['tile_shape']
             else:
                 tile_shape = shape[cur_idx]
                 cur_idx += 1
-            cur_loops.append(Loop(node['rank'], tile_shape, False))
+            cur_loops.append(Loop(
+                str(equiv_groups.rank_to_group_id[node['rank']]),
+                tile_shape,
+                True
+            ))
         elif node['type'] == 'storage':
             dspaces = node['dspace']
             target = node['target']
@@ -437,7 +449,7 @@ def process_result(result,
 
     compatibility = Compatibility(
         tiling=compat_tiling,
-        einsum_id=einsum_id
+        einsum_id=str(einsum_id)
     )
 
     df = compatibility_to_df[compatibility]
