@@ -6,8 +6,8 @@ from typing import Any, Iterable
 
 import pandas as pd
 
-from pareto import Pareto, MAPPING, nameloop2col
-from util import fzs
+from .pareto import Pareto, MAPPING, nameloop2col
+from .util import fzs
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -110,6 +110,9 @@ class Tiling:
             self.loops[: self._shared_loop_index(live_tensors) + 1],
             tuple(t for t in self.tensors if t.tensor_id in live_tensors),
         )
+
+    def __lt__(self, other):
+        return self.loops < other.loops
 
 
 class SIM:

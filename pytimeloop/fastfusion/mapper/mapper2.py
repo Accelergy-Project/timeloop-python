@@ -17,7 +17,8 @@ from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actio
 from pytimeloop.fastfusion.fastmodel import compile_mapping, LooptreeOutput
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 from pytimeloop.fastfusion.pareto import nameloop2col
-from pytimeloop.fastfusion.compatibility import Compatibility, Loop, TensorTiling
+from pytimeloop.fastfusion.sim import SIM, TensorStorage, Tiling, Loop
+from pytimeloop.fastfusion.pareto import Pareto
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -197,10 +198,12 @@ def mapper(config,
                                                    shape,
                                                    data[einsum_id],
                                                    einsum_id,
+                                                   intermediate_tensors,
                                                    partial_mapping,
                                                    bindings,
                                                    workload,
                                                    ert)
+    return data
 
 
 def make_top_loops(mapping: LinearMapping, ranks):
@@ -393,6 +396,7 @@ def process_result(result,
                    shape,
                    compatibility_to_df,
                    einsum_id,
+                   intermediate_tensors,
                    mapping,
                    bindings,
                    workload,
@@ -405,53 +409,46 @@ def process_result(result,
     energy = compute_energy_from_actions(actions, ert)
     energy = sum(energy.values())
 
-    target_nloops_to_tensors = defaultdict(lambda: list())
-    compat_tiling = defaultdict(lambda: list())
     cur_idx = 0
     cur_loops = []
+    tensors = []
+    fused_loop_max_idx = -1
     for node in mapping:
-        if node['type'] == 'temporal':
+        if node['type'] == 'storage':
+            for dspace in node['dspace']:
+                tensors.append(TensorStorage(
+                    dspace,
+                    node['target'],
+                    len(cur_loops),
+                    0
+                ))
+                if dspace in intermediate_tensors:
+                    fused_loop_max_idx = max(fused_loop_max_idx, len(cur_loops) - 1)
+        elif node['type'] == 'spatial' or node['type'] == 'temporal':
             if 'tile_shape' in node:
                 tile_shape = node['tile_shape']
             else:
                 tile_shape = shape[cur_idx]
                 cur_idx += 1
-            cur_loops.append(Loop(node['rank'], tile_shape, False))
-        elif node['type'] == 'spatial':
-            if 'tile_shape' in node:
-                tile_shape = node['tile_shape']
-            else:
-                tile_shape = shape[cur_idx]
-                cur_idx += 1
-            cur_loops.append(Loop(node['rank'], tile_shape, False))
-        elif node['type'] == 'storage':
-            dspaces = node['dspace']
-            target = node['target']
-            tensor_tiling = TensorTiling(target,
-                                         tuple(cur_loops))
-            for tensor in dspaces:
-                if tensor not in compat_tiling:
-                    compat_tiling[tensor] = tensor_tiling
+            cur_loops.append(Loop(node['rank'], tile_shape, node['type'] == 'spatial'))
 
-                target_nloops_to_tensors[(target, len(cur_loops))].append(tensor)
+    cur_loops = cur_loops[:fused_loop_max_idx+1]
 
-    compatibility = Compatibility(
-        tiling=compat_tiling,
-        einsum_id=einsum_id
-    )
+    tiling = Tiling(loops=tuple(cur_loops), tensors=frozenset(tensors))
 
-    df = compatibility_to_df[compatibility]
+    df = compatibility_to_df[tiling]
     df['Latency'].append(result.temporal_steps[einsum_id])
     df['Energy'].append(energy)
     # Store PE spatial utilization
-    df['PE_Utilization'].append(result.fanout[3])  # bindings[3] == 'PE'
+    df['PE_Utilization'].append(result.fanout[3][0])  # bindings[3] == 'PE'
     # Store footprints
-    for (target, nloops), tensors in target_nloops_to_tensors.items():
-        key = nameloop2col(target, nloops)
+    
+    for t in tiling.tensors:
+        key = nameloop2col(t.backer_id, t.above_loop_index)
         lis = df[key]
-        lis += [0]*(len(df['Latency'])-len(lis))  # lis may be added just now. Need to be padded
-        for tensor in tensors:
-            lis[-1] += result.occupancy[(target, tensor)]
+        lis += [0]*(len(df['Latency'])-len(lis))
+        lis[-1] += result.occupancy[(t.backer_id, t.tensor_id)]
+
 
 
 def get_intermediate_tensors(workload: LooptreeWorkload):
