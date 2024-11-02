@@ -36,6 +36,7 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         result = mapper(config,
                         mac_constraint,
                         spec,
+                        explore_pe_uneven=True,
                         tmp_path=TEST_TMP_DIR,
                         verbose_stream=sys.stdout)
 

@@ -98,6 +98,7 @@ class MacArrayConstraint:
 def mapper(config,
            mac_array_constraint: MacArrayConstraint,
            spec,
+           explore_pe_uneven,
            tmp_path,
            verbose_stream=None):
 
@@ -178,7 +179,8 @@ def mapper(config,
                                                                  all_ranks):
                         for partial_mapping in place_pe_level(partial_mapping,
                                                               tensors,
-                                                              tensor_to_relevant_ranks):
+                                                              tensor_to_relevant_ranks,
+                                                              explore_pe_uneven):
                             for partial_mapping in make_mac_level_loops(partial_mapping,
                                                                         einsum_id,
                                                                         mac_parallel_rank_id,
@@ -284,19 +286,20 @@ def make_pe_temporal_fors(mapping, ranks):
             yield mapping
 
 
-def place_pe_level(mapping, tensors, tensor_to_relevant_ranks):
+def place_pe_level(mapping, tensors, tensor_to_relevant_ranks, explore_uneven):
     all_tensor_choices = []
     for tensor_id in tensors:
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
-        for i, node in enumerate(mapping):
-            if node['type'] == 'temporal':
-                rank_id = node['rank']
-                is_relevant = rank_id in relevant_ranks
-                if last_is_relevant and not is_relevant:
-                    tensor_choices.append((i, 2))
-                last_is_relevant = is_relevant
+        if explore_uneven:
+            for i, node in enumerate(mapping):
+                if node['type'] == 'temporal':
+                    rank_id = node['rank']
+                    is_relevant = rank_id in relevant_ranks
+                    if last_is_relevant and not is_relevant:
+                        tensor_choices.append((i, 2))
+                    last_is_relevant = is_relevant
         if last_is_relevant:
             tensor_choices.append((len(mapping), 2))
         all_tensor_choices.append(tensor_choices)
