@@ -1,3 +1,4 @@
+import functools
 import re
 
 from ..common.nodes import DictNode, ListNode
@@ -10,7 +11,7 @@ class Ert(DictNode):
 
         super().add_attr("version", default="0.4")
         super().add_attr("tables", Tables)
-
+        
     def find_component(self, name: str):
         for table in self.tables:
             # Component names in ERT are compound, e.g.,
@@ -24,6 +25,16 @@ class Ert(DictNode):
 
     def isempty(self) -> bool:
         return self.tables.isempty()
+    
+    def to_dict(self):
+        r = {}
+        for t in self.tables:
+            name = re.sub('\[\d+\.\.\d+\]', '', t.name).split('.')[-1]
+            r[name] = {}
+            for a in t.actions:
+                r[(name, a.name)] = a.energy
+        return r
+            
 
 
 class Tables(ListNode):
@@ -42,10 +53,14 @@ class Table(DictNode):
         super().add_attr("name", str)
         super().add_attr("actions", Actions)
 
+    # @functools.cache
     def find_action(self, name: str):
         for action in self.actions:
             if name == action.name:
                 return action
+            
+    def __hash__(self) -> int:
+        return id(self)
 
 
 class Actions(ListNode):

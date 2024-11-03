@@ -33,7 +33,9 @@ class TestOpCompatibility(unittest.TestCase):
                 OpCompatibility(
                     einsum_id=l,
                     fused_tensors=fzs(["T1"]),
-                    fused_loops=tuple((r[0], int(r[1])) for r in l.split(" ") if r),
+                    fused_loops=tuple(
+                        Loop(r[0], int(r[1]), False) for r in l.split(" ") if r
+                    ),
                     ranks=fzs("ABCD"),
                     tensors=fzs(["T1"]),
                     neighbors=fzs(),
@@ -62,7 +64,9 @@ class TestOpCompatibility(unittest.TestCase):
                 OpCompatibility(
                     einsum_id=l,
                     fused_tensors=fzs(["T1"]),
-                    fused_loops=tuple((r[0], int(r[1])) for r in l.split(" ") if r),
+                    fused_loops=tuple(
+                        Loop(r[0], int(r[1]), False) for r in l.split(" ") if r
+                    ),
                     ranks=fzs("ABCD"),
                     tensors=fzs(["T1"]),
                     neighbors=fzs(),

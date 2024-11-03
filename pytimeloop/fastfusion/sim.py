@@ -83,12 +83,9 @@ class Tiling:
     def tensor_names(self) -> set[str]:
         return {t.tensor_id for t in self.tensors}
 
-    def _shared_loop_index(self, live_tensors: set[str]) -> int:
+    def shared_loop_index(self, live_tensors: set[str]) -> int:
         n = [t.above_loop_index for t in self.tensors if t.tensor_id in live_tensors]
         return max(n) - 1 if n else -1
-
-    def shared_loop_index(self, other: "Tiling") -> int:
-        return self._shared_loop_index(other.tensor_names)
 
     def __eq__(self, other):
         return self.loops == other.loops
@@ -107,13 +104,12 @@ class Tiling:
 
     def clear_dead_tensors(self, live_tensors: set[str]) -> "Tiling":
         return Tiling(
-            self.loops[: self._shared_loop_index(live_tensors) + 1],
+            self.loops[: self.shared_loop_index(live_tensors) + 1],
             tuple(t for t in self.tensors if t.tensor_id in live_tensors),
         )
 
     def __lt__(self, other):
         return self.loops < other.loops
-
 
 class SIM:
     def __init__(self, tiling: Tiling | list[Tiling], mapping: Pareto | list[Pareto]):
@@ -142,7 +138,7 @@ class SIM:
         return SIM(list(self.tilings), [m.copy() for m in self.mappings])
 
     def merge_next(self, n: "SIM", implied_tensors: set[str]) -> "SIM":
-        shared_loop_index = self.tilings[-1].shared_loop_index(n.tilings[0])
+        shared_loop_index = self.tilings[-1].shared_loop_index(n.tilings[0].tensor_names)
         self.tilings.extend(n.tilings)
         # TODO: This copy() may not be needed because we squish together left mappings,
         # so each right mapping will be merged with only one?
@@ -162,28 +158,30 @@ class SIM:
                         t, self.tensors[t].tile_size, self.tensors[t].above_loop_index
                     )
 
-    def consolidate(self, final: bool = False):
+    def consolidate(self, next_live_tensors: set[str] = None):
         if len(self) <= 1:
             return
         # Can merge mappings that have the same # of co-tiled loops as total loops
         tl = self.tilings
+        live_tensors = [t.tensor_names for t in tl] + [next_live_tensors]
         shared_loop_index = [
-            tl[i].shared_loop_index(tl[i + 1]) for i in range(len(tl) - 1)
+            tl[i].shared_loop_index(live_tensors[i + 1]) for i in range(len(tl))
         ]
-        if final:
-            shared_loop_index.append(-1)
         i = 0
         while i < len(shared_loop_index) - 1:
             if shared_loop_index[i] >= shared_loop_index[i + 1]:
                 assert i == 0 or shared_loop_index[i - 1] < shared_loop_index[i]
                 self.tilings.pop(i)
                 m0, m1 = self.mappings.pop(i), self.mappings.pop(i)
-                self.mappings.insert(i, m0.merge(m1, shared_loop_index.pop(i)))
+                shared_index = shared_loop_index.pop(i)
+                m0.free_to_loop_index(shared_index)
+                m1.free_to_loop_index(shared_index)
+                self.mappings.insert(i, m0.merge(m1, shared_index))
                 i = max(0, i - 1)
             else:
                 i += 1
-        if final:
-            self.mappings[0].free_to_loop_index(-1)
+        if len(self.mappings) == 1:
+            self.mappings[0].free_to_loop_index(shared_loop_index[0])
 
     def clear_dead_tensors(self, live_tensors: set[str]):
         dead_tensors = set(self.tensors) - live_tensors

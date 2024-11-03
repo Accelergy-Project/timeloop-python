@@ -9,11 +9,13 @@ from pytimeloop.fastfusion.mapper.mapper2 import mapper, MacArrayConstraint
 from tests.load_config_mixin import LoadConfigMixin
 from tests.util import TEST_TMP_DIR
 
+from tests.load_config_mixin import CONFIG_DIR
+
 
 class TestMapper(LoadConfigMixin, unittest.TestCase):
     def test_mapper(self):
         config, spec = self.load_config([
-            'cascaded_mm_large.workload.yaml',
+            'cascaded_mm_small.workload.yaml',
             'four_level.arch.yaml'
         ])
 
@@ -36,8 +38,8 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
 
         result = mapper(config,
                         mac_constraint,
-                        spec,
-                        explore_pe_uneven=True,
+                        explore_pe_uneven=False,
+                        spec=spec,
                         tmp_path=TEST_TMP_DIR,
                         verbose_stream=sys.stdout)
         
@@ -45,8 +47,16 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         from pytimeloop.fastfusion.sim import SIM
         from pytimeloop.fastfusion.pareto import Pareto
         r2 = {}
+        
+        def paretofy(k, v):
+            return SIM(k, Pareto(pd.DataFrame(v).fillna(0)))
+        
+        from joblib import Parallel, delayed
         for einsum_id, compat_dict in result.items():
-            r2[einsum_id] = [SIM(k, Pareto(pd.DataFrame(v))) for k, v in compat_dict.items()]
+            r2[einsum_id] = Parallel(n_jobs=1)(delayed(paretofy)(k, v) for k, v in compat_dict.items())
+        
+        # for einsum_id, compat_dict in result.items():
+        #     r2[einsum_id] = [SIM(k, Pareto(pd.DataFrame(v).fillna(0))) for k, v in compat_dict.items()]
             
         sims = list(r2.values())
         s = sims.pop(0)
@@ -68,7 +78,7 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
             print("\n\n")
             print("\n\n" + "=" * 100 + f"\n{len(sims) + 1} Remaining\n" + "=" * 100)
 
-            DO_PRINT = False
+            DO_PRINT = True
 
             with open('s_keys.txt', 'w') as f:
                 for key in sorted(s.keys()):
@@ -94,7 +104,14 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
             print(f"Generated {len(s)} solutions")
             
         print(s)
-
+        for s2 in s:
+            s2.consolidate(set())
+        s_final = SIM.combine_combineable(s, set())[0]
+        data = s_final.mappings[0].data
+        # Sort data by the columns "Latency" and "Energy"
+        data = data.sort_values(by=["Latency", "Energy"])
+        
+        print(s_final)
 
     # def test_fusion():
     #     config, spec = self.load_config([

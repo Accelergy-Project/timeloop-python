@@ -17,7 +17,7 @@ from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.fastfusion.fastmodel import compile_mapping, LooptreeOutput
 from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 from pytimeloop.fastfusion.pareto import nameloop2col
-from pytimeloop.fastfusion.sim import  TensorStorage, Tiling, Loop
+from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 from pytimeloop.fastfusion.pareto import MAPPING
 
 from pytimeloop.timeloopfe.v4 import Ert
@@ -80,8 +80,6 @@ class LinearMapping:
             self.mapping.insert(idx, node)
 
 
-
-
 @dataclass
 class MacArrayConstraint:
     array_shape_in_parallel_dimension: str
@@ -91,9 +89,12 @@ class MacArrayConstraint:
     parallel_rank: dict[str, str]
     reduced_rank: dict[str, str]
 
-def _mapper_one_einsum(config,
+
+def _mapper_one_einsum(
+    config,
     mac_array_constraint: MacArrayConstraint,
     spec,
+    explore_pe_uneven,
     einsum_id,
     energy_dict,
     verbose_stream=None,
@@ -102,18 +103,9 @@ def _mapper_one_einsum(config,
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
     equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
-<<<<<<< HEAD
     einsum_id_to_name = workload.einsum_id_to_name()
     rank_name_to_id = workload.dimension_name_to_id()
     tensor_name_to_id = workload.data_space_name_to_id()
-=======
-def mapper(config,
-           mac_array_constraint: MacArrayConstraint,
-           spec,
-           explore_pe_uneven,
-           tmp_path,
-           verbose_stream=None):
->>>>>>> a59f90e9c599bd9c0f934d8367fb3a982fa46976
 
     mac_parallel_shape = mac_array_constraint.array_shape_in_parallel_dimension
     mac_reduced_shape = mac_array_constraint.array_shape_in_reduced_dimension
@@ -138,9 +130,7 @@ def mapper(config,
 
     weight_tensor_name = mac_array_constraint.weight_tensor[einsum_name]
     weight_tensor_id = tensor_name_to_id[weight_tensor_name]
-    weight_ranks = analyzer.einsum_dims_relevant_to_tensor(
-        einsum_id, weight_tensor_id
-    )
+    weight_ranks = analyzer.einsum_dims_relevant_to_tensor(einsum_id, weight_tensor_id)
     other_weight_ranks = weight_ranks - {mac_parallel_rank_id, mac_reduced_rank_id}
     all_ranks = workload.einsum_ospace_dimensions(einsum_id)
     non_weight_ranks = set(all_ranks) - weight_ranks
@@ -170,7 +160,10 @@ def mapper(config,
                     partial_mapping, all_ranks
                 ):
                     for partial_mapping in place_pe_level(
-                        partial_mapping, tensors, tensor_to_relevant_ranks
+                        partial_mapping,
+                        tensors,
+                        tensor_to_relevant_ranks,
+                        explore_pe_uneven,
                     ):
                         for partial_mapping in make_mac_level_loops(
                             partial_mapping,
@@ -193,7 +186,7 @@ def mapper(config,
                                 max_fanout,
                             ):
                                 count += 1
-                                tiling, stats = process_result(
+                                tiling, stats, fulltiling = process_result(
                                     res,
                                     shape,
                                     data[einsum_id],
@@ -205,7 +198,7 @@ def mapper(config,
                                     energy_dict,
                                     equivalent_groups,
                                 )
-                                print(f"Count: {count}, tiling: {tiling}")
+                                print(f"Count: {count}, fulltiling: {fulltiling}")
                                 mappings[tiling].append(stats)
     return mappings
 
@@ -213,6 +206,7 @@ def mapper(config,
 def mapper(
     config,
     mac_array_constraint: MacArrayConstraint,
+    explore_pe_uneven,
     spec,
     tmp_path,
     verbose_stream=None,
@@ -244,164 +238,29 @@ def mapper(
     energy_dict = ert.to_dict()
 
     data = {}
-    per_einsum_args = [dict(
-        einsum_id=einsum_id,
-        config=config,
-        mac_array_constraint=mac_array_constraint,
-        spec=spec,
-        energy_dict=energy_dict,
-        verbose_stream=verbose_stream,
-    ) for einsum_id in einsum_name_to_id.values()]
-    
-    from joblib import Parallel, delayed
-    data = Parallel(n_jobs=1)(delayed(_mapper_one_einsum)(**args) for args in per_einsum_args)
-    data = {einsum_id: mapping for einsum_id, mapping in zip(einsum_name_to_id.values(), data)}
-    return data
-    
-    # for einsum_id in einsum_name_to_id.values():
-    #     data[einsum_id] = _mapper_one_einsum(
-    #         config,
-    #         mac_array_constraint,
-    #         spec,
-    #         einsum_id,
-    #         energy_dict,
-    #         verbose_stream,
-    #     )
-        # data[einsum_id] = defaultdict(lambda: defaultdict(lambda: list()))
-        # tensors = workload.tensors_read_by_einsum(
-        #     einsum_id
-        # ) | workload.tensors_written_by_einsum(einsum_id)
-        # intermediate_tensors = tensors & get_intermediate_tensors(workload)
-
-        # einsum_name = einsum_id_to_name[einsum_id]
-        # mac_parallel_rank_name = einsum_name_to_parallel_rank_name[einsum_name]
-        # mac_parallel_rank_id = rank_name_to_id[mac_parallel_rank_name]
-        # mac_reduced_rank_name = einsum_name_to_reduced_rank_name[einsum_name]
-        # mac_reduced_rank_id = rank_name_to_id[mac_reduced_rank_name]
-
-        # weight_tensor_name = mac_array_constraint.weight_tensor[einsum_name]
-        # weight_tensor_id = tensor_name_to_id[weight_tensor_name]
-        # weight_ranks = analyzer.einsum_dims_relevant_to_tensor(
-        #     einsum_id, weight_tensor_id
-        # )
-        # other_weight_ranks = weight_ranks - {mac_parallel_rank_id, mac_reduced_rank_id}
-        # all_ranks = workload.einsum_ospace_dimensions(einsum_id)
-        # non_weight_ranks = set(all_ranks) - weight_ranks
-
-        # tensor_to_relevant_ranks = {
-        #     tensor: analyzer.einsum_dims_relevant_to_tensor(einsum_id, tensor)
-        #     for tensor in tensors
-        # }
-
-        # einsum_shape = {
-        #     rank_id: workload.get_rank_shape(rank_id)[1] + 1 for rank_id in all_ranks
-        # }
-
-<<<<<<< HEAD
-        # count = 0
-        # mapping = LinearMapping()
-        # mapping.add_storage(0, tensors - intermediate_tensors)
-        # top_level_ranks = reduce(
-        #     or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
-        # )
-        # energy_dict = ert.to_dict()
-        # mappings = defaultdict(list)
-        # for partial_mapping in make_top_loops(mapping, top_level_ranks):
-        #     for partial_mapping in place_fusion_level(
-        #         partial_mapping, intermediate_tensors, tensor_to_relevant_ranks
-        #     ):
-        #         for partial_mapping in make_pe_spatial_fors(partial_mapping, all_ranks):
-        #             for partial_mapping in make_pe_temporal_fors(
-        #                 partial_mapping, all_ranks
-        #             ):
-        #                 for partial_mapping in place_pe_level(
-        #                     partial_mapping, tensors, tensor_to_relevant_ranks
-        #                 ):
-        #                     for partial_mapping in make_mac_level_loops(
-        #                         partial_mapping,
-        #                         einsum_id,
-        #                         mac_parallel_rank_id,
-        #                         mac_parallel_shape,
-        #                         mac_reduced_rank_id,
-        #                         mac_reduced_shape,
-        #                         non_weight_ranks,
-        #                         other_weight_ranks,
-        #                     ):
-        #                         _, compiled_results = compile_mapping(
-        #                             partial_mapping, workload, analyzer
-        #                         )
-        #                         for shape, res in explore_tile_shape(
-        #                             partial_mapping,
-        #                             einsum_shape,
-        #                             compiled_results,
-        #                             max_capacity,
-        #                             max_fanout,
-        #                         ):
-        #                             print(f"Count: {count}")
-        #                             count += 1
-        #                             tiling, stats = process_result(
-        #                                 res,
-        #                                 shape,
-        #                                 data[einsum_id],
-        #                                 einsum_id,
-        #                                 intermediate_tensors,
-        #                                 partial_mapping,
-        #                                 bindings,
-        #                                 workload,
-        #                                 energy_dict,
-        #                                 equivalent_groups,
-        #                             )
-        #                             mappings[tiling].append(stats)
-        # data[einsum_id] = mappings
-    return data
-=======
-
-        count = 0
-        mapping = LinearMapping()
-        mapping.add_storage(0, tensors-intermediate_tensors)
-        top_level_ranks = reduce(
-            or_,
-            (tensor_to_relevant_ranks[t] for t in intermediate_tensors),
-            set()
+    per_einsum_args = [
+        dict(
+            einsum_id=einsum_id,
+            config=config,
+            mac_array_constraint=mac_array_constraint,
+            explore_pe_uneven=explore_pe_uneven,
+            spec=spec,
+            energy_dict=energy_dict,
+            verbose_stream=verbose_stream,
         )
-        for partial_mapping in make_top_loops(mapping, top_level_ranks):
-            for partial_mapping in place_fusion_level(partial_mapping,
-                                                      intermediate_tensors,
-                                                      tensor_to_relevant_ranks):
-                for partial_mapping in make_pe_spatial_fors(partial_mapping,
-                                                            all_ranks):
-                    for partial_mapping in make_pe_temporal_fors(partial_mapping,
-                                                                 all_ranks):
-                        for partial_mapping in place_pe_level(partial_mapping,
-                                                              tensors,
-                                                              tensor_to_relevant_ranks,
-                                                              explore_pe_uneven):
-                            for partial_mapping in make_mac_level_loops(partial_mapping,
-                                                                        einsum_id,
-                                                                        mac_parallel_rank_id,
-                                                                        mac_parallel_shape,
-                                                                        mac_reduced_rank_id,
-                                                                        mac_reduced_shape,
-                                                                        non_weight_ranks,
-                                                                        other_weight_ranks):
-                                _, compiled_results = compile_mapping(partial_mapping,
-                                                                      workload,
-                                                                      analyzer)
-                                for shape, res in explore_tile_shape(partial_mapping,
-                                                                     einsum_shape,
-                                                                     compiled_results,
-                                                                     max_capacity,
-                                                                     max_fanout):
-                                    process_result(res,
-                                                   shape,
-                                                   data[einsum_id],
-                                                   einsum_id,
-                                                   partial_mapping,
-                                                   bindings,
-                                                   workload,
-                                                   ert,
-                                                   equivalent_groups)
->>>>>>> a59f90e9c599bd9c0f934d8367fb3a982fa46976
+        for einsum_id in einsum_name_to_id.values()
+    ]
+
+    from joblib import Parallel, delayed
+
+    data = Parallel(n_jobs=1)(
+        delayed(_mapper_one_einsum)(**args) for args in per_einsum_args
+    )
+    data = {
+        einsum_id: mapping
+        for einsum_id, mapping in zip(einsum_name_to_id.values(), data)
+    }
+    return data
 
 
 def make_top_loops(mapping: LinearMapping, ranks):
@@ -488,15 +347,6 @@ def place_pe_level(mapping, tensors, tensor_to_relevant_ranks, explore_uneven):
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
-<<<<<<< HEAD
-        for i, node in enumerate(mapping):
-            if node["type"] == "temporal":
-                rank_id = node["rank"]
-                is_relevant = rank_id in relevant_ranks
-                if last_is_relevant and not is_relevant:
-                    tensor_choices.append((i, 2))
-                last_is_relevant = is_relevant
-=======
         if explore_uneven:
             for i, node in enumerate(mapping):
                 if node['type'] == 'temporal':
@@ -505,7 +355,6 @@ def place_pe_level(mapping, tensors, tensor_to_relevant_ranks, explore_uneven):
                     if last_is_relevant and not is_relevant:
                         tensor_choices.append((i, 2))
                     last_is_relevant = is_relevant
->>>>>>> a59f90e9c599bd9c0f934d8367fb3a982fa46976
         if last_is_relevant:
             tensor_choices.append((len(mapping), 2))
         all_tensor_choices.append(tensor_choices)
@@ -622,8 +471,7 @@ def process_result(
     )
     t1 = time.time()
     energy = sum(  # - 40k ms
-        energy_dict[component][action] * counts
-        for (component, action), counts in actions.items()
+        energy_dict[comp_action] * counts for comp_action, counts in actions.items()
     )
 
     cur_idx = 0
@@ -651,12 +499,26 @@ def process_result(
                     node["type"] == "spatial",
                 )
             )
+            
+    fulltiling = []
+    for node in mapping:
+        if node["type"] == "storage":
+            fulltiling.append(f"S({node['dspace']})")
+        elif node["type"] == "temporal":
+            fulltiling.append(f"T{node['rank']} in {node.get('tile_shape', 1)}")
+        elif node["type"] == "spatial":
+            fulltiling.append(f"S{node['rank']} in {node.get('tile_shape', 1)}")
+            
+    # print(f"Full tiling: {fulltiling}")
 
-    print(f"Tensors {tensors}, cur_loops {cur_loops}")
+    # print(f"Tensors {tensors}, cur_loops {cur_loops}")
 
     t2 = time.time()
 
-    tiling = Tiling(loops=tuple(cur_loops), tensors=frozenset(t for t in tensors if t.tensor_id in intermediate_tensors))
+    tiling = Tiling(
+        loops=tuple(cur_loops),
+        tensors=frozenset(t for t in tensors if t.tensor_id in intermediate_tensors),
+    )
 
     results = {}
     results["Latency"] = result.temporal_steps[einsum_id]
@@ -667,8 +529,11 @@ def process_result(
         key = nameloop2col(t.backer_id, t.above_loop_index)
         results[key] = result.occupancy[(t.backer_id, t.tensor_id)]
     t3 = time.time()
+    fulltiling.append(f"{result.fanout}")
+    fulltiling.append(f"{results['Latency']}")
+    fulltiling.append(f"{results['Energy']}")
     # print(f"{(t1-t0)*1e9:.2f} {(t2-t1)*1e9:.2f} {(t3-t2)*1e9:.2f}")
-    return tiling, results
+    return tiling, results, fulltiling
 
     # df = compatibility_to_df[tiling]
     # df['Latency'].append(result.temporal_steps[einsum_id])

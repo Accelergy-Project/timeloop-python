@@ -10,19 +10,29 @@ sys.modules["numba"] = None
 from paretoset import paretoset
 
 import pandas as pd
-
+import functools
 
 MAPPING = "__Mappings"
 OCCUPANCY = "__Occupancy"
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+)_LEVEL_(-?\d+)")
 
+def dict_cached(func):
+    cache = {}
+    @functools.wraps(func)
+    def wrapper(*args):
+        if args not in cache:
+            cache[args] = func(*args)
+        return cache[args]
+    return wrapper
 
+
+@dict_cached
 def col2nameloop(x):
     m = _resource_name_nloops_reg.match(x)
     return (m.group(1), int(m.group(2))) if m is not None else None
 
-
+@dict_cached
 def nameloop2col(name, nloops):
     return f"RESOURCE_{name}_LEVEL_{nloops}"
 
@@ -54,6 +64,8 @@ def max_to_col(df, c, c2):
 
 def makepareto(data: pd.DataFrame) -> pd.DataFrame:
     columns = [c for c in data.columns if c != MAPPING and not is_merge_col(c)]
+    if len(data) == 1:
+        return data
     return data[paretoset(data[columns])].reset_index(drop=True)
 
 
@@ -84,7 +96,7 @@ def merge_cross(
 
     # Add the shared resources from one cascade to the leaves of the other
     src_suffix, dst_suffix = MERGE_SUFFIXES
-    for _ in range(2):
+    for _ in range(2): # Swaps src and dst (last line of loop) for second iteration
         for c in shared_columns:
             if c == MAPPING:
                 continue
@@ -102,7 +114,10 @@ def merge_cross(
     # Merge mappings
     c0, c1 = MAPPING + MERGE_SUFFIXES[0], MAPPING + MERGE_SUFFIXES[1]
     df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
-    # Assert no duplicate columns
+
+    # Assert no NaNs
+    assert not df.isnull().values.any()    
+    
     return df[[c for c in df.columns if not is_merge_col(c)]]
 
 
@@ -112,7 +127,7 @@ class Pareto:
 
     @staticmethod
     def concat(paretos: list["Pareto"]) -> "Pareto":
-        return Pareto(pd.concat([p.data for p in paretos]))
+        return Pareto(pd.concat([p.data for p in paretos]).fillna(0))
 
     def merge(self, other: "Pareto", shared_loop_index: int) -> "Pareto":
         return Pareto(merge_cross(self.data, other.data, shared_loop_index))

@@ -6,7 +6,6 @@ from pytimeloop.timeloopfe.v4.ert import Ert
 from pytimeloop.looptree.accesses import *
 from pytimeloop.looptree.mapping_utilities import *
 
-
 def gather_actions(looptree_results, mapping, workload, bindings, is_path=False):
     reads, writes = reads_and_writes_from_fill_by_parent(
         looptree_results.fills_by_parent,
@@ -26,16 +25,10 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False)
     peer_writes = get_total_accesses(peer_writes)
 
     for k, v in peer_reads.items():
-        if k in reads:
-            reads[k] += v
-        else:
-            reads[k] = v
+        reads[k] = reads.get(k, 0) + v
 
     for k, v in peer_writes.items():
-        if k in writes:
-            writes[k] += v
-        else:
-            writes[k] = v
+        writes[k] = writes.get(k, 0) + v
 
     einsum_name_to_id = workload.einsum_name_to_id()
 
