@@ -94,6 +94,7 @@ def _mapper_one_einsum(
     config,
     mac_array_constraint: MacArrayConstraint,
     spec,
+    explore_glb_uneven,
     explore_pe_uneven,
     einsum_id,
     energy_dict,
@@ -153,7 +154,10 @@ def _mapper_one_einsum(
     mappings = defaultdict(list)
     for partial_mapping in make_top_loops(mapping, top_level_ranks):
         for partial_mapping in place_fusion_level(
-            partial_mapping, intermediate_tensors, tensor_to_relevant_ranks
+            partial_mapping,
+            intermediate_tensors,
+            tensor_to_relevant_ranks,
+            explore_glb_uneven
         ):
             for partial_mapping in make_pe_spatial_fors(partial_mapping, all_ranks):
                 for partial_mapping in make_pe_temporal_fors(
@@ -206,6 +210,7 @@ def _mapper_one_einsum(
 def mapper(
     config,
     mac_array_constraint: MacArrayConstraint,
+    explore_glb_uneven,
     explore_pe_uneven,
     spec,
     tmp_path,
@@ -243,6 +248,7 @@ def mapper(
             einsum_id=einsum_id,
             config=config,
             mac_array_constraint=mac_array_constraint,
+            explore_glb_uneven=explore_glb_uneven,
             explore_pe_uneven=explore_pe_uneven,
             spec=spec,
             energy_dict=energy_dict,
@@ -274,7 +280,10 @@ def make_top_loops(mapping: LinearMapping, ranks):
 
 
 def place_fusion_level(
-    mapping: LinearMapping, intermediate_tensors, tensor_to_relevant_ranks
+    mapping: LinearMapping,
+    intermediate_tensors,
+    tensor_to_relevant_ranks,
+    explore_uneven=True
 ):
     top_idx = 0
     for node in mapping:
@@ -292,12 +301,13 @@ def place_fusion_level(
         for i, node in enumerate(mapping[top_idx:], start=top_idx):
             if node["type"] == "temporal":
                 untiled = False
-                rank_id = node["rank"]
-                is_relevant = rank_id in relevant_ranks
-                if last_is_relevant and not is_relevant:
-                    # Choice 1: fused
-                    tensor_choices.append((i, 1))
-                last_is_relevant = is_relevant
+                if explore_uneven:
+                    rank_id = node["rank"]
+                    is_relevant = rank_id in relevant_ranks
+                    if last_is_relevant and not is_relevant:
+                        # Choice 1: fused
+                        tensor_choices.append((i, 1))
+                    last_is_relevant = is_relevant
         if last_is_relevant:
             tensor_choices.append((len(mapping), 1))
 
