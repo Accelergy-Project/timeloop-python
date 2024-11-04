@@ -26,9 +26,9 @@ architecture:
   - !Component
     name: PE 
     class: SRAM 
-    spatial: {meshX: 16}
+    spatial: {meshX: 4}
     attributes:
-      depth: 16384
+      depth: 1024
       width: 512
       block_size: 32
       word_bits: 8

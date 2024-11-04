@@ -56,10 +56,18 @@ class LinearMapping:
             node["tile_shape"] = tile_shape
         self.mapping.append(node)
 
-    def add_spatial(self, rank_name, tile_shape=None):
+    def add_spatial(self,
+                    rank_name,
+                    tile_shape=None,
+                    tile_shape_constraint=None,
+                    factor_constraint=None):
         node = {"type": "spatial", "rank": rank_name}
         if tile_shape is not None:
             node["tile_shape"] = tile_shape
+        if tile_shape_constraint is not None:
+            node["tile_shape_constraint"] = tile_shape_constraint
+        if factor_constraint is not None:
+            node["factor_constraint"] = factor_constraint
         self.mapping.append(node)
 
     def add_sequential(self, idx=None):
@@ -90,8 +98,14 @@ class MacArrayConstraint:
     reduced_rank: dict[str, str]
 
 
+@dataclass
+class PeArrayConstraint:
+    array_shape: int
+
+
 def _mapper_one_einsum(
     config,
+    pe_array_constraint: PeArrayConstraint,
     mac_array_constraint: MacArrayConstraint,
     spec,
     explore_glb_uneven,
@@ -159,7 +173,9 @@ def _mapper_one_einsum(
             tensor_to_relevant_ranks,
             explore_glb_uneven
         ):
-            for partial_mapping in make_pe_spatial_fors(partial_mapping, all_ranks):
+            for partial_mapping in make_pe_spatial_fors(partial_mapping,
+                                                        all_ranks,
+                                                        pe_array_constraint):
                 for partial_mapping in make_pe_temporal_fors(
                     partial_mapping, all_ranks
                 ):
@@ -209,6 +225,7 @@ def _mapper_one_einsum(
 
 def mapper(
     config,
+    pe_array_constraint: PeArrayConstraint,
     mac_array_constraint: MacArrayConstraint,
     explore_glb_uneven,
     explore_pe_uneven,
@@ -247,6 +264,7 @@ def mapper(
         dict(
             einsum_id=einsum_id,
             config=config,
+            pe_array_constraint=pe_array_constraint,
             mac_array_constraint=mac_array_constraint,
             explore_glb_uneven=explore_glb_uneven,
             explore_pe_uneven=explore_pe_uneven,
@@ -331,13 +349,18 @@ def place_fusion_level(
         yield mapping
 
 
-def make_pe_spatial_fors(mapping, ranks):
+def make_pe_spatial_fors(mapping,
+                         ranks,
+                         pe_array_constraint: PeArrayConstraint):
     original = mapping.copy()
     for r in range(len(ranks) + 1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
             for r in ordered_ranks:
-                mapping.add_spatial(r)
+                mapping.add_spatial(
+                    r,
+                    factor_constraint=f'<={pe_array_constraint.array_shape}'
+                )
             yield mapping
 
 
@@ -407,13 +430,26 @@ def explore_tile_shape(
     mapping, rank_shapes, compiled_result, max_capacity, max_fanout, only_count=False
 ):
     ranks = []
+    tile_constraints = []
+    factor_constraints = []
     for node in mapping:
         if node["type"] in ["temporal", "spatial"] and "tile_shape" not in node:
             ranks.append(node["rank"])
+        tile_constraint = []
+        factor_constraint = []
+        if "tile_constraint" in node:
+            tile_constraint.append(node["tile_constraint"])
+        if "factor_constraint" in node:
+            factor_constraint.append(node["factor_constraint"])
+        tile_constraints.append(tile_constraint)
+        factor_constraints.append(factor_constraint)
 
     num_tile_shapes = 0
 
-    shape_subspace = iter(ShapeSubspace(rank_shapes, ranks))
+    shape_subspace = iter(ShapeSubspace(rank_shapes,
+                                        ranks,
+                                        tile_constraints=tile_constraint,
+                                        factor_constraints=factor_constraints))
     for shape in shape_subspace:
         num_tile_shapes += 1
         if only_count:

@@ -4,7 +4,7 @@ import unittest
 
 from bindings.looptree import LooptreeWorkload
 
-from pytimeloop.fastfusion.mapper.mapper2 import mapper, MacArrayConstraint
+from pytimeloop.fastfusion.mapper.mapper2 import mapper, PeArrayConstraint, MacArrayConstraint
 
 from tests.load_config_mixin import LoadConfigMixin
 from tests.util import TEST_TMP_DIR
@@ -18,6 +18,8 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
             'cascaded_mm_small.workload.yaml',
             'four_level.arch.yaml'
         ])
+
+        pe_constraint = PeArrayConstraint(4)
 
         mac_constraint = MacArrayConstraint(
             64,
@@ -37,6 +39,7 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         )
 
         result = mapper(config,
+                        pe_constraint,
                         mac_constraint,
                         explore_glb_uneven=False,
                         explore_pe_uneven=False,

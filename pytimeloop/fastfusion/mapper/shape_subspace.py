@@ -1,10 +1,49 @@
+import re
+
 from combinatorics.integer import integer_factorizations_to_n_parts
 
 
+def parse_constraint(constraint_str: str):
+    parser = re.compile('^(>=|>|<|<=|==)\s*(\d)')
+    match = parser.match(constraint_str)
+    if match is None:
+        raise RuntimeError(f'Cannot parse constraint {constraint_str}')
+    comparison, limit = match.groups()
+    limit = int(limit)
+    if comparison == '>=':
+        return lambda x: x >= limit
+    elif comparison == '>':
+        return lambda x: x > limit
+    if comparison == '<=':
+        return lambda x: x <= limit
+    elif comparison == '<':
+        return lambda x: x < limit
+    elif comparison == '==':
+        return lambda x: x == limit
+
+
 class ShapeSubspace:
-    def __init__(self, rank_shapes: dict[int, int], ranks: list[int]):
+    def __init__(self,
+                 rank_shapes: dict[int, int],
+                 ranks: list[int],
+                 tile_constraints: list[list[str]]=None,
+                 factor_constraints: list[list[str]]=None):
         self.rank_shapes = rank_shapes
         self.ranks = ranks
+        if tile_constraints == None:
+            self.tile_constraints = [[]]*len(self.ranks)
+        else:
+            self.tile_constraints = [
+                [parse_constraint(c) for c in rank_constraints]
+                for rank_constraints in tile_constraints
+            ]
+        if factor_constraints == None:
+            self.factor_constraints = [[]]*len(self.ranks)
+        else:
+            self.factor_constraints = [
+                [parse_constraint(c) for c in rank_constraints]
+                for rank_constraints in factor_constraints
+            ]
 
         self.position_to_last = {}
         self.fill_position_to_next()
@@ -28,6 +67,8 @@ class ShapeSubspaceIterator:
         self.ranks = shape_subspace.ranks
         self.choice_generators = self.make_choice_generators(shape_subspace)
         self.pos_to_last = shape_subspace.position_to_last
+        self.tile_constraints = shape_subspace.tile_constraints
+        self.factor_constraints = shape_subspace.factor_constraints
 
         self.is_started = False
         self.is_done = False
@@ -101,14 +142,17 @@ class ShapeSubspaceIterator:
     def make_choice_generators(self, shape_subspace: ShapeSubspace):
         choice_generators = []
 
-        def gen(shape):
+        def gen(shape, tile_constraints, factor_constraints):
             if shape == 1:
                 return [1]
             else:
-                return [
-                    s[0] for s in
+                res = [
+                    s for s in
                     integer_factorizations_to_n_parts(shape, 2)
                 ][:-1]
+                res = [i for i in res if all(c(i[0]) for c in tile_constraints)]
+                res = [i for i in res if all(c(i[1]) for c in factor_constraints)]
+                return [i[0] for i in res]
 
         for _ in shape_subspace.ranks:
             choice_generators.append(gen)
@@ -134,7 +178,9 @@ class ShapeSubspaceIterator:
         else:
             shape = self.choice[last]
         self.choice_iterators[idx] = \
-            iter(self.choice_generators[idx](shape))
+            iter(self.choice_generators[idx](shape,
+                                             self.tile_constraints[idx],
+                                             self.factor_constraints[idx]))
         self.choice[idx] = next(self.choice_iterators[idx])
         self.is_first_choice[idx] = True
 
