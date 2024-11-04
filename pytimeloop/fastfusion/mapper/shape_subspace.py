@@ -30,14 +30,14 @@ class ShapeSubspace:
                  factor_constraints: list[list[str]]=None):
         self.rank_shapes = rank_shapes
         self.ranks = ranks
-        if tile_constraints == None:
+        if tile_constraints is None:
             self.tile_constraints = [[]]*len(self.ranks)
         else:
             self.tile_constraints = [
                 [parse_constraint(c) for c in rank_constraints]
                 for rank_constraints in tile_constraints
             ]
-        if factor_constraints == None:
+        if factor_constraints is None:
             self.factor_constraints = [[]]*len(self.ranks)
         else:
             self.factor_constraints = [

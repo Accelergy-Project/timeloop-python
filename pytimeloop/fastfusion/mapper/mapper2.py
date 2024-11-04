@@ -448,7 +448,7 @@ def explore_tile_shape(
 
     shape_subspace = iter(ShapeSubspace(rank_shapes,
                                         ranks,
-                                        tile_constraints=tile_constraint,
+                                        tile_constraints=tile_constraints,
                                         factor_constraints=factor_constraints))
     for shape in shape_subspace:
         num_tile_shapes += 1
