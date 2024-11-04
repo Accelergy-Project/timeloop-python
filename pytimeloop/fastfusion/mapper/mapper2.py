@@ -370,7 +370,7 @@ def make_pe_temporal_fors(mapping, ranks):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
             for r in ordered_ranks:
-                mapping.add_spatial(r)
+                mapping.add_temporal(r)
             yield mapping
 
 
@@ -435,14 +435,14 @@ def explore_tile_shape(
     for node in mapping:
         if node["type"] in ["temporal", "spatial"] and "tile_shape" not in node:
             ranks.append(node["rank"])
-        tile_constraint = []
-        factor_constraint = []
-        if "tile_constraint" in node:
-            tile_constraint.append(node["tile_constraint"])
-        if "factor_constraint" in node:
-            factor_constraint.append(node["factor_constraint"])
-        tile_constraints.append(tile_constraint)
-        factor_constraints.append(factor_constraint)
+            tile_constraint = []
+            factor_constraint = []
+            if "tile_constraint" in node:
+                tile_constraint.append(node["tile_constraint"])
+            if "factor_constraint" in node:
+                factor_constraint.append(node["factor_constraint"])
+            tile_constraints.append(tile_constraint)
+            factor_constraints.append(factor_constraint)
 
     num_tile_shapes = 0
 
@@ -476,23 +476,21 @@ def explore_tile_shape(
             shape_subspace.skip_current_rank_iteration()
             continue
 
+        invalid_spatial = False
         for level, fanout in result.fanout.items():
             if level in max_fanout:
-                invalid_spatial = any(
-                    spatial_fanout_in_dim > max_fanout_in_dim
-                    for spatial_fanout_in_dim, max_fanout_in_dim in zip(
-                        fanout, max_fanout[level]
-                    )
+                invalid_spatial = invalid_spatial or (
+                    reduce(mul, fanout, 1)
+                    >
+                    reduce(mul, max_fanout[level], 1)
                 )
-                # if invalid_spatial:
-                #     skip = True
-                #     break
 
         if skip == True:
             shape_subspace.skip_current_rank_iteration()
             continue
 
-        yield shape, result
+        if not invalid_spatial:
+            yield shape, result
     return num_tile_shapes
 
 
