@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <sstream>
 // std's necessary for pybind11.
 #include <optional>
 #include <variant>
@@ -44,7 +46,44 @@ void BindConfigClasses(py::module& m) {
       /// @brief Initializer. Uses the CompoundConfig string + type constructor.
       .def(py::init<std::string &, std::string &>())
       /// @brief Fetches the root CompoundConfigNode.
-      .def_property_readonly("root", &CompoundConfig::getRoot);
+      .def_property_readonly("root", &CompoundConfig::getRoot)
+      /// @brief Pickling and unpickling support
+      .def(py::pickle(
+        [](CompoundConfig& config)
+        {
+          std::string config_str;
+          std::string format_str;
+          if (config.hasLConfig())
+          {
+            char* buffer = NULL;
+            size_t bufsize = 0;
+            FILE* stream = open_memstream(&buffer, &bufsize);
+            config.getLConfig().write(stream);
+            fclose(stream);
+            config_str = buffer;  // shallow copy, do not free(buffer)
+            format_str = "cfg";
+          }
+          else
+          {
+            std::stringstream sstream;
+            sstream << config.getYConfig();
+            config_str = sstream.str();
+            format_str = "yaml";
+          }
+          return py::make_tuple(config_str, format_str);
+        },
+        [](const py::tuple t)
+        {
+          if (t.size() != 2) // See the returned tuple state above
+          {
+            throw std::runtime_error("invalid CompoundConfig pickle state");
+          }
+          // Simply returning a CompoundConfig makes PyBind11 copy via the
+          // copy ctor, which does not exist for CompoundConfig
+          return std::make_unique<CompoundConfig>(t[0].cast<std::string>(),
+                                                  t[1].cast<std::string>());
+        }
+      ));
   
   /// @brief Creates an equivalent Config.CompoundConfigNode class in Python. 
   using CompoundConfigNode = config::CompoundConfigNode;
