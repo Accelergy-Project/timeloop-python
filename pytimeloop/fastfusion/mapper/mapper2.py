@@ -582,16 +582,18 @@ def process_result(
     results["Latency"] = result.temporal_steps[einsum_id]
     results["Energy"] = energy
     # results["PE_Utilization"] = result.fanout[3][0]
-    results[MAPPING] = {einsum_id: str(tiling)}
+    fulltiling.append(f"{result.fanout}")
     for (storage_id, n_loops), size in reservations.items():
         key = nameloop2col(storage_id, n_loops)
         results.setdefault(key, 0)
         results[key] += size
     t3 = time.time()
-    fulltiling.append(f"{result.fanout}")
-    fulltiling.append(reservations)
-    fulltiling.append(f"{results['Latency']}")
-    fulltiling.append(f"{results['Energy']}")
+    for r in results:
+        if "RESOURCE" in r:
+            fulltiling.append(f"{r}={results[r]:.2e}")
+    fulltiling.append(f"L={results['Latency']:.2e}")
+    fulltiling.append(f"E={results['Energy']:.2e}")
+    results[MAPPING] = {einsum_id: str(fulltiling)}
     # print(f"{(t1-t0)*1e9:.2f} {(t2-t1)*1e9:.2f} {(t3-t2)*1e9:.2f}")
     return tiling, results, fulltiling
 
