@@ -174,14 +174,14 @@ class SIM:
                 self.tilings.pop(i)
                 m0, m1 = self.mappings.pop(i), self.mappings.pop(i)
                 shared_index = shared_loop_index.pop(i)
-                m0.free_to_loop_index(shared_index)
-                m1.free_to_loop_index(shared_index)
+                m0.free_to_loop_index(shared_index+1)
+                m1.free_to_loop_index(shared_index+1)
                 self.mappings.insert(i, m0.merge(m1, shared_index))
                 i = max(0, i - 1)
             else:
                 i += 1
         if len(self.mappings) == 1:
-            self.mappings[0].free_to_loop_index(shared_loop_index[0])
+            self.mappings[0].free_to_loop_index(shared_loop_index[0]+1)
 
     def clear_dead_tensors(self, live_tensors: set[str]):
         dead_tensors = set(self.tensors) - live_tensors
@@ -320,9 +320,9 @@ class TestSIM(unittest.TestCase):
         while len(sims) > 1:
             sims[0].merge_next(sims.pop(1), set())
             sims2[0].merge_next(sims2.pop(1), set())
-            sims2[0].consolidate()
-        sims[0].consolidate(final=True)
-        sims2[0].consolidate(final=True)
+            sims2[0].consolidate(set().union(*[s.tensor_names for s in sims2]))
+        sims[0].consolidate(set())
+        sims2[0].consolidate(set())
         data0 = sims[0].mappings[0].data
         data1 = sims2[0].mappings[0].data
         for k in data0:
@@ -340,7 +340,7 @@ class TestSIM(unittest.TestCase):
             max(c2.ts, d2.ts) + c1.ts + d1.ts + c1d1.ts,
         ) + (b0c0.ts + a0.ts + b0.ts + c0.ts + d0.ts)
 
-        colname = nameloop2col("GLB", -1)
+        colname = nameloop2col("GLB", 0)
         self.assertEqual(sims[0].mappings[0].data[colname].sum(), expected_util)
         self.assertEqual(sims2[0].mappings[0].data[colname].sum(), expected_util)
 
