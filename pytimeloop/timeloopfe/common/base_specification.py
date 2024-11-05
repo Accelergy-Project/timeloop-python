@@ -8,6 +8,13 @@ from .processor import Processor, ProcessorError, References2CopiesProcessor
 def class2obj(x):
     return x() if isinstance(x, type) else x
 
+class ProcessorListHolder(ListNode):
+    @classmethod
+    def declare_attrs(cls, *args, **kwargs):
+        super().declare_attrs(*args, **kwargs)
+        super().add_attr("", callfunc=class2obj)
+ProcessorListHolder.declare_attrs()
+
 
 class BaseSpecification(DictNode):
     """
@@ -47,16 +54,9 @@ class BaseSpecification(DictNode):
             p.declare_attrs()
 
     def _early_init_processors(self, _required_processors: List["Processor"], **kwargs):
-        class ProcessorListHolder(ListNode):
-            @classmethod
-            def declare_attrs(cls, *args, **kwargs):
-                super().declare_attrs(*args, **kwargs)
-                super().add_attr("", callfunc=class2obj)
-
         kwargs.setdefault("processors", [])
         kwargs["_required_processors"] = _required_processors
 
-        ProcessorListHolder.declare_attrs()
         self.processors = ProcessorListHolder(kwargs["processors"])
         self._required_processors = ProcessorListHolder(kwargs["_required_processors"])
         self._processors_declare_attrs()

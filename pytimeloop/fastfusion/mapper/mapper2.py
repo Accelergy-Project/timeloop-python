@@ -280,7 +280,7 @@ def mapper(
 
     from joblib import Parallel, delayed
 
-    data = Parallel(n_jobs=1)(
+    data = Parallel(n_jobs=32)(
         delayed(_mapper_one_einsum)(**args) for args in per_einsum_args
     )
     data = {
