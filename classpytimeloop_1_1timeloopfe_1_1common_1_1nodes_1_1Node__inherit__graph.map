@@ -4,8 +4,8 @@
 <area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="248,306,537,1507,532,1508,243,308"/>
 <area shape="rect" id="Node000062" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="421,136,661,177"/>
 <area shape="poly" id="edge44_Node000001_Node000062" title=" " alt="" coords="285,257,488,175,490,180,287,262"/>
-<area shape="rect" id="Node000090" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNode.html" title="A node in the architecture hierarchy." alt="" coords="444,259,638,299"/>
-<area shape="poly" id="edge49_Node000001_Node000090" title=" " alt="" coords="388,276,444,276,444,282,388,282"/>
+<area shape="rect" id="Node000091" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNode.html" title="A node in the architecture hierarchy." alt="" coords="444,259,638,299"/>
+<area shape="poly" id="edge49_Node000001_Node000091" title=" " alt="" coords="388,276,444,276,444,282,388,282"/>
 <area shape="rect" id="Node000002" title=" " alt="" coords="5,266,54,292"/>
 <area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="69,276,101,276,101,282,69,282"/>
 <area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1base__specification_1_1BaseSpecification.html" title="Base class for specifications in the Timeloop framework." alt="" coords="723,2325,954,2366"/>
@@ -89,15 +89,15 @@
 <area shape="poly" id="edge42_Node000003_Node000060" title=" " alt="" coords="549,1564,569,1700,603,1885,625,1979,651,2064,680,2133,695,2160,711,2180,727,2192,724,2196,707,2184,691,2163,675,2136,646,2066,620,1980,598,1886,564,1700,544,1565"/>
 <area shape="rect" id="Node000061" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1variables_1_1Variables.html" title="A top&#45;level class for variables." alt="" coords="728,2260,949,2301"/>
 <area shape="poly" id="edge43_Node000003_Node000061" title=" " alt="" coords="549,1564,566,1712,599,1917,621,2021,647,2116,677,2193,694,2223,711,2245,729,2259,726,2263,707,2249,689,2226,672,2195,642,2117,616,2022,594,1918,561,1713,543,1565"/>
-<area shape="rect" id="Node000063" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1CombinableListNode.html" title="A list node that can be combined with others by extending." alt="" coords="718,136,959,177"/>
-<area shape="poly" id="edge45_Node000062_Node000063" title=" " alt="" coords="677,154,718,154,718,159,677,159"/>
-<area shape="rect" id="Node000069" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1FlatteningListNode.html" title="A list node that flattens lists of lists." alt="" coords="718,5,959,46"/>
-<area shape="poly" id="edge46_Node000062_Node000069" title=" " alt="" coords="584,125,642,90,708,57,743,44,745,49,710,61,644,94,587,129"/>
-<area shape="rect" id="Node000071" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNodes.html" title="A collection of architectural nodes." alt="" coords="741,201,936,242"/>
-<area shape="poly" id="edge47_Node000062_Node000071" title=" " alt="" coords="652,178,743,198,742,203,651,183"/>
-<area shape="rect" id="Node000072" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Networks.html" title="A list of networks in the architecture." alt="" coords="741,71,936,111"/>
-<area shape="poly" id="edge48_Node000062_Node000072" title=" " alt="" coords="651,129,742,109,743,115,652,135"/>
-<area shape="poly" id="edge51_Node000090_Node000008" title=" " alt="" coords="654,298,741,315,740,320,653,303"/>
-<area shape="poly" id="edge52_Node000090_Node000013" title=" " alt="" coords="654,276,728,276,728,282,654,282"/>
-<area shape="poly" id="edge50_Node000090_Node000071" title=" " alt="" coords="653,255,740,238,741,243,654,260"/>
+<area shape="rect" id="Node000063" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1base__specification_1_1ProcessorListHolder.html" title=" " alt="" coords="723,136,954,177"/>
+<area shape="poly" id="edge45_Node000062_Node000063" title=" " alt="" coords="677,154,723,154,723,159,677,159"/>
+<area shape="rect" id="Node000064" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1CombinableListNode.html" title="A list node that can be combined with others by extending." alt="" coords="718,5,959,46"/>
+<area shape="poly" id="edge46_Node000062_Node000064" title=" " alt="" coords="584,125,642,90,708,57,743,44,745,49,710,61,644,94,587,129"/>
+<area shape="rect" id="Node000070" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1FlatteningListNode.html" title="A list node that flattens lists of lists." alt="" coords="718,71,959,111"/>
+<area shape="poly" id="edge47_Node000062_Node000070" title=" " alt="" coords="651,129,742,109,743,115,652,135"/>
+<area shape="rect" id="Node000072" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1ArchNodes.html" title="A collection of architectural nodes." alt="" coords="741,201,936,242"/>
+<area shape="poly" id="edge48_Node000062_Node000072" title=" " alt="" coords="652,178,743,198,742,203,651,183"/>
+<area shape="poly" id="edge51_Node000091_Node000008" title=" " alt="" coords="654,298,741,315,740,320,653,303"/>
+<area shape="poly" id="edge52_Node000091_Node000013" title=" " alt="" coords="654,276,728,276,728,282,654,282"/>
+<area shape="poly" id="edge50_Node000091_Node000072" title=" " alt="" coords="653,255,740,238,741,243,654,260"/>
 </map>
