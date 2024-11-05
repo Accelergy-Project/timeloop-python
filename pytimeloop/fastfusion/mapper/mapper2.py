@@ -56,11 +56,13 @@ class LinearMapping:
             node["tile_shape"] = tile_shape
         self.mapping.append(node)
 
-    def add_spatial(self,
-                    rank_name,
-                    tile_shape=None,
-                    tile_shape_constraint=None,
-                    factor_constraint=None):
+    def add_spatial(
+        self,
+        rank_name,
+        tile_shape=None,
+        tile_shape_constraint=None,
+        factor_constraint=None,
+    ):
         node = {"type": "spatial", "rank": rank_name}
         if tile_shape is not None:
             node["tile_shape"] = tile_shape
@@ -171,11 +173,11 @@ def _mapper_one_einsum(
             partial_mapping,
             intermediate_tensors,
             tensor_to_relevant_ranks,
-            explore_glb_uneven
+            explore_glb_uneven,
         ):
-            for partial_mapping in make_pe_spatial_fors(partial_mapping,
-                                                        all_ranks,
-                                                        pe_array_constraint):
+            for partial_mapping in make_pe_spatial_fors(
+                partial_mapping, all_ranks, pe_array_constraint
+            ):
                 for partial_mapping in make_pe_temporal_fors(
                     partial_mapping, all_ranks
                 ):
@@ -218,7 +220,8 @@ def _mapper_one_einsum(
                                     energy_dict,
                                     equivalent_groups,
                                 )
-                                print(f"Count: {count}, fulltiling: {fulltiling}")
+                                if count % 1e4 == 0:
+                                    print(f"Count: {count}, fulltiling: {fulltiling}")
                                 mappings[tiling].append(stats)
     return mappings
 
@@ -301,7 +304,7 @@ def place_fusion_level(
     mapping: LinearMapping,
     intermediate_tensors,
     tensor_to_relevant_ranks,
-    explore_uneven=True
+    explore_uneven=True,
 ):
     top_idx = 0
     for node in mapping:
@@ -349,17 +352,14 @@ def place_fusion_level(
         yield mapping
 
 
-def make_pe_spatial_fors(mapping,
-                         ranks,
-                         pe_array_constraint: PeArrayConstraint):
+def make_pe_spatial_fors(mapping, ranks, pe_array_constraint: PeArrayConstraint):
     original = mapping.copy()
     for r in range(len(ranks) + 1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
             for r in ordered_ranks:
                 mapping.add_spatial(
-                    r,
-                    factor_constraint=f'<={pe_array_constraint.array_shape}'
+                    r, factor_constraint=f"<={pe_array_constraint.array_shape}"
                 )
             yield mapping
 
@@ -382,8 +382,8 @@ def place_pe_level(mapping, tensors, tensor_to_relevant_ranks, explore_uneven):
         last_is_relevant = True
         if explore_uneven:
             for i, node in enumerate(mapping):
-                if node['type'] == 'temporal':
-                    rank_id = node['rank']
+                if node["type"] == "temporal":
+                    rank_id = node["rank"]
                     is_relevant = rank_id in relevant_ranks
                     if last_is_relevant and not is_relevant:
                         tensor_choices.append((i, 2))
@@ -446,10 +446,14 @@ def explore_tile_shape(
 
     num_tile_shapes = 0
 
-    shape_subspace = iter(ShapeSubspace(rank_shapes,
-                                        ranks,
-                                        tile_constraints=tile_constraints,
-                                        factor_constraints=factor_constraints))
+    shape_subspace = iter(
+        ShapeSubspace(
+            rank_shapes,
+            ranks,
+            tile_constraints=tile_constraints,
+            factor_constraints=factor_constraints,
+        )
+    )
     for shape in shape_subspace:
         num_tile_shapes += 1
         if only_count:
@@ -480,9 +484,7 @@ def explore_tile_shape(
         for level, fanout in result.fanout.items():
             if level in max_fanout:
                 invalid_spatial = invalid_spatial or (
-                    reduce(mul, fanout, 1)
-                    >
-                    reduce(mul, max_fanout[level], 1)
+                    reduce(mul, fanout, 1) > reduce(mul, max_fanout[level], 1)
                 )
 
         if skip == True:
@@ -521,41 +523,53 @@ def process_result(
     cur_idx = 0
     cur_loops = []
     tensors = []
+    found_tensors = []
+    reservations = {}
     found_intermediate_tensors = 0
+    
+    def record_backing_storage(dspace, target, n_loops):
+        if dspace in found_tensors:
+            return
+        
+        nonlocal found_intermediate_tensors
+        tensors.append(TensorStorage(dspace, target, n_loops, 0))
+        found_tensors.append(dspace)
+        if dspace in intermediate_tensors:
+            found_intermediate_tensors += 1
+
+    def record_reservation(dspace, target, n_loops):
+        reservations.setdefault((target, n_loops), 0)
+        reservations[(target, n_loops)] += result.occupancy[(target, dspace)]
+
     for node in mapping:
-        if found_intermediate_tensors == len(intermediate_tensors):
-            break
         if node["type"] == "storage":
             for dspace in node["dspace"]:
-                tensors.append(TensorStorage(dspace, node["target"], len(cur_loops), 0))
-                if dspace in intermediate_tensors:
-                    found_intermediate_tensors += 1
+                record_backing_storage(dspace, node["target"], len(cur_loops))
+                record_reservation(dspace, node["target"], len(cur_loops))
+
         elif node["type"] == "spatial" or node["type"] == "temporal":
             if "tile_shape" in node:
                 tile_shape = node["tile_shape"]
             else:
                 tile_shape = shape[cur_idx]
                 cur_idx += 1
-            cur_loops.append(
-                Loop(
-                    str(equiv_groups.rank_to_group_id[node["rank"]]),
-                    tile_shape,
-                    node["type"] == "spatial",
+            if found_intermediate_tensors < len(intermediate_tensors):
+                cur_loops.append(
+                    Loop(
+                        str(equiv_groups.rank_to_group_id[node["rank"]]),
+                        tile_shape,
+                        node["type"] == "spatial",
+                    )
                 )
-            )
-            
+
     fulltiling = []
     for node in mapping:
         if node["type"] == "storage":
-            fulltiling.append(f"S({node['dspace']})")
+            fulltiling.append(f"S({node['dspace']} in {node['target']})")
         elif node["type"] == "temporal":
             fulltiling.append(f"T{node['rank']} in {node.get('tile_shape', 1)}")
         elif node["type"] == "spatial":
             fulltiling.append(f"S{node['rank']} in {node.get('tile_shape', 1)}")
-            
-    # print(f"Full tiling: {fulltiling}")
-
-    # print(f"Tensors {tensors}, cur_loops {cur_loops}")
 
     t2 = time.time()
 
@@ -569,28 +583,17 @@ def process_result(
     results["Energy"] = energy
     # results["PE_Utilization"] = result.fanout[3][0]
     results[MAPPING] = {einsum_id: str(tiling)}
-    for t in tensors:
-        key = nameloop2col(t.backer_id, t.above_loop_index)
-        results[key] = result.occupancy[(t.backer_id, t.tensor_id)]
+    for (storage_id, n_loops), size in reservations.items():
+        key = nameloop2col(storage_id, n_loops)
+        results.setdefault(key, 0)
+        results[key] += size
     t3 = time.time()
     fulltiling.append(f"{result.fanout}")
+    fulltiling.append(reservations)
     fulltiling.append(f"{results['Latency']}")
     fulltiling.append(f"{results['Energy']}")
     # print(f"{(t1-t0)*1e9:.2f} {(t2-t1)*1e9:.2f} {(t3-t2)*1e9:.2f}")
     return tiling, results, fulltiling
-
-    # df = compatibility_to_df[tiling]
-    # df['Latency'].append(result.temporal_steps[einsum_id])
-    # df['Energy'].append(energy)
-    # # Store PE spatial utilization
-    # df['PE_Utilization'].append(result.fanout[3][0])  # bindings[3] == 'PE'
-    # # Store footprints
-
-    # for t in tiling.tensors:
-    #     key = nameloop2col(t.backer_id, t.above_loop_index)
-    #     lis = df[key]
-    #     lis += [0]*(len(df['Latency'])-len(lis))
-    #     lis[-1] += result.occupancy[(t.backer_id, t.tensor_id)]
 
 
 def get_intermediate_tensors(workload: LooptreeWorkload):

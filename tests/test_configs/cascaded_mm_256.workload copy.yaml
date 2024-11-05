@@ -1,0 +1,54 @@
+problem:
+  - shape:
+      name: Fc1
+      dimensions: [ P1, M1, C1 ]
+      data_spaces:
+      - name: Fmap1
+        dimensions: [ Fmap1_C, Fmap1_P ]
+        projection: '[ C1, P1 ]'
+      - name: Filter1
+        dimensions: [ Filter1_C, Filter1_M ]
+        projection: '[ C1, M1 ]'
+      - name: Fmap2
+        dimensions: [ Fmap2_C, Fmap2_P ]
+        projection: '[ M1, P1 ]'
+        read_write: True
+
+    instance: >-
+      0 <= P1 < 256 and 0 <= M1 < 256 and 0 <= C1 < 256
+
+  - shape:
+      name: Fc2
+      dimensions: [ P2, M2, C2 ]
+      data_spaces:
+      - name: Fmap2
+        dimensions: [ Fmap2_C, Fmap2_P ]
+        projection: '[ C2, P2 ]'
+      - name: Filter2
+        dimensions: [ Filter2_C, Filter2_M ]
+        projection: '[ C2, M2 ]'
+      - name: Fmap3
+        dimensions: [ Fmap3_C, Fmap3_P ]
+        projection: '[ M2, P2 ]'
+        read_write: True
+
+    instance: >-
+      0 <= P2 < 256 and 0 <= M2 < 256 and 0 <= C2 < 256
+
+  # - shape:
+  #     name: Fc2
+  #     dimensions: [ P1, M2, M1 ]
+  #     data_spaces:
+  #     - name: Fmap2
+  #       dimensions: [ Fmap2_C, Fmap2_P ]
+  #       projection: '[ M1, P1 ]'
+  #     - name: Filter2
+  #       dimensions: [ Filter2_C, Filter2_M ]
+  #       projection: '[ M1, M2 ]'
+  #     - name: Fmap3
+  #       dimensions: [ Fmap3_C, Fmap3_P ]
+  #       projection: '[ M2, P1 ]'
+  #       read_write: True
+
+  #   instance: >-
+  #     0 <= P1 < 256 and 0 <= M2 < 256 and 0 <= M1 < 256
