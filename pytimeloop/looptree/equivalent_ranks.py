@@ -21,6 +21,7 @@ class EquivalentGroups:
                                                              rank_id)
                 equiv_ranks = frozenset(equiv_ranks)
                 if equiv_ranks not in seen_ranks:
+                    seen_ranks.add(equiv_ranks)
                     group_id = len(groups.group_id_to_ranks)
                     groups.group_id_to_ranks[group_id] = equiv_ranks
                     for r in equiv_ranks:
