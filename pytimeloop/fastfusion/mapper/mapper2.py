@@ -160,12 +160,11 @@ def _mapper_one_einsum(
     einsum_shape = {
         rank_id: workload.get_rank_shape(rank_id)[1] + 1 for rank_id in all_ranks
     }
-
     count = 0
     mapping = LinearMapping()
-    mapping.add_storage(0, tensors - intermediate_tensors)
+    mapping.add_storage(0, sorted(tensors - intermediate_tensors))
     top_level_ranks = reduce(
-        or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
+        or_, (tensor_to_relevant_ranks[t] for t in sorted(intermediate_tensors)), set()
     )
     mappings = defaultdict(list)
     for partial_mapping in make_top_loops(mapping, top_level_ranks):
@@ -293,7 +292,7 @@ def mapper(
 def make_top_loops(mapping: LinearMapping, ranks):
     original = mapping
     for r in range(len(ranks) + 1):
-        for ordered_ranks in permutations(ranks, r=r):
+        for ordered_ranks in permutations(sorted(ranks), r=r):
             mapping = original.copy()
             for r in ordered_ranks:
                 mapping.add_temporal(r)
@@ -314,7 +313,7 @@ def place_fusion_level(
             top_idx += 1
 
     all_tensor_choices = []
-    for tensor_id in intermediate_tensors:
+    for tensor_id in sorted(intermediate_tensors):
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
@@ -344,7 +343,7 @@ def place_fusion_level(
             continue
         mapping = original.copy()
         for choice, tensor in sorted(
-            zip(choices, intermediate_tensors), key=lambda pair: pair[0], reverse=True
+            zip(choices, sorted(intermediate_tensors)), key=lambda pair: pair[0], reverse=True
         ):
             idx, level = choice
             mapping.add_sequential(idx)
