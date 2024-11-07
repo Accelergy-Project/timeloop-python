@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import dataclass
 from itertools import product, permutations
 from functools import reduce
@@ -19,6 +20,7 @@ from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 from pytimeloop.fastfusion.pareto import nameloop2col
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 from pytimeloop.fastfusion.pareto import MAPPING
+from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -262,6 +264,30 @@ def mapper(
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
 
+    similar_einsums = {}
+    for einsum_id in einsum_name_to_id.values():
+        done = False
+        for comparison_einsum_id in similar_einsums:
+            rank_renaming, tensor_renaming = is_equivalent(comparison_einsum_id,
+                                                           einsum_id,
+                                                           workload,
+                                                           analyzer)
+            # In the rest of the mapper, the ids are strings; thus, the
+            # conversion
+            rank_renaming = {
+                str(equivalent_groups.rank_to_group_id[r1])
+                :
+                str(equivalent_groups.rank_to_group_id[r2])
+                for r1, r2 in rank_renaming.items()
+            }
+            if rank_renaming is not None:
+                similar_einsums[comparison_einsum_id][einsum_id] = \
+                    (rank_renaming, tensor_renaming)
+                done = True
+                break
+        if not done:
+            similar_einsums[einsum_id] = {}
+
     data = {}
     per_einsum_args = [
         dict(
@@ -275,7 +301,7 @@ def mapper(
             energy_dict=energy_dict,
             verbose_stream=verbose_stream,
         )
-        for einsum_id in einsum_name_to_id.values()
+        for einsum_id in similar_einsums.keys()
     ]
 
     from joblib import Parallel, delayed
@@ -283,11 +309,64 @@ def mapper(
     data = Parallel(n_jobs=32)(
         delayed(_mapper_one_einsum)(**args) for args in per_einsum_args
     )
+    print("Finished exploring unique mapspaces")
+    print()
+    print("Generating mapspaces of similar Einsums")
     data = {
         einsum_id: mapping
-        for einsum_id, mapping in zip(einsum_name_to_id.values(), data)
+        for einsum_id, mapping in zip(similar_einsums.keys(), data)
     }
+    for ref_einsum in similar_einsums:
+        for big_tuple in similar_einsums[ref_einsum].items():
+            target_einsum, (rank_renaming, tensor_renaming) = big_tuple
+            print(f"Generating for {target_einsum} from {ref_einsum}")
+            print(f"Rank renaming:", rank_renaming)
+            print(f"Tensor renaming:", tensor_renaming)
+            print()
+            data[target_einsum] = convert_data_by_renaming(data[ref_einsum],
+                                                           rank_renaming,
+                                                           tensor_renaming)
     return data
+
+
+def convert_data_by_renaming(data, rank_renaming, tensor_renaming):
+    convert_tiling = lambda tiling: convert_tiling_by_renaming(tiling,
+                                                               rank_renaming,
+                                                               tensor_renaming)
+    convert_stats = lambda stats: convert_stats_by_renaming(stats,
+                                                            rank_renaming,
+                                                            tensor_renaming)
+    return {
+        convert_tiling(tiling): convert_stats(stats)
+        for tiling, stats in data.items()
+    }
+
+
+def convert_tiling_by_renaming(tiling: Tiling,
+                               rank_renaming,
+                               tensor_renaming):
+    return Tiling(
+        loops=tuple(
+            Loop(rank_renaming[loop.rank_id],
+                 loop.bound,
+                 loop.is_spatial)
+            for loop in tiling.loops
+        ),
+        tensors=frozenset(
+            TensorStorage(tensor_renaming[tensor_storage.tensor_id],
+                          tensor_storage.backer_id,
+                          tensor_storage.above_loop_index,
+                          tensor_storage.tile_size)
+            for tensor_storage in tiling.tensors
+        )
+    )
+
+
+def convert_stats_by_renaming(stats,
+                              rank_renaming,
+                              tensor_renaming):
+    # TODO: convert _MAPPING key
+    return deepcopy(stats)
 
 
 def make_top_loops(mapping: LinearMapping, ranks):
