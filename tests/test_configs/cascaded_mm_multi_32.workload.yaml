@@ -1,0 +1,144 @@
+problem:
+  - shape:
+      name: Fc1
+      dimensions: [ P1, M1, C1 ]
+      data_spaces:
+      - {name: Fmap1,   dimensions: [ Fmap1_C, Fmap1_P ],     projection: '[ C1, P1 ]'}
+      - {name: Filter1, dimensions: [ Filter1_C, Filter1_M ], projection: '[ C1, M1 ]'}
+      - {name: Fmap2,   dimensions: [ Fmap2_C, Fmap2_P ],     projection: '[ M1, P1 ]', read_write: True}
+    instance: 0 <= P1 < 32 and 0 <= M1 < 32 and 0 <= C1 < 32
+
+  - shape:
+      name: Fc2
+      dimensions: [ P2, M2, C2 ]
+      data_spaces:
+      - {name: Fmap2,   dimensions: [ Fmap2_C, Fmap2_P ],     projection: '[ C2, P2 ]'}
+      - {name: Filter2, dimensions: [ Filter2_C, Filter2_M ], projection: '[ C2, M2 ]'}
+      - {name: Fmap3,   dimensions: [ Fmap3_C, Fmap3_P ],     projection: '[ M2, P2 ]', read_write: True}
+    instance: 0 <= P2 < 32 and 0 <= M2 < 32 and 0 <= C2 < 32
+
+  - shape:
+      name: Fc3
+      dimensions: [ P3, M3, C3 ]
+      data_spaces:
+      - {name: Fmap3,   dimensions: [ Fmap3_C, Fmap3_P ],     projection: '[ C3, P3 ]'}
+      - {name: Filter3, dimensions: [ Filter3_C, Filter3_M ], projection: '[ C3, M3 ]'}
+      - {name: Fmap4,   dimensions: [ Fmap4_C, Fmap4_P ],     projection: '[ M3, P3 ]', read_write: True}
+    instance: 0 <= P3 < 32 and 0 <= M3 < 32 and 0 <= C3 < 32
+
+  - shape:
+      name: Fc4
+      dimensions: [ P4, M4, C4 ]
+      data_spaces:
+      - {name: Fmap4,   dimensions: [ Fmap4_C, Fmap4_P ],     projection: '[ C4, P4 ]'}
+      - {name: Filter4, dimensions: [ Filter4_C, Filter4_M ], projection: '[ C4, M4 ]'}
+      - {name: Fmap5,   dimensions: [ Fmap5_C, Fmap5_P ],     projection: '[ M4, P4 ]', read_write: True}
+    instance: 0 <= P4 < 32 and 0 <= M4 < 32 and 0 <= C4 < 32
+
+  - shape:
+      name: Fc5
+      dimensions: [ P5, M5, C5 ]
+      data_spaces:
+      - {name: Fmap5,   dimensions: [ Fmap5_C, Fmap5_P ],     projection: '[ C5, P5 ]'}
+      - {name: Filter5, dimensions: [ Filter5_C, Filter5_M ], projection: '[ C5, M5 ]'}
+      - {name: Fmap6,   dimensions: [ Fmap6_C, Fmap6_P ],     projection: '[ M5, P5 ]', read_write: True}
+    instance: 0 <= P5 < 32 and 0 <= M5 < 32 and 0 <= C5 < 32
+
+  - shape:
+      name: Fc6
+      dimensions: [ P6, M6, C6 ]
+      data_spaces:
+      - {name: Fmap6,   dimensions: [ Fmap6_C, Fmap6_P ],     projection: '[ C6, P6 ]'}
+      - {name: Filter6, dimensions: [ Filter6_C, Filter6_M ], projection: '[ C6, M6 ]'}
+      - {name: Fmap7,   dimensions: [ Fmap7_C, Fmap7_P ],     projection: '[ M6, P6 ]', read_write: True}
+    instance: 0 <= P6 < 32 and 0 <= M6 < 32 and 0 <= C6 < 32
+
+  - shape:
+      name: Fc7
+      dimensions: [ P7, M7, C7 ]
+      data_spaces:
+      - {name: Fmap7,   dimensions: [ Fmap7_C, Fmap7_P ],     projection: '[ C7, P7 ]'}
+      - {name: Filter7, dimensions: [ Filter7_C, Filter7_M ], projection: '[ C7, M7 ]'}
+      - {name: Fmap8,   dimensions: [ Fmap8_C, Fmap8_P ],     projection: '[ M7, P7 ]', read_write: True}
+    instance: 0 <= P7 < 32 and 0 <= M7 < 32 and 0 <= C7 < 32
+
+  - shape:
+      name: Fc8
+      dimensions: [ P8, M8, C8 ]
+      data_spaces:
+      - {name: Fmap8,   dimensions: [ Fmap8_C, Fmap8_P ],     projection: '[ C8, P8 ]'}
+      - {name: Filter8, dimensions: [ Filter8_C, Filter8_M ], projection: '[ C8, M8 ]'}
+      - {name: Fmap9,   dimensions: [ Fmap9_C, Fmap9_P ],     projection: '[ M8, P8 ]', read_write: True}
+    instance: 0 <= P8 < 32 and 0 <= M8 < 32 and 0 <= C8 < 32
+
+  # - shape:
+  #     name: Fc9
+  #     dimensions: [ P9, M9, C9 ]
+  #     data_spaces:
+  #     - {name: Fmap9,   dimensions: [ Fmap9_C, Fmap9_P ],     projection: '[ C9, P9 ]'}
+  #     - {name: Filter9, dimensions: [ Filter9_C, Filter9_M ], projection: '[ C9, M9 ]'}
+  #     - {name: Fmap10,   dimensions: [ Fmap10_C, Fmap10_P ],     projection: '[ M9, P9 ]', read_write: True}
+  #   instance: 0 <= P9 < 32 and 0 <= M9 < 32 and 0 <= C9 < 32
+
+  # - shape:
+  #     name: Fc10
+  #     dimensions: [ P10, M10, C10 ]
+  #     data_spaces:
+  #     - {name: Fmap10,   dimensions: [ Fmap10_C, Fmap10_P ],     projection: '[ C10, P10 ]'}
+  #     - {name: Filter10, dimensions: [ Filter10_C, Filter10_M ], projection: '[ C10, M10 ]'}
+  #     - {name: Fmap11,   dimensions: [ Fmap11_C, Fmap11_P ],     projection: '[ M10, P10 ]', read_write: True}
+  #   instance: 0 <= P10 < 32 and 0 <= M10 < 32 and 0 <= C10 < 32
+
+  # - shape:
+  #     name: Fc11
+  #     dimensions: [ P11, M11, C11 ]
+  #     data_spaces:
+  #     - {name: Fmap11,   dimensions: [ Fmap11_C, Fmap11_P ],     projection: '[ C11, P11 ]'}
+  #     - {name: Filter11, dimensions: [ Filter11_C, Filter11_M ], projection: '[ C11, M11 ]'}
+  #     - {name: Fmap12,   dimensions: [ Fmap12_C, Fmap12_P ],     projection: '[ M11, P11 ]', read_write: True}
+  #   instance: 0 <= P11 < 32 and 0 <= M11 < 32 and 0 <= C11 < 32
+
+  # - shape:
+  #     name: Fc12
+  #     dimensions: [ P12, M12, C12 ]
+  #     data_spaces:
+  #     - {name: Fmap12,   dimensions: [ Fmap12_C, Fmap12_P ],     projection: '[ C12, P12 ]'}
+  #     - {name: Filter12, dimensions: [ Filter12_C, Filter12_M ], projection: '[ C12, M12 ]'}
+  #     - {name: Fmap13,   dimensions: [ Fmap13_C, Fmap13_P ],     projection: '[ M12, P12 ]', read_write: True}
+  #   instance: 0 <= P12 < 32 and 0 <= M12 < 32 and 0 <= C12 < 32
+
+  # - shape:
+  #     name: Fc13
+  #     dimensions: [ P13, M13, C13 ]
+  #     data_spaces:
+  #     - {name: Fmap13,   dimensions: [ Fmap13_C, Fmap13_P ],     projection: '[ C13, P13 ]'}
+  #     - {name: Filter13, dimensions: [ Filter13_C, Filter13_M ], projection: '[ C13, M13 ]'}
+  #     - {name: Fmap14,   dimensions: [ Fmap14_C, Fmap14_P ],     projection: '[ M13, P13 ]', read_write: True}
+  #   instance: 0 <= P13 < 32 and 0 <= M13 < 32 and 0 <= C13 < 32
+
+  # - shape:
+  #     name: Fc14
+  #     dimensions: [ P14, M14, C14 ]
+  #     data_spaces:
+  #     - {name: Fmap14,   dimensions: [ Fmap14_C, Fmap14_P ],     projection: '[ C14, P14 ]'}
+  #     - {name: Filter14, dimensions: [ Filter14_C, Filter14_M ], projection: '[ C14, M14 ]'}
+  #     - {name: Fmap15,   dimensions: [ Fmap15_C, Fmap15_P ],     projection: '[ M14, P14 ]', read_write: True}
+  #   instance: 0 <= P14 < 32 and 0 <= M14 < 32 and 0 <= C14 < 32
+
+  # - shape:
+  #     name: Fc15
+  #     dimensions: [ P15, M15, C15 ]
+  #     data_spaces:
+  #     - {name: Fmap15,   dimensions: [ Fmap15_C, Fmap15_P ],     projection: '[ C15, P15 ]'}
+  #     - {name: Filter15, dimensions: [ Filter15_C, Filter15_M ], projection: '[ C15, M15 ]'}
+  #     - {name: Fmap16,   dimensions: [ Fmap16_C, Fmap16_P ],     projection: '[ M15, P15 ]', read_write: True}
+  #   instance: 0 <= P15 < 32 and 0 <= M15 < 32 and 0 <= C15 < 32
+
+  # - shape:
+  #     name: Fc16
+  #     dimensions: [ P16, M16, C16 ]
+  #     data_spaces:
+  #     - {name: Fmap16,   dimensions: [ Fmap16_C, Fmap16_P ],     projection: '[ C16, P16 ]'}
+  #     - {name: Filter16, dimensions: [ Filter16_C, Filter16_M ], projection: '[ C16, M16 ]'}
+  #     - {name: Fmap17,   dimensions: [ Fmap17_C, Fmap17_P ],     projection: '[ M16, P16 ]', read_write: True}
+  #   instance: 0 <= P16 < 32 and 0 <= M16 < 32 and 0 <= C16 < 32

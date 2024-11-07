@@ -11,11 +11,10 @@ from tests.util import TEST_TMP_DIR
 
 from tests.load_config_mixin import CONFIG_DIR
 
-
 class TestMapper(LoadConfigMixin, unittest.TestCase):
     def test_mapper(self):
         config, spec = self.load_config([
-            'cascaded_mm_small.workload.yaml',
+            'cascaded_mm_multi_32.workload.yaml',
             'four_level.arch.yaml'
         ])
 
@@ -24,18 +23,9 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         mac_constraint = MacArrayConstraint(
             64,
             64,
-            {
-                'Fc1': 'Filter1',
-                'Fc2': 'Filter2'
-            },
-            {
-                'Fc1': 'M1',
-                'Fc2': 'M2'
-            },
-            {
-                'Fc1': 'C1',
-                'Fc2': 'C2'
-            }
+            {f'Fc{x}': f'Filter{x}' for x in range(1, 32)},
+            {f'Fc{x}': f'M{x}' for x in range(1, 32)},
+            {f'Fc{x}': f'C{x}' for x in range(1, 32)}
         )
 
         result = mapper(config,
@@ -117,35 +107,5 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         
         print(s_final)
 
-    # def test_fusion():
-    #     config, spec = self.load_config([
-    #         'cascaded_mm_small.workload.yaml',
-    #         'four_level.arch.yaml'
-    #     ])
-    #     mac_constraint = MacArrayConstraint(
-    #         64,
-    #         64,
-    #         {
-    #             'Fc1': 'Filter1',
-    #             'Fc2': 'Filter2'
-    #         },
-    #         {
-    #             'Fc1': 'M1',
-    #             'Fc2': 'M2'
-    #         },
-    #         {
-    #             'Fc1': 'C1',
-    #             'Fc2': 'C2'
-    #         }
-    #     )
-    #     result = mapper(config,
-    #                     mac_constraint,
-    #                     spec,
-    #                     tmp_path=TEST_TMP_DIR,
-    #                     verbose_stream=sys.stdout)
-    #     print(result)
-
-
 if __name__ == '__main__':
     unittest.main(failfast=True)
-    
