@@ -1,6 +1,7 @@
 import itertools
 import sys
 import unittest
+import logging
 
 from bindings.looptree import LooptreeWorkload
 
@@ -13,6 +14,7 @@ from tests.load_config_mixin import CONFIG_DIR
 
 class TestMapper(LoadConfigMixin, unittest.TestCase):
     def test_mapper(self):
+        logging.basicConfig(filename='tests.fastfusion.test_mapper.log', level=logging.DEBUG)
         config, spec = self.load_config([
             'cascaded_mm_multi_32.workload.yaml',
             'four_level.arch.yaml'
