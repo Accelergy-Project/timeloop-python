@@ -58,7 +58,7 @@ class TensorStorage:
     tile_size: int
 
     def __lt__(self, other: "TensorStorage"):
-        return tuple(self) < tuple(other)
+        return self.__tuple__() < other.__tuple__()
 
     def __tuple__(self):
         return (self.tensor_id, self.backer_id, self.above_loop_index, self.tile_size)
@@ -110,6 +110,13 @@ class Tiling:
 
     def __lt__(self, other):
         return self.loops < other.loops
+    
+    def __str__(self):
+        return "Tiling(loops=" + ", ".join(str(l) for l in self.loops) + \
+            ", tensors=" + ", ".join(str(t) for t in sorted(self.tensors)) + ")"
+    
+    def __repr__(self):
+        return self.__str__()
 
 class SIM:
     def __init__(self, tiling: Tiling | list[Tiling], mapping: Pareto | list[Pareto]):
@@ -158,7 +165,7 @@ class SIM:
                         t, self.tensors[t].tile_size, self.tensors[t].above_loop_index
                     )
 
-    def consolidate(self, next_live_tensors: set[str] = None):
+    def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None):
         if len(self) <= 1:
             return
         # Can merge mappings that have the same # of co-tiled loops as total loops
@@ -177,11 +184,17 @@ class SIM:
                 m0.free_to_loop_index(shared_index+1)
                 m1.free_to_loop_index(shared_index+1)
                 self.mappings.insert(i, m0.merge(m1, shared_index))
+                if resource2capacity is not None:
+                    self.mappings[i].limit_capacity(resource2capacity)
                 i = max(0, i - 1)
             else:
                 i += 1
         if len(self.mappings) == 1:
             self.mappings[0].free_to_loop_index(shared_loop_index[0]+1)
+            
+        if resource2capacity is not None:
+            for m in self.mappings:
+                m.limit_capacity(resource2capacity)
 
     def clear_dead_tensors(self, live_tensors: set[str]):
         dead_tensors = set(self.tensors) - live_tensors
