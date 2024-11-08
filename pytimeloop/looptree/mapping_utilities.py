@@ -1,3 +1,6 @@
+from bindings.looptree import LooptreeWorkload
+
+
 def get_paths(mapping):
     cur_path = []
     for node in mapping:
@@ -35,3 +38,18 @@ def get_einsums_with_complete_mappings(mapping, workload, is_path):
         if 'incomplete' in compute_node and not compute_node['incomplete']:
             einsums_with_complete_mappings.add(einsum_id)
     return einsums_with_complete_mappings
+
+
+def get_intermediate_tensors(workload: LooptreeWorkload):
+    result = set()
+    for einsum in workload.einsum_id_to_name():
+        written_tensors = workload.tensors_written_by_einsum(einsum)
+        for tensor in written_tensors:
+            reader_einsums = workload.reader_einsums(tensor)
+            for reader in reader_einsums:
+                if reader in workload.einsum_id_to_name():
+                    result.add(tensor)
+                    break
+
+    return result
+

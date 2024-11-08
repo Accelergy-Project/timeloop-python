@@ -12,6 +12,7 @@ from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyz
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 
 from pytimeloop.fastfusion.mapper.constraints import *
+from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import mapper_one_einsum
 

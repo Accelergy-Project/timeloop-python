@@ -33,7 +33,7 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         result = mapper(config,
                         pe_constraint,
                         mac_constraint,
-                        explore_glb_uneven=False,
+                        explore_glb_uneven=True,
                         explore_pe_uneven=False,
                         spec=spec,
                         tmp_path=TEST_TMP_DIR,

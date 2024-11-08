@@ -13,6 +13,7 @@ from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
+from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
@@ -207,12 +208,15 @@ def mapper_one_einsum(
                                     workload,
                                     energy_dict,
                                     equivalent_groups,
+                                    logfunc,
+                                    explore_fusion_uneven=explore_glb_uneven
                                 )
                                 if count % 1e4 == 0:
                                     print(f"Count: {count}, fulltiling: {fulltiling}")
                                 mappings[tiling].append(stats)
         logfunc(f"Top loops has {count-start_count} mappings")
     logfunc(f"Finished. Explored {count} mappings")
+    logfunc("Logging tiling choices:\n" + "\n".join(f"\t{m}" for m in mappings))
     return mappings
 
 
@@ -234,14 +238,6 @@ def place_fusion_level(
     explore_uneven,
     logfunc
 ):
-    top_idx = 0
-    for node in mapping:
-        if node["type"] != "storage":
-            break
-        else:
-            top_idx += 1
-    logfunc(f"First non-storage node at idx {top_idx}")
-
     intermediate_tensors = list(sorted(intermediate_tensors))
 
     all_tensor_choices = []
@@ -250,28 +246,30 @@ def place_fusion_level(
         tensor_choices = []
         last_is_relevant = True
         untiled = True
-        for i, node in enumerate(mapping[top_idx:], start=top_idx):
+        for i, node in enumerate(mapping):
             if node["type"] == "temporal":
                 untiled = False
-                if explore_uneven:
-                    rank_id = node["rank"]
-                    is_relevant = rank_id in relevant_ranks
-                    if last_is_relevant and not is_relevant:
-                        # Choice 1: fused
-                        tensor_choices.append((i, 1))
-                    last_is_relevant = is_relevant
-        if last_is_relevant:
+                rank_id = node["rank"]
+                is_relevant = rank_id in relevant_ranks
+                if last_is_relevant and not is_relevant:
+                    # Choice 1: fused
+                    tensor_choices.append((i, 1))
+                    break
+                last_is_relevant = is_relevant
+
+        # There has not been a single irrelevant loop
+        if len(all_tensor_choices) == 0:
             tensor_choices.append((len(mapping), 1))
 
         # If untiled, another choice: unfused
         if untiled:
-            tensor_choices.append((len(mapping), top_idx))
+            tensor_choices.append((len(mapping), 0))
 
         all_tensor_choices.append(tensor_choices)
 
     original = mapping.copy()
     for choices in product(*all_tensor_choices):
-        if not any(c == len(mapping) for (c, level) in choices):
+        if not any(c == len(original) for (c, level) in choices):
             continue
 
         log_msg = "; ".join(
@@ -294,7 +292,6 @@ def place_fusion_level(
                 level_to_tensors[level].add(tensor)
             for level, tensors in level_to_tensors.items():
                 mapping.add_storage(level, tensors, idx=idx)
-        print(mapping)
         yield mapping
 
 
@@ -454,6 +451,8 @@ def process_result(
     workload,
     energy_dict,
     equiv_groups: EquivalentGroups,
+    logfunc,
+    explore_fusion_uneven
 ):
     t0 = time.time()
     actions = gather_actions(
@@ -518,6 +517,14 @@ def process_result(
 
     t2 = time.time()
 
+    n_loops_of_intermediates = set()
+    for t in tensors:
+        if t.tensor_id not in intermediate_tensors:
+            continue
+        n_loops_of_intermediates.add(t.above_loop_index)
+    if len(n_loops_of_intermediates) > 1 and not explore_fusion_uneven:
+        logfunc(f"n_loops_of_intermediates: {n_loops_of_intermediates}")
+
     tiling = Tiling(
         loops=tuple(cur_loops),
         tensors=frozenset(t for t in tensors if t.tensor_id in intermediate_tensors),
@@ -541,20 +548,6 @@ def process_result(
     results[MAPPING] = {einsum_id: str(fulltiling)}
     # print(f"{(t1-t0)*1e9:.2f} {(t2-t1)*1e9:.2f} {(t3-t2)*1e9:.2f}")
     return tiling, results, fulltiling
-
-
-def get_intermediate_tensors(workload: LooptreeWorkload):
-    result = set()
-    for einsum in workload.einsum_id_to_name():
-        written_tensors = workload.tensors_written_by_einsum(einsum)
-        for tensor in written_tensors:
-            reader_einsums = workload.reader_einsums(tensor)
-            for reader in reader_einsums:
-                if reader in workload.einsum_id_to_name():
-                    result.add(tensor)
-                    break
-
-    return result
 
 
 def get_hardware_levels(arch):
