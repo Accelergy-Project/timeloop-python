@@ -2,7 +2,7 @@ from collections import defaultdict
 import copy
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 import pandas as pd
 
@@ -164,10 +164,21 @@ class SIM:
                     m.alloc(
                         t, self.tensors[t].tile_size, self.tensors[t].above_loop_index
                     )
+                    
+    def _limit_capacity(self, resource2capacity: dict[str, int], index: Optional[int] = None):
+        if resource2capacity is None:
+            return
+        if index is None:
+            for m in self.mappings:
+                m.limit_capacity(resource2capacity)
+        else:
+            self.mappings[index].limit_capacity(resource2capacity)
 
     def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None):
         if len(self) <= 1:
+            self._limit_capacity(resource2capacity)
             return
+
         # Can merge mappings that have the same # of co-tiled loops as total loops
         tl = self.tilings
         live_tensors = [t.tensor_names for t in tl] + [next_live_tensors]
@@ -184,17 +195,13 @@ class SIM:
                 m0.free_to_loop_index(shared_index+1)
                 m1.free_to_loop_index(shared_index+1)
                 self.mappings.insert(i, m0.merge(m1, shared_index))
-                if resource2capacity is not None:
-                    self.mappings[i].limit_capacity(resource2capacity)
+                self._limit_capacity(resource2capacity, i)
                 i = max(0, i - 1)
             else:
                 i += 1
         if len(self.mappings) == 1:
             self.mappings[0].free_to_loop_index(shared_loop_index[0]+1)
-            
-        if resource2capacity is not None:
-            for m in self.mappings:
-                m.limit_capacity(resource2capacity)
+        self._limit_capacity(resource2capacity)
 
     def clear_dead_tensors(self, live_tensors: set[str]):
         dead_tensors = set(self.tensors) - live_tensors
