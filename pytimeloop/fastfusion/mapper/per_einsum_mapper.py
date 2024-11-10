@@ -83,10 +83,8 @@ class LinearMapping:
         else:
             self.mapping.insert(idx, node)
 
-
-
-@log_worker(f"{__name__}:_mapper_one_einsum")
-def mapper_one_einsum(
+@log_worker(f"{__name__}:_mapper_place_fusion_level")
+def mapper_place_fusion_level(
     config,
     pe_array_constraint: PeArrayConstraint,
     mac_array_constraint: MacArrayConstraint,
@@ -95,12 +93,13 @@ def mapper_one_einsum(
     explore_pe_uneven,
     einsum_id,
     energy_dict,
+    partial_mapping,
     log_queue=None,
     verbose_stream=None,
 ):
-    if log_queue is not None:
-        log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
-    logfunc = lambda msg: log_queue.debug(f"[{einsum_id}] " + msg)
+    # if log_queue is not None:
+    #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
+    logfunc = lambda msg: None # log_queue.debug(f"[{einsum_id}] " + msg)
 
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -118,8 +117,7 @@ def mapper_one_einsum(
 
     bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
 
-    data = {}
-    data[einsum_id] = defaultdict(lambda: defaultdict(lambda: list()))
+    data = defaultdict(list)
     tensors = workload.tensors_read_by_einsum(einsum_id) \
             | workload.tensors_written_by_einsum(einsum_id)
     intermediate_tensors = tensors & get_intermediate_tensors(workload)
@@ -152,72 +150,128 @@ def mapper_one_einsum(
         or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
     )
     logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
-    mappings = defaultdict(list)
-    for partial_mapping in make_top_loops(mapping,
-                                          top_level_ranks,
-                                          logfunc):
-        start_count = count
-        for partial_mapping in place_fusion_level(
-            partial_mapping,
-            intermediate_tensors,
-            tensor_to_relevant_ranks,
-            explore_glb_uneven,
-            logfunc=logfunc
+    for partial_mapping in make_pe_spatial_fors(
+        partial_mapping, all_ranks, pe_array_constraint
+    ):
+        for partial_mapping in make_pe_temporal_fors(
+            partial_mapping, all_ranks
         ):
-            for partial_mapping in make_pe_spatial_fors(
-                partial_mapping, all_ranks, pe_array_constraint
+            for partial_mapping in place_pe_level(
+                partial_mapping,
+                tensors,
+                tensor_to_relevant_ranks,
+                explore_pe_uneven,
             ):
-                for partial_mapping in make_pe_temporal_fors(
-                    partial_mapping, all_ranks
+                for partial_mapping in make_mac_level_loops(
+                    partial_mapping,
+                    einsum_id,
+                    mac_parallel_rank_id,
+                    mac_parallel_shape,
+                    mac_reduced_rank_id,
+                    mac_reduced_shape,
+                    non_weight_ranks,
+                    other_weight_ranks,
                 ):
-                    for partial_mapping in place_pe_level(
+                    _, compiled_results = compile_mapping(
+                        partial_mapping, workload, analyzer
+                    )
+                    tile_shape_explorer = explore_tile_shape(
                         partial_mapping,
-                        tensors,
-                        tensor_to_relevant_ranks,
-                        explore_pe_uneven,
-                    ):
-                        for partial_mapping in make_mac_level_loops(
-                            partial_mapping,
+                        einsum_shape,
+                        compiled_results,
+                        max_capacity,
+                        max_fanout,
+                    )
+                    # HACKY: Pop out the subspace object as the first in the iterator
+                    shape_subspace = next(tile_shape_explorer)
+                    
+                    for shape, res in tile_shape_explorer:
+                        count += 1
+                        is_pareto, fulltiling = process_result(
+                            res,
+                            shape,
+                            data,
                             einsum_id,
-                            mac_parallel_rank_id,
-                            mac_parallel_shape,
-                            mac_reduced_rank_id,
-                            mac_reduced_shape,
-                            non_weight_ranks,
-                            other_weight_ranks,
-                        ):
-                            _, compiled_results = compile_mapping(
-                                partial_mapping, workload, analyzer
-                            )
-                            for shape, res in explore_tile_shape(
-                                partial_mapping,
-                                einsum_shape,
-                                compiled_results,
-                                max_capacity,
-                                max_fanout,
-                            ):
-                                count += 1
-                                tiling, stats, fulltiling = process_result(
-                                    res,
-                                    shape,
-                                    data[einsum_id],
-                                    einsum_id,
-                                    intermediate_tensors,
-                                    partial_mapping,
-                                    bindings,
-                                    workload,
-                                    energy_dict,
-                                    equivalent_groups,
-                                    logfunc,
-                                    explore_fusion_uneven=explore_glb_uneven
-                                )
-                                if count % 1e4 == 0:
-                                    print(f"Count: {count}, fulltiling: {fulltiling}")
-                                mappings[tiling].append(stats)
-        logfunc(f"Top loops has {count-start_count} mappings")
-    logfunc(f"Finished. Explored {count} mappings")
-    logfunc("Logging tiling choices:\n" + "\n".join(f"\t{m}" for m in mappings))
-    return mappings
+                            intermediate_tensors,
+                            partial_mapping,
+                            bindings,
+                            workload,
+                            energy_dict,
+                            equivalent_groups,
+                            logfunc,
+                            explore_fusion_uneven=explore_glb_uneven
+                        )
+                        if count % 1e4 == 0:
+                            print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
+                        if is_pareto:
+                            shape_subspace.register_pareto_point()
+    return einsum_id, data
+
+
+@log_worker(f"{__name__}:_get_top_loop_jobs")
+def get_top_loop_jobs(
+    config,
+    pe_array_constraint: PeArrayConstraint,
+    mac_array_constraint: MacArrayConstraint,
+    spec,
+    explore_glb_uneven,
+    explore_pe_uneven,
+    einsum_name_to_id,
+    energy_dict,
+    log_queue=None,
+    verbose_stream=None,
+):
+    args = []
+    for einsum_id in einsum_name_to_id.values():
+        # if log_queue is not None:
+        #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
+        logfunc = lambda msg: None # log_queue.debug(f"[{einsum_id}] " + msg)
+
+        workload = LooptreeWorkload.parse_cfg(config.root["problem"])
+        analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+
+        data = {}
+        data[einsum_id] = defaultdict(lambda: defaultdict(lambda: list()))
+        tensors = workload.tensors_read_by_einsum(einsum_id) \
+                | workload.tensors_written_by_einsum(einsum_id)
+        intermediate_tensors = tensors & get_intermediate_tensors(workload)
+
+
+        tensor_to_relevant_ranks = {
+            tensor: analyzer.einsum_dims_relevant_to_tensor(einsum_id, tensor)
+            for tensor in tensors
+        }
+
+        mapping = LinearMapping()
+        mapping.add_storage(0, tensors - intermediate_tensors)
+        top_level_ranks = reduce(
+            or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
+        )
+        logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
+        for partial_mapping in make_top_loops(mapping,
+                                            top_level_ranks,
+                                            logfunc):
+            for partial_mapping in place_fusion_level(
+                partial_mapping,
+                intermediate_tensors,
+                tensor_to_relevant_ranks,
+                explore_glb_uneven,
+                logfunc=logfunc
+            ):
+                args.append(dict(
+                    config=config,
+                    pe_array_constraint=pe_array_constraint,
+                    mac_array_constraint=mac_array_constraint,
+                    spec=spec,
+                    explore_glb_uneven=explore_glb_uneven,
+                    explore_pe_uneven=explore_pe_uneven,
+                    einsum_id=einsum_id,
+                    energy_dict=energy_dict,
+                    partial_mapping=partial_mapping,
+                    log_queue=log_queue,
+                    verbose_stream=verbose_stream,
+                ))
+    return args
 
 
 def make_top_loops(mapping: LinearMapping, ranks, logfunc):
@@ -258,7 +312,7 @@ def place_fusion_level(
                 last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
-        if len(all_tensor_choices) == 0:
+        if len(tensor_choices) == 0:
             tensor_choices.append((len(mapping), 1))
 
         # If untiled, another choice: unfused
@@ -368,7 +422,6 @@ def make_mac_level_loops(
     mapping.add_compute(einsum_id, 3)
     yield mapping
 
-
 def explore_tile_shape(
     mapping, rank_shapes, compiled_result, max_capacity, max_fanout, only_count=False
 ):
@@ -390,14 +443,13 @@ def explore_tile_shape(
     num_tile_shapes = 0
     num_valid_tile_shapes = 0
 
-    shape_subspace = iter(
-        ShapeSubspace(
+    shape_subspace = iter(ShapeSubspace(
             rank_shapes,
             ranks,
             tile_constraints=tile_constraints,
             factor_constraints=factor_constraints,
-        )
-    )
+    ))
+    yield shape_subspace
     for shape in shape_subspace:
         num_tile_shapes += 1
         if only_count:
@@ -434,10 +486,8 @@ def explore_tile_shape(
         if not invalid_spatial:
             num_valid_tile_shapes += 1
             yield shape, result
+            
     return num_tile_shapes, num_valid_tile_shapes
-
-
-import time
 
 
 def process_result(
@@ -454,12 +504,10 @@ def process_result(
     logfunc,
     explore_fusion_uneven
 ):
-    t0 = time.time()
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
     )
-    t1 = time.time()
-    energy = sum(  # - 40k ms
+    energy = sum(
         energy_dict[comp_action] * counts for comp_action, counts in actions.items()
     )
 
@@ -484,11 +532,14 @@ def process_result(
         reservations.setdefault((target, n_loops), 0)
         reservations[(target, n_loops)] += result.occupancy[(target, dspace)]
 
+
+    fulltiling = []
     for node in mapping:
         if node["type"] == "storage":
             for dspace in node["dspace"]:
                 record_backing_storage(dspace, node["target"], len(cur_loops))
                 record_reservation(dspace, node["target"], len(cur_loops))
+            fulltiling.append(f"Strg({node['dspace']} in {node['target']})")
 
         elif node["type"] == "spatial" or node["type"] == "temporal":
             if "tile_shape" in node:
@@ -505,17 +556,16 @@ def process_result(
                         node["type"] == "spatial",
                     )
                 )
+            fulltiling.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
 
     fulltiling = []
     for node in mapping:
         if node["type"] == "storage":
-            fulltiling.append(f"S({node['dspace']} in {node['target']})")
+            fulltiling.append(f"Strg({node['dspace']} in {node['target']})")
         elif node["type"] == "temporal":
-            fulltiling.append(f"T{node['rank']} in {node.get('tile_shape', 1)}")
+            fulltiling.append(f"Tmpl{node['rank']} in {node.get('tile_shape', 1)}")
         elif node["type"] == "spatial":
-            fulltiling.append(f"S{node['rank']} in {node.get('tile_shape', 1)}")
-
-    t2 = time.time()
+            fulltiling.append(f"Sptl{node['rank']} in {node.get('tile_shape', 1)}")
 
     n_loops_of_intermediates = set()
     for t in tensors:
@@ -539,15 +589,23 @@ def process_result(
         key = nameloop2col(storage_id, n_loops)
         results.setdefault(key, 0)
         results[key] += size
-    t3 = time.time()
     for r in results:
         if "RESOURCE" in r:
             fulltiling.append(f"{r}={results[r]:.2e}")
     fulltiling.append(f"L={results['Latency']:.2e}")
     fulltiling.append(f"E={results['Energy']:.2e}")
     results[MAPPING] = {einsum_id: str(fulltiling)}
-    # print(f"{(t1-t0)*1e9:.2f} {(t2-t1)*1e9:.2f} {(t3-t2)*1e9:.2f}")
-    return tiling, results, fulltiling
+    
+    is_pareto = True
+    for prev_stats in compatibility_to_df[tiling]:
+        keys = [k for k in results if k != MAPPING]
+        if all(prev_stats.get(k, 0) <= results[k] for k in keys) and \
+                any(prev_stats.get(k, 0) < results[k] for k in keys):
+            is_pareto = False
+            break
+    if is_pareto:
+        compatibility_to_df[tiling].append(results)
+    return is_pareto, fulltiling
 
 
 def get_hardware_levels(arch):

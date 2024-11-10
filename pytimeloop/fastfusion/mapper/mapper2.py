@@ -1,9 +1,11 @@
+from collections import defaultdict
 import logging.handlers
 from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 
 from ruamel.yaml import YAML
+from joblib import Parallel, delayed
 
 yaml = YAML(typ="safe")
 
@@ -14,7 +16,7 @@ from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
-from pytimeloop.fastfusion.mapper.per_einsum_mapper import mapper_one_einsum
+from pytimeloop.fastfusion.mapper.per_einsum_mapper import get_top_loop_jobs, mapper_place_fusion_level
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -35,8 +37,6 @@ def mapper(
     log_queue, log_queue_listener = make_queue_and_listener()
 
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
-    analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
-    equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
     einsum_name_to_id = workload.einsum_name_to_id()
 
@@ -47,36 +47,36 @@ def mapper(
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
 
-    data = {}
-    per_einsum_args = [
-        dict(
-            einsum_id=einsum_id,
-            config=config,
-            pe_array_constraint=pe_array_constraint,
-            mac_array_constraint=mac_array_constraint,
-            explore_glb_uneven=explore_glb_uneven,
-            explore_pe_uneven=explore_pe_uneven,
-            spec=spec,
-            energy_dict=energy_dict,
-            log_queue=log_queue,
-            verbose_stream=verbose_stream,
-        )
-        for einsum_id in einsum_name_to_id.values()
-    ]
-
-    from joblib import Parallel, delayed
-
+    args = get_top_loop_jobs(
+        einsum_name_to_id=einsum_name_to_id,
+        config=config,
+        pe_array_constraint=pe_array_constraint,
+        mac_array_constraint=mac_array_constraint,
+        explore_glb_uneven=explore_glb_uneven,
+        explore_pe_uneven=explore_pe_uneven,
+        spec=spec,
+        energy_dict=energy_dict,
+        log_queue=log_queue,
+        verbose_stream=verbose_stream,
+    )
+    
+    print(f'Number of jobs: {len(args)}')
+    
     logger.debug("Starting workers")
     log_queue_listener.start()
-    data = Parallel(n_jobs=32)(
-        delayed(mapper_one_einsum)(**args) for args in per_einsum_args
+    
+    result = Parallel(n_jobs=128)(
+        delayed(mapper_place_fusion_level)(**a) for a in args
     )
+    data = defaultdict(dict)
+    for einsum_id, mappings in result:
+        for k, v in mappings.items():
+            if k in data[einsum_id]:
+                data[einsum_id][k] += v
+            else:
+                data[einsum_id][k] = v
+        
     log_queue_listener.stop()
-
-    data = {
-        einsum_id: mapping
-        for einsum_id, mapping in zip(einsum_name_to_id.values(), data)
-    }
     logger.info(f"Mapper finished for {spec}")
     return data
 

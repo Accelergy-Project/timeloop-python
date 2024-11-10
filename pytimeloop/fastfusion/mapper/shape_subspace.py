@@ -77,6 +77,10 @@ class ShapeSubspaceIterator:
         self.choice_iterators = None
         self.choice = None
         self.is_first_choice = None
+        
+        self.found_pareto = False
+        self.prev_found_pareto = False
+        self.prev_idx = None
 
     def __iter__(self):
         return self
@@ -87,10 +91,10 @@ class ShapeSubspaceIterator:
             self.initialize_choice_iterators()
         elif not self.just_skipped:
             self.is_done = True
-            for i in range(len(self.choice_iterators)):
-                idx = len(self.choice_iterators)-i-1
+            for idx in range(len(self.choice_iterators) - 1, -1, -1):
                 try:
                     self.move_iterator(idx)
+                    self.prev_idx = idx
                     break
                 except StopIteration as e:
                     pass
@@ -131,6 +135,7 @@ class ShapeSubspaceIterator:
             idx = len(self.choice_iterators)-i-1
             try:
                 self.move_iterator(idx)
+                self.prev_idx = idx
                 break
             except StopIteration as e:
                 self.restart_iterator(idx)
@@ -138,6 +143,10 @@ class ShapeSubspaceIterator:
             self.restart_iterator(j)
 
         self.just_skipped = True
+
+    def register_pareto_point(self):
+        for i in range(self.prev_idx+1):
+            self.found_pareto[i] = True
 
     def make_choice_generators(self, shape_subspace: ShapeSubspace):
         choice_generators = []
@@ -162,6 +171,8 @@ class ShapeSubspaceIterator:
         self.choice_iterators = [None]*len(self.choice_generators)
         self.choice = [None]*len(self.choice_generators)
         self.is_first_choice = [None]*len(self.choice_generators)
+        self.found_pareto = [False]*len(self.choice_generators)
+        self.prev_found_pareto = [False]*len(self.choice_generators)
         for i in range(len(self.choice_generators)):
             try:
                 self.restart_iterator(i)
@@ -170,6 +181,7 @@ class ShapeSubspaceIterator:
                 return
 
             self.is_first_choice[i] = True
+        self.prev_idx = len(self.choice_iterators) - 1
 
     def restart_iterator(self, idx):
         last = self.pos_to_last[idx]
@@ -183,9 +195,17 @@ class ShapeSubspaceIterator:
                                              self.factor_constraints[idx]))
         self.choice[idx] = next(self.choice_iterators[idx])
         self.is_first_choice[idx] = True
+        self.found_pareto[idx] = False
+        self.prev_found_pareto[idx] = False
 
     def move_iterator(self, idx):
+        # If we're going from a pareto-optimal to non-pareto optimal, stop iterating in this one
+        if self.prev_found_pareto[idx] and not self.found_pareto[idx]:
+            # print(f'Skipping index {idx}/{len(self.choice_iterators)}')
+            raise StopIteration()
         val = next(self.choice_iterators[idx])
         self.choice[idx] = val
         self.is_first_choice[idx] = False
         self.is_done = False
+        self.prev_found_pareto[idx] = self.found_pareto[idx]
+        self.found_pareto[idx] = False
