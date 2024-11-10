@@ -3,6 +3,7 @@ import re
 
 # Disable numba. We need user_has_package("numba") to be False
 import sys
+from typing import Optional
 
 sys.modules["numba"] = None
 
@@ -150,7 +151,18 @@ class Pareto:
 
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())
-
+    
+    def limit_capacity(self, resource2capacity: dict[str, Optional[int]]):
+        found = False
+        for resource, capacity in resource2capacity.items():
+            colname = nameloop2col(resource, 0)
+            if colname in self.data:
+                if capacity is not None:
+                    self.data = self.data[self.data[colname] <= capacity]
+                del self.data[colname]
+                found = True
+        if found:
+            self.data = makepareto(self.data)
 
 import unittest
 
