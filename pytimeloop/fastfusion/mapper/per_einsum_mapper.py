@@ -83,6 +83,7 @@ class LinearMapping:
         else:
             self.mapping.insert(idx, node)
 
+
 @log_worker(f"{__name__}:_mapper_place_fusion_level")
 def mapper_place_fusion_level(
     config,
@@ -216,13 +217,13 @@ def get_top_loop_jobs(
     spec,
     explore_glb_uneven,
     explore_pe_uneven,
-    einsum_name_to_id,
+    einsums_to_explore,
     energy_dict,
     log_queue=None,
     verbose_stream=None,
 ):
     args = []
-    for einsum_id in einsum_name_to_id.values():
+    for einsum_id in einsums_to_explore:
         # if log_queue is not None:
         #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
         logfunc = lambda msg: None # log_queue.debug(f"[{einsum_id}] " + msg)
