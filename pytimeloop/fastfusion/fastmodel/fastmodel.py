@@ -61,6 +61,7 @@ def compile_mapping(mapping,
     latency = 1
     potential_tensor_access_multiplier = defaultdict(lambda: 1)
     actual_tensor_access_multiplier = defaultdict(lambda: 1)
+    fill_multicast_factor = defaultdict(lambda: 1)
     fanout = {}
     cur_fanout = [1]
     for node in mapping:
@@ -114,6 +115,8 @@ def compile_mapping(mapping,
                 relevant_ranks = tensor_to_relevant_ranks[tensor_id]
                 if group_id in relevant_ranks:
                     tensor_size[tensor_id] /= factor
+                else:
+                    fill_multicast_factor[tensor_id] *= factor
 
             if 'spatial' not in node:
                 spatial = 0
@@ -146,9 +149,21 @@ def compile_mapping(mapping,
                         *
                         actual_tensor_access_multiplier[tensor_id]
                         *
-                        reduce(mul, cur_fanout, 1)
+                        fill_multicast_factor[tensor_id]
                     )
                 )
+                output.reads_to_parent[(target, tensor_id, einsum_id)] = (
+                    None,
+                    (
+                        original_tensor_size[tensor_id]
+                        *
+                        actual_tensor_access_multiplier[tensor_id]
+                    )
+                )
+
+                actual_tensor_access_multiplier[tensor_id] *= \
+                    fill_multicast_factor[tensor_id]
+                fill_multicast_factor[tensor_id] = 1
 
                 if target not in fanout:
                     fanout[target] = cur_fanout
@@ -159,6 +174,16 @@ def compile_mapping(mapping,
                 output.occupancy[(target, tensor_id)] = tensor_size[tensor_id]
 
                 output.fills_by_parent[(target, tensor_id, einsum_id)] = (
+                    None,
+                    (
+                        original_tensor_size[tensor_id]
+                        *
+                        potential_tensor_access_multiplier[tensor_id]
+                        *
+                        fill_multicast_factor[tensor_id]
+                    )
+                )
+                output.reads_to_parent[(target, tensor_id, einsum_id)] = (
                     None,
                     (
                         original_tensor_size[tensor_id]
@@ -190,5 +215,6 @@ def compile_mapping(mapping,
     output.fanout = lambdify(output.fanout)
     output.occupancy = lambdify(output.occupancy)
     output.fills_by_parent = lambdify(output.fills_by_parent)
+    output.reads_to_parent = lambdify(output.reads_to_parent)
 
     return tile_shapes, output

@@ -6,9 +6,17 @@ from pytimeloop.timeloopfe.v4.ert import Ert
 from pytimeloop.looptree.accesses import *
 from pytimeloop.looptree.mapping_utilities import *
 
+
 def gather_actions(looptree_results, mapping, workload, bindings, is_path=False):
+    if 'reads_to_parent' in looptree_results.__dict__:
+        reads_to_parent = looptree_results.reads_to_parent
+    else:
+        # TODO: the other option is multicast-accurate
+        reads_to_parent = looptree_results.fills_by_parent
+
     reads, writes = reads_and_writes_from_fill_by_parent(
         looptree_results.fills_by_parent,
+        reads_to_parent,
         mapping,
         workload,
         is_path

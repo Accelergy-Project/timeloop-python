@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections.abc import Mapping
 from numbers import Number
 
@@ -24,19 +25,28 @@ def get_total_accesses(accesses: Mapping):
     return result
 
 
-def reads_and_writes_from_fill_by_parent(fills: Mapping, mapping, workload, is_path=False):
+def reads_and_writes_from_fill_by_parent(fills: Mapping,
+                                         reads_to_parent,
+                                         mapping,
+                                         workload,
+                                         is_path=False):
     mapping = mapping['nodes']
     dspace_id_to_name = workload.data_space_id_to_name()
     einsum_id_to_name = workload.einsum_id_to_name()
 
-    reads = {}
-    writes = {}
+    reads = defaultdict(lambda: 0)
+    writes = defaultdict(lambda: 0)
 
     parent_buffers = get_parent_buffers(mapping, workload, is_path)
 
     einsums_with_complete_mappings = get_einsums_with_complete_mappings(mapping, workload, is_path)
 
+    compute_node = mapping[-1]
+    assert compute_node["type"] == "compute"
+    compute_target = compute_node["target"]
+
     for (buffer_id, dspace_id, einsum_id), (tags, fill) in fills.items():
+        read_to_parent = reads_to_parent[(buffer_id, dspace_id, einsum_id)][1]
         dspace_name = dspace_id_to_name[dspace_id]
         einsum_name = einsum_id_to_name[einsum_id]
         if einsum_id not in einsums_with_complete_mappings:
@@ -44,11 +54,13 @@ def reads_and_writes_from_fill_by_parent(fills: Mapping, mapping, workload, is_p
         parent_buffer = parent_buffers[(buffer_id, dspace_id, einsum_id)]
         if parent_buffer is not None:
             if dspace_id in workload.tensors_written_by_einsum(einsum_id):
-                writes[(parent_buffer, dspace_name, einsum_name)] = fill
+                writes[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
                 # TODO: first read elision
-                reads[(parent_buffer, dspace_name, einsum_name)] = fill
+                reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
             elif dspace_id in workload.tensors_read_by_einsum(einsum_id):
-                reads[(parent_buffer, dspace_name, einsum_name)] = fill
+                reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
+        if buffer_id != compute_target:
+            writes[(buffer_id, dspace_name, einsum_name)] += fill
 
     return reads, writes
 

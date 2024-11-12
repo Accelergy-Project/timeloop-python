@@ -10,6 +10,7 @@ class LooptreeOutput:
         self.op_occupancy = {}
         self.fills_by_peer = {}
         self.fills_by_parent = {}
+        self.reads_to_parent = {}
         self.temporal_steps = {}
         self.fanout = {}
 
