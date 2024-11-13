@@ -249,9 +249,9 @@ def get_top_loop_jobs(
         logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
         for partial_mapping in explore_fused_unfused(mapping,
                                                      intermediate_tensors):
-            for partial_mapping in make_top_loops(mapping,
-                                                top_level_ranks,
-                                                logfunc):
+            for partial_mapping in make_top_loops(partial_mapping,
+                                                  top_level_ranks,
+                                                  logfunc):
                 for partial_mapping in place_glb_level(
                     partial_mapping,
                     intermediate_tensors,
