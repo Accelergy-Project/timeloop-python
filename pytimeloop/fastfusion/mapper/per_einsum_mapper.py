@@ -151,62 +151,59 @@ def mapper_place_fusion_level(
         or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
     )
     logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
-    for partial_mapping in make_pe_spatial_fors(
-        partial_mapping, all_ranks, pe_array_constraint
+    for partial_mapping in make_pe_temporal_fors(
+        partial_mapping, all_ranks
     ):
-        for partial_mapping in make_pe_temporal_fors(
-            partial_mapping, all_ranks
+        for partial_mapping in place_pe_level(
+            partial_mapping,
+            tensors,
+            tensor_to_relevant_ranks,
+            explore_pe_uneven,
         ):
-            for partial_mapping in place_pe_level(
+            for partial_mapping in make_mac_level_loops(
                 partial_mapping,
-                tensors,
-                tensor_to_relevant_ranks,
-                explore_pe_uneven,
+                einsum_id,
+                mac_parallel_rank_id,
+                mac_parallel_shape,
+                mac_reduced_rank_id,
+                mac_reduced_shape,
+                non_weight_ranks,
+                other_weight_ranks,
             ):
-                for partial_mapping in make_mac_level_loops(
+                _, compiled_results = compile_mapping(
+                    partial_mapping, workload, analyzer
+                )
+                tile_shape_explorer = explore_tile_shape(
                     partial_mapping,
-                    einsum_id,
-                    mac_parallel_rank_id,
-                    mac_parallel_shape,
-                    mac_reduced_rank_id,
-                    mac_reduced_shape,
-                    non_weight_ranks,
-                    other_weight_ranks,
-                ):
-                    _, compiled_results = compile_mapping(
-                        partial_mapping, workload, analyzer
-                    )
-                    tile_shape_explorer = explore_tile_shape(
+                    einsum_shape,
+                    compiled_results,
+                    max_capacity,
+                    max_fanout,
+                )
+                # HACKY: Pop out the subspace object as the first in the iterator
+                shape_subspace = next(tile_shape_explorer)
+
+                for shape, res in tile_shape_explorer:
+                    count += 1
+                    is_pareto, fulltiling = process_result(
+                        res,
+                        shape,
+                        data,
+                        einsum_id,
+                        intermediate_tensors,
                         partial_mapping,
-                        einsum_shape,
-                        compiled_results,
-                        max_capacity,
-                        max_fanout,
+                        bindings,
+                        workload,
+                        energy_dict,
+                        equivalent_groups,
+                        logfunc,
+                        explore_fusion_uneven=explore_glb_uneven
                     )
-                    # HACKY: Pop out the subspace object as the first in the iterator
-                    shape_subspace = next(tile_shape_explorer)
-                    
-                    for shape, res in tile_shape_explorer:
-                        count += 1
-                        is_pareto, fulltiling = process_result(
-                            res,
-                            shape,
-                            data,
-                            einsum_id,
-                            intermediate_tensors,
-                            partial_mapping,
-                            bindings,
-                            workload,
-                            energy_dict,
-                            equivalent_groups,
-                            logfunc,
-                            explore_fusion_uneven=explore_glb_uneven
-                        )
-                        if count % 1e4 == 0:
-                            print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
-                        if is_pareto:
-                            shape_subspace.register_pareto_point()
-    return einsum_id, data
+                    if count % 1e4 == 0:
+                        print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
+                    # if is_pareto:
+                    #     shape_subspace.register_pareto_point()
+    return einsum_id, data, count
 
 
 @log_worker(f"{__name__}:_get_top_loop_jobs")
@@ -236,6 +233,7 @@ def get_top_loop_jobs(
         tensors = workload.tensors_read_by_einsum(einsum_id) \
                 | workload.tensors_written_by_einsum(einsum_id)
         intermediate_tensors = tensors & get_intermediate_tensors(workload)
+        all_ranks = workload.einsum_ospace_dimensions(einsum_id)
 
 
         tensor_to_relevant_ranks = {
@@ -261,19 +259,22 @@ def get_top_loop_jobs(
                     explore_glb_uneven,
                     logfunc=logfunc
                 ):
-                    args.append(dict(
-                        config=config,
-                        pe_array_constraint=pe_array_constraint,
-                        mac_array_constraint=mac_array_constraint,
-                        spec=spec,
-                        explore_glb_uneven=explore_glb_uneven,
-                        explore_pe_uneven=explore_pe_uneven,
-                        einsum_id=einsum_id,
-                        energy_dict=energy_dict,
-                        partial_mapping=partial_mapping,
-                        log_queue=log_queue,
-                        verbose_stream=verbose_stream,
-                    ))
+                    for partial_mapping in make_pe_spatial_fors(
+                        partial_mapping, all_ranks, pe_array_constraint
+                    ):
+                        args.append(dict(
+                            config=config,
+                            pe_array_constraint=pe_array_constraint,
+                            mac_array_constraint=mac_array_constraint,
+                            spec=spec,
+                            explore_glb_uneven=explore_glb_uneven,
+                            explore_pe_uneven=explore_pe_uneven,
+                            einsum_id=einsum_id,
+                            energy_dict=energy_dict,
+                            partial_mapping=partial_mapping,
+                            log_queue=log_queue,
+                            verbose_stream=verbose_stream,
+                        ))
     return args
 
 

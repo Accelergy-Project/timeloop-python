@@ -80,12 +80,16 @@ def mapper(
         delayed(mapper_place_fusion_level)(**a) for a in args
     )
     data = defaultdict(dict)
-    for einsum_id, mappings in result:
+    total = 0
+    for einsum_id, mappings, count in result:
         for k, v in mappings.items():
             if k in data[einsum_id]:
                 data[einsum_id][k] += v
             else:
                 data[einsum_id][k] = v
+                
+        total += count
+    print(f"Total number of mappings: {total}")
         
     log_queue_listener.stop()
     logger.info(f"Mapper finished for {spec}")
