@@ -19,6 +19,7 @@ from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import get_top_loop_jobs, mapper_place_fusion_level
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
+from pytimeloop.fastfusion.pareto import MAPPING
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -70,7 +71,7 @@ def mapper(
         log_queue=log_queue,
         verbose_stream=verbose_stream,
     )
-    
+
     print(f'Number of jobs: {len(args)}')
     n_workers = 128
     logger.debug(f"Starting {n_workers} workers")
@@ -96,14 +97,17 @@ def mapper(
 
     generated_data = {}
     logger.info(f"Generating data for non-unique Einsums")
-    for ref_einsum, others in grouped_similar_einsums.items():
-        for other_einsum, (rank_renaming, tensor_renaming) in others.items():
-            logger.info(f"Generating data for {other_einsum}. "
+    for from_einsum, others in grouped_similar_einsums.items():
+        for to_einsum, (rank_renaming, tensor_renaming) in others.items():
+            logger.info(f"Generating data for {to_einsum}. "
                         + f"Rank renaming={rank_renaming}. "
                         + f"Tensor renaming={tensor_renaming}")
-            generated_data[other_einsum] = generate_data(data[ref_einsum],
+            generated_data[to_einsum] = generate_data(from_einsum,
+                                                         to_einsum,
+                                                         data[from_einsum],
                                                          rank_renaming,
                                                          tensor_renaming)
+            
 
     for einsum, mapping in generated_data.items():
         data[einsum] = mapping
@@ -116,11 +120,11 @@ def mapper(
     return data
 
 
-def generate_data(data, rank_renaming, tensor_renaming):
+def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):
     return {
         _convert_tiling(tiling, rank_renaming, tensor_renaming)
         :
-        _convert_stats(stats, rank_renaming, tensor_renaming)
+        _convert_stats(from_einsum, to_einsum, stats, rank_renaming, tensor_renaming)
         for tiling, stats in data.items()
     }
 
@@ -137,40 +141,44 @@ def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
     )
 
 
-def _convert_stats(stats, rank_renaming, tensor_renaming):
-    return deepcopy(stats)
+def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
+    stats = deepcopy(stats)
+    for s in stats:
+        s[MAPPING][to_einsum] = s[MAPPING].pop(from_einsum)
+    return stats
+    
 
 
 def detect_similar_einsums(workload, analyzer, return_all_as_unique=False):
     if return_all_as_unique:
         return {ref: {} for ref in workload.einsum_id_to_name()}
 
-    ref_to_other_einsums = {}
+    ref_to_to_einsums = {}
     for einsum in workload.einsum_id_to_name():
         found = False
-        for ref_einsum in ref_to_other_einsums:
-            rank_renaming, tensor_renaming = is_equivalent(ref_einsum,
+        for from_einsum in ref_to_to_einsums:
+            rank_renaming, tensor_renaming = is_equivalent(from_einsum,
                                                            einsum,
                                                            workload,
                                                            analyzer)
             if rank_renaming is not None:
-                ref_to_other_einsums[ref_einsum][einsum] = (rank_renaming,
+                ref_to_to_einsums[from_einsum][einsum] = (rank_renaming,
                                                             tensor_renaming)
                 found = True
                 break
         if not found:
-            ref_to_other_einsums[einsum] = {}
-    return ref_to_other_einsums
+            ref_to_to_einsums[einsum] = {}
+    return ref_to_to_einsums
 
 
-def convert_rank_to_group_renaming(ref_to_other_einsums, equiv_ranks):
+def convert_rank_to_group_renaming(ref_to_to_einsums, equiv_ranks):
     return {
         ref: {
             other: (_convert_rank_renaming(rank_renaming, equiv_ranks),
                     tensor_renaming)
             for other, (rank_renaming, tensor_renaming) in others.items()
         }
-        for ref, others in ref_to_other_einsums.items()
+        for ref, others in ref_to_to_einsums.items()
     }
 
 

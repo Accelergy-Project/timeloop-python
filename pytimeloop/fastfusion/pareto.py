@@ -5,6 +5,8 @@ import re
 import sys
 from typing import Optional
 
+from pytimeloop.fastfusion.util import fzs
+
 sys.modules["numba"] = None
 
 
@@ -110,6 +112,22 @@ def merge_cross(
             callfunc(df, c, c + src_suffix)
         src_suffix, dst_suffix = dst_suffix, src_suffix
 
+    # Pipeline:
+    # - Need to share temporal loops up to the spatial loop index
+    #   Resources:
+    #   - Energy
+    #   - PE utilization
+    #   - Buf utilization
+    #   - Buf accesses (for BW calculation later)
+
+    # - Options:
+    #   - Non-pipelined: Sum resources above shared loops, max below.
+    #   - Pipelined: Sum resources above shared loops, max below. Sum
+    #     PE utilization. Latency is pipeline latency summed.
+    #     
+    #  *  Can't bake into compatiblity unless we have a notion of left vs.
+    #     right pipelined.
+
     df = makepareto(df)
 
     # Merge mappings
@@ -125,6 +143,9 @@ def merge_cross(
 class Pareto:
     def __init__(self, data: pd.DataFrame):
         self.data: pd.DataFrame = makepareto(data)
+
+    def einsum_ids(self):
+        return fzs(self.data[MAPPING].iloc[0].keys())
 
     @staticmethod
     def concat(paretos: list["Pareto"]) -> "Pareto":

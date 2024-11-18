@@ -134,6 +134,9 @@ class SIM:
         tilings += " || " + ", ".join(str(t) for t in self.tensors.values())
         return tilings
 
+    def mapping_str(self):
+        return ",".join(str(m.einsum_ids()) for m in self.mappings)
+
     @cached_property
     def tensor_names(self) -> set[str]:
         return set(self.tensors)
@@ -174,6 +177,12 @@ class SIM:
         else:
             self.mappings[index].limit_capacity(resource2capacity)
 
+    def get_shared_loop_index(self, next_live_tensors: set[str]) -> int:
+        live_tensors = [t.tensor_names for t in self.tilings] + [next_live_tensors]
+        return [
+            self.tilings[i].shared_loop_index(live_tensors[i + 1]) for i in range(len(self.tilings))
+        ]
+
     def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None):
         if len(self) <= 1:
             self._limit_capacity(resource2capacity)
@@ -213,7 +222,7 @@ class SIM:
         return self.tiling == other.tiling and self.tensors == other.tensors
 
     def __hash__(self):
-        return hash((self.tiling, frozenset(s.tensors.items())))
+        return hash((self.tiling, fzs(s.tensors.items())))
 
     def __len__(self):
         return len(self.tilings)
@@ -233,18 +242,24 @@ class SIM:
 
     @staticmethod
     def _group(
-        sims: list["SIM"], live_tensors: set[str], index: int = None
+        sims: list["SIM"], live_tensors: set[str], index: int = None, include_einsum_ids: bool = False
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
             tiling = [s.tilings[index]] if index is not None else s.tilings
             key = tuple(t.clear_dead_tensors(live_tensors) for t in tiling)
+            if include_einsum_ids:
+                key += tuple(m.einsum_ids() for m in s.mappings)
             grouped[key].append(s)
+
+        for k, g in grouped.items():
+            nmappings = [sum(len(m.data[MAPPING].iloc[0]) for m in g2.mappings) for g2 in g]
+            assert len(set(nmappings)) == 1, f"Cannot group SIMs in {k} with different # of mappings: {nmappings}"
         return grouped
 
     @staticmethod
     def combine_combineable(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
-        return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
+        return [SIM.concat(s) for s in SIM._group(sims, live_tensors, include_einsum_ids=True).values()]
 
     def group_by_right(
         sims: list["SIM"], live_tensors: set[str]
