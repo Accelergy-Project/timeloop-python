@@ -331,6 +331,8 @@ def make_storage(
             for also_retained_tensors in combinations(can_retain_tensors, r):
                 retained_tensors = must_retain_tensors | set(also_retained_tensors)
                 mapping.add_storage(level, retained_tensors)
+                if any(t in add_split_at_tensors for t in retained_tensors):
+                    mapping.add_sequential()
                 yield mapping
         return
 
