@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Callable, Set
 from itertools import combinations, product, permutations
 from functools import reduce
 from operator import or_, mul
@@ -146,21 +147,20 @@ def mapper_place_fusion_level(
         rank_id: workload.get_rank_shape(rank_id)[1] + 1 for rank_id in all_ranks
     }
     count = 0
-    mapping = LinearMapping()
-    mapping.add_storage(0, tensors - intermediate_tensors)
-    top_level_ranks = reduce(
-        or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
-    )
-    logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
-    for partial_mapping in make_pe_temporal_fors(
+
+    for partial_mapping in make_temporal_fors(  # PE temporal
         partial_mapping, all_ranks, snowcat_style=snowcat_style
     ):
-        for partial_mapping in place_pe_level(
+        # No bypassing at PE level. Can relax to explore more mappings
+        pe_must_retain = tensors
+        pe_can_retain = set()
+        for partial_mapping in make_storage(  # PE storage
             partial_mapping,
-            tensors,
-            tensor_to_relevant_ranks,
-            explore_pe_uneven,
-            snowcat_style=snowcat_style
+            2,  # PE level
+            must_retain_tensors=pe_must_retain,
+            can_retain_tensors=pe_can_retain,
+            tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+            explore_uneven=explore_pe_uneven and not snowcat_style,
         ):
             for partial_mapping in make_mac_level_loops(
                 partial_mapping,
@@ -224,9 +224,11 @@ def get_top_loop_jobs(
 ):
     args = []
     for einsum_id in einsums_to_explore:
-        # if log_queue is not None:
-        #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
-        logfunc = lambda msg: None # log_queue.debug(f"[{einsum_id}] " + msg)
+        if log_queue is not None:
+            log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
+            logfunc = lambda msg: log_queue.debug(f"[{einsum_id}] " + msg)
+        else:
+            logfunc = lambda msg: None  # do nothing
 
         workload = LooptreeWorkload.parse_cfg(config.root["problem"])
         analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -244,28 +246,48 @@ def get_top_loop_jobs(
             for tensor in tensors
         }
 
-        mapping = LinearMapping()
-        mapping.add_storage(0, tensors - intermediate_tensors)
         top_level_ranks = reduce(
             or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
         )
+
+        mapping = LinearMapping()
         logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
-        for partial_mapping in explore_fused_unfused(mapping,
-                                                     intermediate_tensors):
-            for partial_mapping in make_top_loops(partial_mapping,
-                                                  top_level_ranks,
-                                                  logfunc):
-                for partial_mapping in place_glb_level(
+
+        off_chip_must_retain = tensors - intermediate_tensors
+        off_chip_can_retain = intermediate_tensors
+        for partial_mapping in make_storage(  # Off-chip level
+            mapping,
+            level=0,
+            must_retain_tensors=off_chip_must_retain,
+            can_retain_tensors=off_chip_can_retain,
+            tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+            explore_uneven=False,
+            add_split_at_tensors=intermediate_tensors,
+        ):
+            for partial_mapping in make_temporal_fors(  # GLB temporal
+                partial_mapping,
+                top_level_ranks,
+            ):
+                if snowcat_style:
+                    glb_must_retain = tensors
+                else:
+                    glb_must_retain = set(intermediate_tensors)
+                glb_can_retain = set()
+                for partial_mapping in make_storage(  # GLB level
                     partial_mapping,
-                    intermediate_tensors,
-                    tensor_to_relevant_ranks,
-                    explore_glb_uneven,
-                    logfunc=logfunc
+                    level=1,
+                    must_retain_tensors=glb_must_retain,
+                    can_retain_tensors=glb_can_retain,
+                    tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+                    explore_uneven=explore_glb_uneven,
+                    add_split_at_tensors=intermediate_tensors,
+                    must_have_terminal_storage=True,  # GLB only opt.
+                    logfunc=None
                 ):
-                    for partial_mapping in make_pe_spatial_fors(
+                    for partial_mapping in make_spatial_fors(  # PE spatial
                         partial_mapping,
                         all_ranks,
-                        pe_array_constraint,
+                        max_factor=pe_array_constraint.array_shape,
                         snowcat_style=snowcat_style
                     ):
                         args.append(dict(
@@ -284,42 +306,39 @@ def get_top_loop_jobs(
     return args
 
 
-def explore_fused_unfused(mapping: LinearMapping,
-                          intermediate_tensors):
-    original = mapping
-    for r in range(len(intermediate_tensors)+1):
-        for unfused_tensors in combinations(intermediate_tensors, r):
-            mapping = original.copy()
-            if len(unfused_tensors) > 0:
-                mapping.add_storage(0, set(unfused_tensors))
-                mapping.add_sequential()
-                yield mapping
-            else:
-                yield mapping
-
-
-def make_top_loops(mapping: LinearMapping, ranks, logfunc):
-    original = mapping
-    for r in range(len(ranks) + 1):
-        for ordered_ranks in permutations(ranks, r=r):
-            mapping = original.copy()
-            for r in ordered_ranks:
-                mapping.add_temporal(r)
-            logfunc(f"Exploring top loops {ordered_ranks}")
-            yield mapping
-
-
-def place_glb_level(
+def make_storage(
     mapping: LinearMapping,
-    intermediate_tensors,
+    level,
+    must_retain_tensors: Set,
+    can_retain_tensors: Set,
     tensor_to_relevant_ranks,
     explore_uneven,
-    logfunc
+    add_split_at_tensors: Set=None,
+    must_have_terminal_storage: bool=False,
+    logfunc: Callable=None
 ):
-    intermediate_tensors = list(sorted(intermediate_tensors))
+    if logfunc is None:
+        logfunc = lambda msg: None  # do nothing
+
+    if add_split_at_tensors is None:
+        add_split_at_tensors = set()
+
+    tensors = must_retain_tensors | can_retain_tensors
+
+    if not explore_uneven:
+        mapping = mapping.copy()
+        retained_tensors = must_retain_tensors
+        for r in range(len(can_retain_tensors)+1):
+            for also_retained_tensors in combinations(can_retain_tensors, r):
+                retained_tensors |= set(also_retained_tensors)
+                mapping.add_storage(level, retained_tensors)
+                yield mapping
+        return
+
+    tensors = list(sorted(tensors))
 
     all_tensor_choices = []
-    for tensor_id in intermediate_tensors:
+    for tensor_id in tensors:
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
@@ -329,48 +348,45 @@ def place_glb_level(
                 is_relevant = rank_id in relevant_ranks
                 if last_is_relevant and not is_relevant:
                     # Choice 1: fused
-                    tensor_choices.append((i, 1))
+                    tensor_choices.append(i)
                     break
                 last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
         if len(tensor_choices) == 0:
-            tensor_choices.append((len(mapping), 1))
+            tensor_choices.append(len(mapping))
+
+        if tensor_id in can_retain_tensors:
+            tensor_choices.append(None)
 
         all_tensor_choices.append(tensor_choices)
 
     original = mapping.copy()
     for choices in product(*all_tensor_choices):
-        if not any(c == len(original) for (c, level) in choices):
-            continue
+        if must_have_terminal_storage:
+            if not any(c == len(original) for c in choices):
+                continue
 
-        log_msg = "; ".join(
-            f"tensor: {tensor}, idx: {idx}, level: {level}"
-            for (idx, level), tensor in zip(choices, intermediate_tensors)
-        )
-        logfunc(f"Exploring fusion {log_msg}")
+        # Collect tensors with the same idx
+        idx_to_tensors = defaultdict(list)
+        for idx, tensor in zip(choices, tensors):
+            if idx is not None:
+                idx_to_tensors[idx].append(tensor)
 
         mapping = original.copy()
-        idx_to_tensors = defaultdict(list)
-        for choice, tensor in zip(choices, intermediate_tensors):
-            idx, level = choice
-            idx_to_tensors[idx].append((level, tensor))
         for idx, tensors in sorted(idx_to_tensors.items(),
                                    key=lambda pair: pair[0],
                                    reverse=True):
-            mapping.add_sequential(idx)
-            level_to_tensors = defaultdict(set)
-            for level, tensor in tensors:
-                level_to_tensors[level].add(tensor)
-            for level, tensors in level_to_tensors.items():
-                mapping.add_storage(level, tensors, idx=idx)
+            if any(t in add_split_at_tensors for t in tensors):
+                mapping.add_sequential(idx)
+            mapping.add_storage(level, tensors, idx)
         yield mapping
 
 
-def make_pe_spatial_fors(mapping,
-                         ranks,
-                         pe_array_constraint: PeArrayConstraint,
-                         snowcat_style: bool=False):
+def make_spatial_fors(mapping,
+                      ranks,
+                      max_factor,
+                      snowcat_style: bool=False):
     if snowcat_style:
         yield mapping.copy()
         return
@@ -382,12 +398,15 @@ def make_pe_spatial_fors(mapping,
             mapping = original.copy()
             for r in ordered_ranks:
                 mapping.add_spatial(
-                    r, factor_constraint=f"<={pe_array_constraint.array_shape}"
+                    r, factor_constraint=f"<={max_factor}"
                 )
             yield mapping
 
 
-def make_pe_temporal_fors(mapping, ranks, snowcat_style: bool=False):
+def make_temporal_fors(mapping,
+                       ranks,
+                       snowcat_style: bool=False,
+                       logfunc: Callable=None):
     if snowcat_style:
         yield mapping.copy()
         return
@@ -397,49 +416,11 @@ def make_pe_temporal_fors(mapping, ranks, snowcat_style: bool=False):
     for r in range(len(ranks) + 1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
+            if logfunc is not None:
+                logfunc(f"{ordered_ranks}")
             for r in ordered_ranks:
                 mapping.add_temporal(r)
             yield mapping
-
-
-def place_pe_level(mapping,
-                   tensors,
-                   tensor_to_relevant_ranks,
-                   explore_uneven,
-                   snowcat_style: bool=False):
-    if snowcat_style:
-        mapping = mapping.copy()
-        level = 2
-        mapping.add_storage(level, tensors)
-        yield mapping
-        return
-
-    all_tensor_choices = []
-    for tensor_id in tensors:
-        relevant_ranks = tensor_to_relevant_ranks[tensor_id]
-        tensor_choices = []
-        last_is_relevant = True
-        if explore_uneven:
-            for i, node in enumerate(mapping):
-                if node["type"] == "temporal":
-                    rank_id = node["rank"]
-                    is_relevant = rank_id in relevant_ranks
-                    if last_is_relevant and not is_relevant:
-                        tensor_choices.append((i, 2))
-                    last_is_relevant = is_relevant
-        if last_is_relevant:
-            tensor_choices.append((len(mapping), 2))
-        all_tensor_choices.append(tensor_choices)
-
-    original = mapping.copy()
-    for choices in product(*all_tensor_choices):
-        mapping = original.copy()
-        for choice, tensor in sorted(zip(choices, tensors),
-                                     key=lambda pair: pair[0][0],
-                                     reverse=True):
-            idx, level = choice
-            mapping.add_storage(level, {tensor}, idx=idx)
-        yield mapping
 
 
 def make_mac_level_loops(
@@ -463,6 +444,7 @@ def make_mac_level_loops(
     mapping.add_spatial(reduced_rank, 1)
     mapping.add_compute(einsum_id, 3)
     yield mapping
+
 
 def explore_tile_shape(
     mapping, rank_shapes, compiled_result, max_capacity, max_fanout, only_count=False
