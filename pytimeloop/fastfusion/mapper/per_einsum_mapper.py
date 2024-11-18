@@ -327,10 +327,9 @@ def make_storage(
 
     if not explore_uneven:
         mapping = mapping.copy()
-        retained_tensors = must_retain_tensors
         for r in range(len(can_retain_tensors)+1):
             for also_retained_tensors in combinations(can_retain_tensors, r):
-                retained_tensors |= set(also_retained_tensors)
+                retained_tensors = must_retain_tensors | set(also_retained_tensors)
                 mapping.add_storage(level, retained_tensors)
                 yield mapping
         return
