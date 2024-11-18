@@ -37,7 +37,8 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
                         explore_pe_uneven=False,
                         spec=spec,
                         tmp_path=TEST_TMP_DIR,
-                        verbose_stream=sys.stdout)
+                        verbose_stream=sys.stdout,
+                        snowcat_style=False)
         
         import pandas as pd
         from pytimeloop.fastfusion.sim import SIM

@@ -97,6 +97,7 @@ def mapper_place_fusion_level(
     partial_mapping,
     log_queue=None,
     verbose_stream=None,
+    snowcat_style: bool=False,
 ):
     # if log_queue is not None:
     #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
@@ -152,13 +153,14 @@ def mapper_place_fusion_level(
     )
     logfunc(f"Allowed top-level loop ranks: {top_level_ranks}")
     for partial_mapping in make_pe_temporal_fors(
-        partial_mapping, all_ranks
+        partial_mapping, all_ranks, snowcat_style=snowcat_style
     ):
         for partial_mapping in place_pe_level(
             partial_mapping,
             tensors,
             tensor_to_relevant_ranks,
             explore_pe_uneven,
+            snowcat_style=snowcat_style
         ):
             for partial_mapping in make_mac_level_loops(
                 partial_mapping,
@@ -218,6 +220,7 @@ def get_top_loop_jobs(
     energy_dict,
     log_queue=None,
     verbose_stream=None,
+    snowcat_style: bool=False,
 ):
     args = []
     for einsum_id in einsums_to_explore:
@@ -260,7 +263,10 @@ def get_top_loop_jobs(
                     logfunc=logfunc
                 ):
                     for partial_mapping in make_pe_spatial_fors(
-                        partial_mapping, all_ranks, pe_array_constraint
+                        partial_mapping,
+                        all_ranks,
+                        pe_array_constraint,
+                        snowcat_style=snowcat_style
                     ):
                         args.append(dict(
                             config=config,
@@ -361,8 +367,16 @@ def place_glb_level(
         yield mapping
 
 
-def make_pe_spatial_fors(mapping, ranks, pe_array_constraint: PeArrayConstraint):
+def make_pe_spatial_fors(mapping,
+                         ranks,
+                         pe_array_constraint: PeArrayConstraint,
+                         snowcat_style: bool=False):
+    if snowcat_style:
+        yield mapping.copy()
+        return
+
     original = mapping.copy()
+
     for r in range(len(ranks) + 1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
@@ -373,8 +387,13 @@ def make_pe_spatial_fors(mapping, ranks, pe_array_constraint: PeArrayConstraint)
             yield mapping
 
 
-def make_pe_temporal_fors(mapping, ranks):
+def make_pe_temporal_fors(mapping, ranks, snowcat_style: bool=False):
+    if snowcat_style:
+        yield mapping.copy()
+        return
+
     original = mapping.copy()
+
     for r in range(len(ranks) + 1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
@@ -383,7 +402,18 @@ def make_pe_temporal_fors(mapping, ranks):
             yield mapping
 
 
-def place_pe_level(mapping, tensors, tensor_to_relevant_ranks, explore_uneven):
+def place_pe_level(mapping,
+                   tensors,
+                   tensor_to_relevant_ranks,
+                   explore_uneven,
+                   snowcat_style: bool=False):
+    if snowcat_style:
+        mapping = mapping.copy()
+        level = 2
+        mapping.add_storage(level, tensors)
+        yield mapping
+        return
+
     all_tensor_choices = []
     for tensor_id in tensors:
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]

@@ -34,6 +34,7 @@ def mapper(
     spec,
     tmp_path,
     verbose_stream=None,
+    snowcat_style: bool=False
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -70,6 +71,7 @@ def mapper(
         energy_dict=energy_dict,
         log_queue=log_queue,
         verbose_stream=verbose_stream,
+        snowcat_style=snowcat_style
     )
 
     print(f'Number of jobs: {len(args)}')
@@ -103,10 +105,10 @@ def mapper(
                         + f"Rank renaming={rank_renaming}. "
                         + f"Tensor renaming={tensor_renaming}")
             generated_data[to_einsum] = generate_data(from_einsum,
-                                                         to_einsum,
-                                                         data[from_einsum],
-                                                         rank_renaming,
-                                                         tensor_renaming)
+                                                      to_einsum,
+                                                      data[from_einsum],
+                                                      rank_renaming,
+                                                      tensor_renaming)
             
 
     for einsum, mapping in generated_data.items():
