@@ -617,7 +617,7 @@ def process_result(
         results[key] += size
     for r in results:
         if "RESOURCE" in r:
-            fulltiling.append(f"{r}={results[r]:.2e}")
+            fulltiling.append(f"{r.replace('RESOURCE', 'R')}={results[r]:.2e}")
     fulltiling.append(f"L={results['Latency']:.2e}")
     fulltiling.append(f"E={results['Energy']:.2e}")
     results[MAPPING] = {einsum_id: str(fulltiling)}
