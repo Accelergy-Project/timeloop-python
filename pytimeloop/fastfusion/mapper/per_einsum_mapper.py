@@ -12,7 +12,7 @@ from pytimeloop.fastfusion.pareto import nameloop2col
 from pytimeloop.fastfusion.pareto import MAPPING
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
-from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
+from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions, get_accesses
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
 
@@ -337,10 +337,6 @@ def make_storage(
                 mapping.add_storage(level, retained_tensors)
                 if any(t in add_split_at_tensors for t in retained_tensors):
                     mapping.add_sequential()
-                if level == 0:
-                    print(level, must_retain_tensors, also_retained_tensors, retained_tensors)
-                    print(original)
-                    print(mapping)
 
                 yield mapping
         return
@@ -541,6 +537,15 @@ def process_result(
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
     )
+    accesses = defaultdict(lambda: 0)
+    reads, writes = get_accesses(
+        result, {"type": "fused", "nodes": mapping}, workload, is_path=True
+    )
+    for k, v in reads.items():
+        accesses[k] += v
+    for k, v in writes.items():
+        accesses[k] += v
+
     energy = sum(
         energy_dict[comp_action] * counts for comp_action, counts in actions.items()
     )
@@ -617,6 +622,8 @@ def process_result(
     results = {}
     results["Latency"] = result.temporal_steps[einsum_id]
     results["Energy"] = energy
+    for (level, tensor, einsum), count in accesses.items():
+        fulltiling.append(f"Accesses_{level}_{tensor}_{einsum}={count}")
     # results["PE_Utilization"] = result.fanout[3][0]
     fulltiling.append(f"{result.fanout}")
     for (storage_id, n_loops), size in reservations.items():

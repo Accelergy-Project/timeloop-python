@@ -8,6 +8,39 @@ from pytimeloop.looptree.mapping_utilities import *
 
 
 def gather_actions(looptree_results, mapping, workload, bindings, is_path=False):
+    reads, writes = get_accesses(looptree_results, mapping, workload, is_path)
+
+    einsum_name_to_id = workload.einsum_name_to_id()
+
+    einsums_with_complete_mapping = get_einsums_with_complete_mappings(mapping['nodes'], workload, is_path)
+    einsums_with_complete_mapping = {
+        e if isinstance(e, int) else einsum_name_to_id[e]
+        for e in einsums_with_complete_mapping
+    }
+
+    ops = gather_ops(looptree_results.ops, einsums_with_complete_mapping)
+
+    actions = {}
+    for (buf, tensor, einsum), counts in reads.items():
+        buf = bindings[buf]
+        key = (buf, 'read')
+        if key not in actions:
+            actions[key] = 0
+        actions[key] += counts
+
+    for (buf, tensor, einsum), counts in writes.items():
+        buf = bindings[buf]
+        key = (buf, 'write')
+        if key not in actions:
+            actions[key] = 0
+        actions[key] += counts
+
+    actions[(bindings[max(bindings.keys())], 'compute')] = ops
+
+    return actions
+
+
+def get_accesses(looptree_results, mapping, workload, is_path=False):
     if 'reads_to_parent' in looptree_results.__dict__:
         reads_to_parent = looptree_results.reads_to_parent
     else:
@@ -38,34 +71,7 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False)
     for k, v in peer_writes.items():
         writes[k] = writes.get(k, 0) + v
 
-    einsum_name_to_id = workload.einsum_name_to_id()
-
-    einsums_with_complete_mapping = get_einsums_with_complete_mappings(mapping['nodes'], workload, is_path)
-    einsums_with_complete_mapping = {
-        e if isinstance(e, int) else einsum_name_to_id[e]
-        for e in einsums_with_complete_mapping
-    }
-
-    ops = gather_ops(looptree_results.ops, einsums_with_complete_mapping)
-
-    actions = {}
-    for (buf, tensor, einsum), counts in reads.items():
-        buf = bindings[buf]
-        key = (buf, 'read')
-        if key not in actions:
-            actions[key] = 0
-        actions[key] += counts
-
-    for (buf, tensor, einsum), counts in writes.items():
-        buf = bindings[buf]
-        key = (buf, 'write')
-        if key not in actions:
-            actions[key] = 0
-        actions[key] += counts
-
-    actions[(bindings[max(bindings.keys())], 'compute')] = ops
-
-    return actions
+    return reads, writes
 
 
 def compute_energy_from_actions(action_counts: Mapping[(str, str), Real],

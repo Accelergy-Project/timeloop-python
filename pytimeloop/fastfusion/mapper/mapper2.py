@@ -75,7 +75,7 @@ def mapper(
     )
 
     print(f'Number of jobs: {len(args)}')
-    n_workers = 128
+    n_workers = 64
     logger.debug(f"Starting {n_workers} workers")
     log_queue_listener.start()
     
