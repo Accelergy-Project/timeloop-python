@@ -59,7 +59,9 @@ def reads_and_writes_from_fill_by_parent(fills: Mapping,
                 reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
             elif dspace_id in workload.tensors_read_by_einsum(einsum_id):
                 reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
-        if buffer_id != compute_target:
+        # Fills will write into current buffer except for compute (which does
+        # not have write action) and top-level buffer
+        if buffer_id != compute_target and parent_buffer is not None:
             writes[(buffer_id, dspace_name, einsum_name)] += fill
 
     return reads, writes
