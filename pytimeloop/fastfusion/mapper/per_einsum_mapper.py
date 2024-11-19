@@ -156,7 +156,7 @@ def mapper_place_fusion_level(
         pe_can_retain = set()
         for partial_mapping in make_storage(  # PE storage
             partial_mapping,
-            2,  # PE level
+            level=2,  # PE level
             must_retain_tensors=pe_must_retain,
             can_retain_tensors=pe_can_retain,
             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
@@ -325,14 +325,23 @@ def make_storage(
 
     tensors = must_retain_tensors | can_retain_tensors
 
+    # Further mutated mappings copy from original first.
+    original = mapping
+
     if not explore_uneven:
-        mapping = mapping.copy()
         for r in range(len(can_retain_tensors)+1):
             for also_retained_tensors in combinations(can_retain_tensors, r):
+                mapping = original.copy()
+
                 retained_tensors = must_retain_tensors | set(also_retained_tensors)
                 mapping.add_storage(level, retained_tensors)
                 if any(t in add_split_at_tensors for t in retained_tensors):
                     mapping.add_sequential()
+                if level == 0:
+                    print(level, must_retain_tensors, also_retained_tensors, retained_tensors)
+                    print(original)
+                    print(mapping)
+
                 yield mapping
         return
 
@@ -362,7 +371,6 @@ def make_storage(
 
         all_tensor_choices.append(tensor_choices)
 
-    original = mapping.copy()
     for choices in product(*all_tensor_choices):
         if must_have_terminal_storage:
             if not any(c == len(original) for c in choices):
