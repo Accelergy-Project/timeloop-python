@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Callable, Set
+from collections.abc import Callable, Set, Mapping
 from itertools import combinations, product, permutations
 from functools import reduce
 from operator import or_, mul
@@ -198,7 +198,7 @@ def mapper_place_fusion_level(
                         workload,
                         energy_dict,
                         equivalent_groups,
-                        logfunc,
+                        logfunc=logfunc,
                         explore_fusion_uneven=explore_glb_uneven
                     )
                     if count % 1e4 == 0:
@@ -315,7 +315,8 @@ def make_storage(
     explore_uneven,
     add_split_at_tensors: Set=None,
     must_have_terminal_storage: bool=False,
-    logfunc: Callable=None
+    logfunc: Callable=None,
+    return_retained_tensors: bool=False
 ):
     if logfunc is None:
         logfunc = lambda msg: None  # do nothing
@@ -338,7 +339,10 @@ def make_storage(
                 if any(t in add_split_at_tensors for t in retained_tensors):
                     mapping.add_sequential()
 
-                yield mapping
+                if return_retained_tensors:
+                    yield mapping, retained_tensors
+                else:
+                    yield mapping
         return
 
     tensors = list(sorted(tensors))
@@ -373,10 +377,12 @@ def make_storage(
                 continue
 
         # Collect tensors with the same idx
+        retained_tensors = set()
         idx_to_tensors = defaultdict(list)
         for idx, tensor in zip(choices, tensors):
             if idx is not None:
                 idx_to_tensors[idx].append(tensor)
+                retained_tensors.add(tensor)
 
         mapping = original.copy()
         for idx, tensors in sorted(idx_to_tensors.items(),
@@ -385,7 +391,11 @@ def make_storage(
             if any(t in add_split_at_tensors for t in tensors):
                 mapping.add_sequential(idx)
             mapping.add_storage(level, tensors, idx)
-        yield mapping
+
+        if return_retained_tensors:
+            yield mapping, retained_tensors
+        else:
+            yield mapping
 
 
 def make_spatial_fors(mapping,
@@ -531,8 +541,8 @@ def process_result(
     workload,
     energy_dict,
     equiv_groups: EquivalentGroups,
-    logfunc,
-    explore_fusion_uneven
+    explore_fusion_uneven,
+    logfunc=None,
 ):
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
