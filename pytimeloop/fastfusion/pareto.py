@@ -1,9 +1,12 @@
+from collections import defaultdict
 import itertools
 import re
 
 # Disable numba. We need user_has_package("numba") to be False
 import sys
 from typing import Optional
+
+from joblib import delayed
 
 from pytimeloop.fastfusion.util import fzs
 
@@ -18,17 +21,19 @@ import functools
 MAPPING = "__Mappings"
 OCCUPANCY = "__Occupancy"
 
-_resource_name_nloops_reg = re.compile(r"RESOURCE_(.+)_LEVEL_(-?\d+)")
+_resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
 def dict_cached(func):
     cache = {}
     @functools.wraps(func)
-    def wrapper(*args):
-        if args not in cache:
-            cache[args] = func(*args)
-        return cache[args]
+    def wrapper(*args, **kwargs):
+        key = (args, frozenset(kwargs.items()))
+        if key not in cache:
+            cache[key] = func(*args, **kwargs)
+        return cache[key]
     return wrapper
 
+# TODO: Make these tuples?
 
 @dict_cached
 def col2nameloop(x):
@@ -36,24 +41,33 @@ def col2nameloop(x):
     return (m.group(1), int(m.group(2))) if m is not None else None
 
 @dict_cached
-def nameloop2col(name, nloops):
+def nameloop2col(name, nloops, left: bool=False):
+    if left:
+        return f"RESOURCE_{name}_LEFT_LEVEL_{nloops}"
     return f"RESOURCE_{name}_LEVEL_{nloops}"
 
+@dict_cached
+def is_left_col(x):
+    return "_LEFT_LEVEL_" in x
 
 MERGE_SUFFIXES = ["_RIGHT_MERGE", "_LEFT_MERGE"]
-
 
 def is_merge_col(c):
     return any(c.endswith(s) for s in MERGE_SUFFIXES)
 
 
 def add_to_col(df, c, c2):
-    df[c] = df[c] + df[c2] if c in df else df[c2]
+    if c in df:
+        df.loc[:, c] = df[c] + df[c2]
+    else:
+        df.loc[:, c] = df[c2]
 
 
 def max_to_col(df, c, c2):
-    df[c] = df[[c, c2]].max(axis=1) if c in df else df[c2]
-
+    if c in df:
+        df.loc[:, c] = df[[c, c2]].max(axis=1)
+    else:
+        df.loc[:, c] = df[c2]
 
 # Above index 0: Freed when Einsum fully terminates
 # Above index 1: Freed after each iteration of the outermost loop
@@ -67,50 +81,104 @@ def max_to_col(df, c, c2):
 
 def makepareto(data: pd.DataFrame) -> pd.DataFrame:
     columns = [c for c in data.columns if c != MAPPING and not is_merge_col(c)]
+    # Drop any columns that are all zeros
+    for c in list(columns):
+        if not data[c].any():
+            data = data.drop(columns=[c])
+            columns.remove(c)
+    # TODO: Check if this is helpful. Right will be added to later, so if it is > than the left,
+    # we can overwrite the left with the higher value. May be helpful for pareto pruning.
+    for c in columns:
+        if is_left_col(c):
+            continue
+        if (name_nloops := col2nameloop(c)) is not None:
+            name, n = name_nloops
+            left_equivalent = nameloop2col(name, n, left=True)
+            if left_equivalent in columns:
+                max_to_col(data, left_equivalent, c)
     if len(data) == 1:
         return data
     return data[paretoset(data[columns])].reset_index(drop=True)
 
+def squish_left_right(data: pd.DataFrame):
+    nloops2left = defaultdict(set)
+    for c in data.columns:
+        if (name_nloops := col2nameloop(c)) is not None:
+            if is_left_col(c):
+                name, nloops = name_nloops
+                nloops2left[nloops].add((c, name))
+            
+    for n in nloops2left.keys():
+        for c, name in nloops2left[n]:
+            target = nameloop2col(name, n)
+            max_to_col(data, target, c)
+            
+    keepcols = [c for c in data.columns if not is_left_col(c)]
+    return data[keepcols]
 
 def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int) -> pd.DataFrame:
+    nloops2left = defaultdict(set)
+    nloops2right = defaultdict(set)
+    for c in data.columns:
+        if (name_nloops := col2nameloop(c)) is not None:
+            name, nloops = name_nloops
+            target = nloops2left if is_left_col(c) else nloops2right
+            target[nloops].add((c, name))
+
+    max_nloops = max(max(nloops2left.keys(), default=-1), max(nloops2right.keys(), default=-1))
+    for n in range(max_nloops, shared_loop_index, -1):
+        # LEFT data: Max to the same level on the right
+        for c, name in nloops2left[n]:
+            target = nameloop2col(name, n)
+            max_to_col(data, target, c)
+            nloops2right[n].add((target, name))
+        # RIGHT data: Sum to the level below on the right
+        for c, name in nloops2right[n]:
+            target = nameloop2col(name, n - 1)
+            add_to_col(data, target, c)
+            nloops2right[n - 1].add((target, name))
+
     keepcols = []
     for c in data.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             name, nloops = name_nloops
-            if nloops > shared_loop_index:
-                target = nameloop2col(name_nloops[0], shared_loop_index)
-                add_to_col(data, target, c)
-                c = target
-        if c not in keepcols:
+            if nloops <= shared_loop_index:
+                keepcols.append(c)
+        else:
             keepcols.append(c)
+                
     return data[keepcols]
 
 
 def merge_cross(
-    a1: pd.DataFrame,
-    a2: pd.DataFrame,
+    left: pd.DataFrame,
+    right: pd.DataFrame,
     shared_loop_index: int,  # -1 -> no shared loops, 0 -> outermost...
+    as_pareto: bool = False,
 ) -> pd.DataFrame:
-    a1 = makepareto(free_to_loop_index(a1, shared_loop_index + 1))
-    a2 = makepareto(free_to_loop_index(a2, shared_loop_index + 1))
+    left = makepareto(free_to_loop_index(left, shared_loop_index + 1))
+    right = makepareto(right)
 
-    df = pd.merge(a1, a2, how="cross", suffixes=MERGE_SUFFIXES)
-    shared_columns = set(a1.columns) & set(a2.columns)
+    df = pd.merge(left, right, how="cross", suffixes=MERGE_SUFFIXES)
+    shared_columns = set(left.columns) & set(right.columns) - set([MAPPING])
 
-    # Add the shared resources from one cascade to the leaves of the other
-    src_suffix, dst_suffix = MERGE_SUFFIXES
-    for _ in range(2): # Swaps src and dst (last line of loop) for second iteration
-        for c in shared_columns:
-            if c == MAPPING:
-                continue
-            # If it's not a resource column, just add it
-            if (name_nloops := col2nameloop(c)) is None:
+    for c in shared_columns:
+        # Unknown loop index -> add
+        if (name_nloops := col2nameloop(c)) is None:
+            callfunc = add_to_col
+            for suffix in MERGE_SUFFIXES:
+                callfunc(df, c, c + suffix)
+        else:
+            name, nloops = name_nloops
+            # <= shared_loop_index -> add
+            if nloops <= shared_loop_index:
                 callfunc = add_to_col
+                for suffix in MERGE_SUFFIXES:
+                    callfunc(df, c, c + suffix)
+            # > shared_loop_index -> create new left column
             else:
-                _, nloops = name_nloops
-                callfunc = add_to_col if nloops <= shared_loop_index else max_to_col
-            callfunc(df, c, c + src_suffix)
-        src_suffix, dst_suffix = dst_suffix, src_suffix
+                max_to_col(df, nameloop2col(name, nloops, left=True), c + MERGE_SUFFIXES[0])
+                max_to_col(df, nameloop2col(name, nloops), c + MERGE_SUFFIXES[1])
 
     # Pipeline:
     # - Need to share temporal loops up to the spatial loop index
@@ -137,7 +205,8 @@ def merge_cross(
     # Assert no NaNs
     assert not df.isnull().values.any()    
     
-    return df[[c for c in df.columns if not is_merge_col(c)]]
+    df = df[[c for c in df.columns if not is_merge_col(c)]]
+    return Pareto(df) if as_pareto else df
 
 
 class Pareto:
@@ -151,8 +220,9 @@ class Pareto:
     def concat(paretos: list["Pareto"]) -> "Pareto":
         return Pareto(pd.concat([p.data for p in paretos]).fillna(0))
 
-    def merge(self, other: "Pareto", shared_loop_index: int) -> "Pareto":
-        return Pareto(merge_cross(self.data, other.data, shared_loop_index))
+    def merge(self, other: "Pareto", shared_loop_index: int, delay: bool=False) -> "Pareto":
+        d = delayed(merge_cross)(self.data, other.data, shared_loop_index, as_pareto=True)
+        return d if delay else d[0](*d[1], **d[2])
 
     @staticmethod
     def get_dummy() -> "Pareto":
@@ -184,6 +254,9 @@ class Pareto:
                 found = True
         if found:
             self.data = makepareto(self.data)
+            
+    def squish_left_right(self):
+        self.data = squish_left_right(self.data)
 
 import unittest
 
@@ -257,7 +330,7 @@ class ParetoTest(unittest.TestCase):
         self.assertEqual(d[occ_key].tolist(), [5, 5])
 
         p2 = Pareto(data1).merge(Pareto(data2), 3)
-        d = p2.data
+        d = squish_left_right(p2.data)
         self.assertEqual(d["A"].tolist(), [4, 6])
         self.assertEqual(d["B"].tolist(), [6, 4])
         self.assertEqual(d[occ_key].tolist(), [3, 3])
@@ -294,15 +367,18 @@ class ParetoTest(unittest.TestCase):
 
         # Untiled fused --> Max everything
         d = Pareto(data1).merge(Pareto(data2), -1).data
+        d = squish_left_right(d)
         self.assertEqual(d[occ_key_1].tolist(), [11, 11])
 
         # Tiled at nloops 1 --> Sum everything stored at 0
         d = Pareto(data1).merge(Pareto(data2), 0).data
+        d = squish_left_right(d)
         self.assertEqual(d[occ_key_1].tolist(), [7, 7])
         self.assertEqual(d[occ_key_2].tolist(), [8, 8])
 
         # Tiled at nloops 2 --> Sum everything stored at 0 and 1
         d = Pareto(data1).merge(Pareto(data2), 1).data
+        d = squish_left_right(d)
         self.assertEqual(d[occ_key_1].tolist(), [7, 7])
         self.assertEqual(d[occ_key_2].tolist(), [14, 14])
 

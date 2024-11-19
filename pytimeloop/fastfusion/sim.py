@@ -119,23 +119,20 @@ class Tiling:
         return self.__str__()
 
 class SIM:
-    def __init__(self, tiling: Tiling | list[Tiling], mapping: Pareto | list[Pareto]):
-        self.tilings: list[Tiling] = tiling if isinstance(tiling, list) else [tiling]
-        self.mappings: list[Pareto] = (
-            mapping if isinstance(mapping, list) else [mapping]
-        )
+    def __init__(self, tiling: Tiling, mapping: Pareto):
+        self.tiling: Tiling = tiling
+        self.mapping: Pareto = mapping
         self.tensors: dict[str, TensorStorage] = {
-            t2.tensor_id: t2 for t in self.tilings for t2 in t.tensors
+            t.tensor_id: t for t in self.tiling.tensors
         }
 
     def tiling_str(self):
-        tilings = [",".join(str(l) for l in t.loops) for t in self.tilings]
-        tilings = " | ".join(tilings)
-        tilings += " || " + ", ".join(str(t) for t in self.tensors.values())
-        return tilings
+        tiling = ",".join(str(l) for l in self.tiling.loops)
+        tiling += " || " + ", ".join(str(t) for t in self.tensors.values())
+        return tiling
 
     def mapping_str(self):
-        return ",".join(str(m.einsum_ids()) for m in self.mappings)
+        return str(self.mapping.einsum_ids())
 
     @cached_property
     def tensor_names(self) -> set[str]:
@@ -145,14 +142,22 @@ class SIM:
         self.tensors.pop(tensor_id)
 
     def copy(self) -> "SIM":
-        return SIM(list(self.tilings), [m.copy() for m in self.mappings])
+        return SIM(self.tiling, self.mapping.copy())
 
-    def merge_next(self, n: "SIM", implied_tensors: set[str]) -> "SIM":
-        shared_loop_index = self.tilings[-1].shared_loop_index(n.tilings[0].tensor_names)
-        self.tilings.extend(n.tilings)
-        # TODO: This copy() may not be needed because we squish together left mappings,
+    def merge_next(self, n: "SIM", implied_tensors: set[str], delay: bool) -> "SIM":
+        shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
+        tiling = n.tiling
+        mapping = self.mapping.merge(n.mapping, shared_loop_index, delay=delay)
+        s = SIM(tiling, mapping)
+        s.tensors.update(n.tensors)
+        s.tensors.update(self.tensors)
+        assert not implied_tensors, "TODO"
+        return s
+        
+        self.tiling = n.tiling
+        # TODO: This copy() may not be needed because we squish together left mapping,
         # so each right mapping will be merged with only one?
-        self.mappings.extend([m.copy() for m in n.mappings])
+        self.mapping = self.mapping.merge(n.mapping, shared_loop_index, delay=delay)
         self.tensors.update(n.tensors)
 
         for t in implied_tensors:
@@ -160,36 +165,35 @@ class SIM:
                 False  # This is only for residuals. WRITE TESTS FOR THE FOLLOWING CODE
             )
             # If the tensor is stored above a shared loop, then it is already in shared
-            # storage for the existing mappings. Otherwise, we should allocate it in
+            # storage for the existing mapping. Otherwise, we should allocate it in
             # the new mapping.
             if self.tensors[t].above_loop_index > shared_loop_index:
-                for m in self.mappings[-len(n.mappings) :]:
+                for m in self.mapping[-len(n.mapping) :]:
                     m.alloc(
                         t, self.tensors[t].tile_size, self.tensors[t].above_loop_index
                     )
                     
-    def _limit_capacity(self, resource2capacity: dict[str, int], index: Optional[int] = None):
+    def _limit_capacity(self, resource2capacity: dict[str, int]):
         if resource2capacity is None:
             return
-        if index is None:
-            for m in self.mappings:
-                m.limit_capacity(resource2capacity)
-        else:
-            self.mappings[index].limit_capacity(resource2capacity)
+        self.mapping.limit_capacity(resource2capacity)
 
     def get_shared_loop_index(self, next_live_tensors: set[str]) -> int:
-        live_tensors = [t.tensor_names for t in self.tilings] + [next_live_tensors]
-        return [
-            self.tilings[i].shared_loop_index(live_tensors[i + 1]) for i in range(len(self.tilings))
-        ]
+        live_tensors = list(self.tiling.tensor_names) + [next_live_tensors]
+        return self.tiling.shared_loop_index(live_tensors)
 
     def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None):
+        if next_live_tensors is None:
+            self.mapping.free_to_loop_index(0)
+            self.mapping.squish_left_right()
+        self._limit_capacity(resource2capacity)
+        return
         if len(self) <= 1:
             self._limit_capacity(resource2capacity)
             return
 
-        # Can merge mappings that have the same # of co-tiled loops as total loops
-        tl = self.tilings
+        # Can merge mapping that have the same # of co-tiled loops as total loops
+        tl = self.tiling
         live_tensors = [t.tensor_names for t in tl] + [next_live_tensors]
         shared_loop_index = [
             tl[i].shared_loop_index(live_tensors[i + 1]) for i in range(len(tl))
@@ -198,78 +202,58 @@ class SIM:
         while i < len(shared_loop_index) - 1:
             if shared_loop_index[i] >= shared_loop_index[i + 1]:
                 assert i == 0 or shared_loop_index[i - 1] < shared_loop_index[i]
-                self.tilings.pop(i)
-                m0, m1 = self.mappings.pop(i), self.mappings.pop(i)
+                self.tiling.pop(i)
+                m0, m1 = self.mapping.pop(i), self.mapping.pop(i)
                 shared_index = shared_loop_index.pop(i)
                 m0.free_to_loop_index(shared_index+1)
                 m1.free_to_loop_index(shared_index+1)
-                self.mappings.insert(i, m0.merge(m1, shared_index))
+                self.mapping.insert(i, m0.merge(m1, shared_index))
                 self._limit_capacity(resource2capacity, i)
                 i = max(0, i - 1)
             else:
                 i += 1
-        if len(self.mappings) == 1:
-            self.mappings[0].free_to_loop_index(shared_loop_index[0]+1)
+        if len(self.mapping) == 1:
+            self.mapping.free_to_loop_index(shared_loop_index[0]+1)
         self._limit_capacity(resource2capacity)
 
     def clear_dead_tensors(self, live_tensors: set[str]):
         dead_tensors = set(self.tensors) - live_tensors
         for t in dead_tensors:
             self._free_tensor(t)
-        self.tilings = [t.clear_dead_tensors(live_tensors) for t in self.tilings]
+        self.tiling = self.tiling.clear_dead_tensors(live_tensors)
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
 
     def __hash__(self):
-        return hash((self.tiling, fzs(s.tensors.items())))
-
-    def __len__(self):
-        return len(self.tilings)
+        return hash((self.tiling, fzs(self.tensors.items())))
 
     @staticmethod
     def concat(sims: Iterable["SIM"]) -> "SIM":
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
-        maplen = set(len(s.mappings) for s in sims)
-        assert (
-            len(maplen) == 1
-        ), f"Cannot concat SIMs with different # of mappings: {maplen}"
-        mapping = []
-        for i in range(maplen.pop()):
-            mapping.append(Pareto.concat([s.mappings[i] for s in sims]))
-        return SIM(list(sims[0].tilings), mapping)
+        return SIM(sims[0].tiling, Pareto.concat([s.mapping for s in sims]))
 
     @staticmethod
-    def _group(
-        sims: list["SIM"], live_tensors: set[str], index: int = None, include_einsum_ids: bool = False
-    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
+    def _group(sims: list["SIM"], live_tensors: set[str]) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
-            tiling = [s.tilings[index]] if index is not None else s.tilings
-            key = tuple(t.clear_dead_tensors(live_tensors) for t in tiling)
-            if include_einsum_ids:
-                key += tuple(m.einsum_ids() for m in s.mappings)
-            grouped[key].append(s)
-
-        for k, g in grouped.items():
-            nmappings = [sum(len(m.data[MAPPING].iloc[0]) for m in g2.mappings) for g2 in g]
-            assert len(set(nmappings)) == 1, f"Cannot group SIMs in {k} with different # of mappings: {nmappings}"
+            grouped[s.tiling.clear_dead_tensors(live_tensors)].append(s)
         return grouped
 
     @staticmethod
     def combine_combineable(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
-        return [SIM.concat(s) for s in SIM._group(sims, live_tensors, include_einsum_ids=True).values()]
+        return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
 
     def group_by_right(
         sims: list["SIM"], live_tensors: set[str]
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, -1)
+        return SIM._group(sims, live_tensors)
 
     def group_by_left(
         sims: list["SIM"], live_tensors: set[str]
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, 0)
+        return SIM._group(sims, live_tensors)
 
 
 import unittest
@@ -315,25 +299,24 @@ class TestSIM(unittest.TestCase):
         ]
         for e, s in zip(expected, sims):
             for i, e in enumerate(e):
-                self.assertEqual(s.mappings[0].data[nameloop2col("GLB", i)].sum(), e)
+                self.assertEqual(s.mapping.data[nameloop2col("GLB", i)].sum(), e)
 
     def test_all(self):
-
         a0 = TensorStorage("A0", "GLB", 0, 1)
         a1 = TensorStorage("A1", "GLB", 1, 2)
         a2 = TensorStorage("A2", "GLB", 2, 3)
         a1b1 = TensorStorage("A1B1", "GLB", 2, 2)  # Above loop 2 --> share 0, 1
-        b0 = TensorStorage("B0", "GLB", 0, 4)
-        b1 = TensorStorage("B1", "GLB", 1, 5)
-        b2 = TensorStorage("B2", "GLB", 2, 6)
-        b0c0 = TensorStorage("B0C0", "GLB", 1, 4)  # Above loop 1 --> share 0
-        c0 = TensorStorage("C0", "GLB", 0, 7)
-        c1 = TensorStorage("C1", "GLB", 1, 8)
-        c2 = TensorStorage("C2", "GLB", 2, 9)
-        c1d1 = TensorStorage("C1D1", "GLB", 2, 8)  # Above loop 2 --> share 0, 1
-        d0 = TensorStorage("D0", "GLB", 0, 10)
-        d1 = TensorStorage("D1", "GLB", 1, 11)
-        d2 = TensorStorage("D2", "GLB", 2, 12)
+        b0 = TensorStorage("B0", "GLB", 0, 4) # 
+        b1 = TensorStorage("B1", "GLB", 1, 5) # 
+        b2 = TensorStorage("B2", "GLB", 2, 6) # 
+        b0c0 = TensorStorage("B0C0", "GLB", 1, 4) #  # Above loop 1 --> share 0
+        c0 = TensorStorage("C0", "GLB", 0, 7) # 7
+        c1 = TensorStorage("C1", "GLB", 1, 8) # 8
+        c2 = TensorStorage("C2", "GLB", 2, 9) # 9
+        c1d1 = TensorStorage("C1D1", "GLB", 2, 8) # 8 # Above loop 2 --> share 0, 1
+        d0 = TensorStorage("D0", "GLB", 0, 10) # 
+        d1 = TensorStorage("D1", "GLB", 1, 11) # 
+        d2 = TensorStorage("D2", "GLB", 2, 12) # 
 
         tensors0 = [a0, a1, a2, a1b1]
         tensors1 = [b0, b1, b2, a1b1, b0c0]
@@ -356,19 +339,12 @@ class TestSIM(unittest.TestCase):
             sims[0].merge_next(sims.pop(1), set())
             sims2[0].merge_next(sims2.pop(1), set())
             sims2[0].consolidate(set().union(*[s.tensor_names for s in sims2]))
-        sims[0].consolidate(set())
-        sims2[0].consolidate(set())
-        data0 = sims[0].mappings[0].data
-        data1 = sims2[0].mappings[0].data
+        sims[0].consolidate()
+        sims2[0].consolidate()
+        data0 = sims[0].mapping.data
+        data1 = sims2[0].mapping.data
         for k in data0:
             self.assertTrue((data0[k] == data1[k]).all())
-
-        self.assertEqual(len(sims[0]), 1)
-        self.assertEqual(len(sims2[0]), 1)
-        self.assertEqual(len(sims2[0].mappings), 1)
-        self.assertEqual(len(sims2[0].mappings), 1)
-        self.assertEqual(len(sims2[0].tilings), 1)
-        self.assertEqual(len(sims2[0].tilings), 1)
 
         expected_util = max(
             max(a2.ts, b2.ts) + a1.ts + b1.ts + a1b1.ts,
@@ -376,8 +352,8 @@ class TestSIM(unittest.TestCase):
         ) + (b0c0.ts + a0.ts + b0.ts + c0.ts + d0.ts)
 
         colname = nameloop2col("GLB", 0)
-        self.assertEqual(sims[0].mappings[0].data[colname].sum(), expected_util)
-        self.assertEqual(sims2[0].mappings[0].data[colname].sum(), expected_util)
+        self.assertEqual(sims[0].mapping.data[colname].sum(), expected_util)
+        self.assertEqual(sims2[0].mapping.data[colname].sum(), expected_util)
 
 
 if __name__ == "__main__":
