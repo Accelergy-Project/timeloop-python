@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+import pickle
 
 from bindings.config import Config
 from bindings.looptree import *
@@ -41,6 +42,25 @@ class TestLooptreeWorkload(unittest.TestCase):
         self.assertEqual(36, self._workload.get_tensor_volume(name_to_id['Fmap2']))
         self.assertEqual(32, self._workload.get_tensor_volume(name_to_id['Filter2']))
         self.assertEqual(72, self._workload.get_tensor_volume(name_to_id['Fmap3']))
+
+    def test_pickling(self):
+        pickled_workload = pickle.dumps(self._workload)
+        unpickled_workload = pickle.loads(pickled_workload)
+
+        self.assertEqual(unpickled_workload.einsum_name_to_id(),
+                         self._workload.einsum_name_to_id())
+        self.assertEqual(unpickled_workload.data_space_name_to_id(),
+                         self._workload.data_space_name_to_id())
+        self.assertEqual(unpickled_workload.dimension_name_to_id(),
+                         self._workload.dimension_name_to_id())
+
+        dspace_name_to_id = unpickled_workload.data_space_name_to_id()
+        for _, dspace_id in dspace_name_to_id.items():
+            self.assertEqual(
+                unpickled_workload.get_tensor_volume(dspace_id),
+                self._workload.get_tensor_volume(dspace_id),
+            )
+
 
     def assert_maps_are_inverted_equivalent(self, dict1, dict2):
         for key1, value1 in dict1.items():
