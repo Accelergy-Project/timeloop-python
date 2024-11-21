@@ -1,8 +1,11 @@
+from copy import deepcopy
 from collections import defaultdict
 from collections.abc import Callable, Set
 from itertools import combinations, product, permutations
 from functools import reduce
 from operator import or_, mul
+
+from joblib import Parallel, delayed
 
 from combinatorics.dependent_product import dependent_product
 from combinatorics.splitter import split_dependent_product
@@ -109,39 +112,49 @@ def per_einsum_mapper_snowcat(
         parallelized_spaces, task_spaces = \
             split_dependent_product(n_split_min=n_jobs, spaces=subspaces)
 
-        Parallel(n_jobs=n_jobs)
+        partial_mappings = list(dependent_product(parallelized_spaces))
+
+        def per_worker_exploration(*args):
+            analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+            local_task_spaces = deepcopy(task_spaces)
+            local_task_spaces[0] = lambda : task_spaces[0](*args)
+            for partial_mapping in dependent_product(local_task_spaces):
+                _, compiled_results = compile_mapping(
+                    partial_mapping, workload, analyzer
+                )
+                tile_shape_explorer = explore_tile_shape(
+                    partial_mapping,
+                    einsum_shape,
+                    compiled_results,
+                    max_capacity,
+                    max_fanout,
+                )
+                # HACKY: Pop out the subspace object as the first in the iterator
+                shape_subspace = next(tile_shape_explorer)
+
+                for shape, res in tile_shape_explorer:
+                    is_pareto, fulltiling = process_result(
+                        res,
+                        shape,
+                        data[einsum_id],
+                        einsum_id,
+                        intermediate_tensors,
+                        partial_mapping,
+                        bindings,
+                        workload,
+                        energy_dict,
+                        equivalent_groups,
+                        explore_fusion_uneven=explore_glb_uneven
+                    )
+        print(len(list(dependent_product(subspaces))))
+
+        # for pm in partial_mappings:
+        #     per_worker_exploration(*pm)
+        result = Parallel(n_jobs=n_jobs)(delayed(per_worker_exploration)(*pm)
+                                         for pm in partial_mappings)
 
         count = 0
         print(len(list(dependent_product(subspaces))))
-        for partial_mapping in dependent_product(subspaces):
-            _, compiled_results = compile_mapping(
-                partial_mapping, workload, analyzer
-            )
-            tile_shape_explorer = explore_tile_shape(
-                partial_mapping,
-                einsum_shape,
-                compiled_results,
-                max_capacity,
-                max_fanout,
-            )
-            # HACKY: Pop out the subspace object as the first in the iterator
-            shape_subspace = next(tile_shape_explorer)
-
-            for shape, res in tile_shape_explorer:
-                count += 1
-                is_pareto, fulltiling = process_result(
-                    res,
-                    shape,
-                    data[einsum_id],
-                    einsum_id,
-                    intermediate_tensors,
-                    partial_mapping,
-                    bindings,
-                    workload,
-                    energy_dict,
-                    equivalent_groups,
-                    explore_fusion_uneven=explore_glb_uneven
-                )
                 # if is_pareto:
                 #     shape_subspace.register_pareto_point()
 
