@@ -26,6 +26,7 @@ def per_einsum_mapper_snowcat(
     einsums_to_explore,
     energy_dict,
 ):
+    data = {}
     for einsum_id in einsums_to_explore:
         workload = LooptreeWorkload.parse_cfg(config.root["problem"])
         analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -58,11 +59,6 @@ def per_einsum_mapper_snowcat(
         top_level_ranks = reduce(
             or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
         )
-
-        data = {}
-        data[einsum_id] = defaultdict(list)
-
-        mapping = LinearMapping()
 
         def off_chip_storage(mapping):
             off_chip_must_retain = tensors - intermediate_tensors
@@ -118,6 +114,7 @@ def per_einsum_mapper_snowcat(
             analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
             local_task_spaces = deepcopy(task_spaces)
             local_task_spaces[0] = lambda : task_spaces[0](*args)
+            result = defaultdict(list)
             for partial_mapping in dependent_product(local_task_spaces):
                 _, compiled_results = compile_mapping(
                     partial_mapping, workload, analyzer
@@ -136,7 +133,7 @@ def per_einsum_mapper_snowcat(
                     is_pareto, fulltiling = process_result(
                         res,
                         shape,
-                        data[einsum_id],
+                        result,
                         einsum_id,
                         intermediate_tensors,
                         partial_mapping,
@@ -146,17 +143,19 @@ def per_einsum_mapper_snowcat(
                         equivalent_groups,
                         explore_fusion_uneven=explore_glb_uneven
                     )
-        print(len(list(dependent_product(subspaces))))
+            return result
 
         # for pm in partial_mappings:
         #     per_worker_exploration(*pm)
-        result = Parallel(n_jobs=n_jobs)(delayed(per_worker_exploration)(*pm)
-                                         for pm in partial_mappings)
+        results = Parallel(n_jobs=n_jobs)(delayed(per_worker_exploration)(*pm)
+                                          for pm in partial_mappings)
 
-        count = 0
-        print(len(list(dependent_product(subspaces))))
-                # if is_pareto:
-                #     shape_subspace.register_pareto_point()
+        data[einsum_id] = defaultdict(list)
+        for res in results:
+            for k, v in res.items():
+                data[einsum_id][k] += v
+
+    return data
 
 
 def make_temporal_fors_with_smallest_tile(original, ranks):

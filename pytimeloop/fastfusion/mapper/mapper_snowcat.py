@@ -74,7 +74,6 @@ def mapper(
                                                       data[from_einsum],
                                                       rank_renaming,
                                                       tensor_renaming)
-            
 
     for einsum, mapping in generated_data.items():
         data[einsum] = mapping
