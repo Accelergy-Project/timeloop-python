@@ -607,15 +607,6 @@ def process_result(
                 )
             fulltiling.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
 
-    fulltiling = []
-    for node in mapping:
-        if node["type"] == "storage":
-            fulltiling.append(f"Strg({node['dspace']} in {node['target']})")
-        elif node["type"] == "temporal":
-            fulltiling.append(f"Tmpl{node['rank']} in {node.get('tile_shape', 1)}")
-        elif node["type"] == "spatial":
-            fulltiling.append(f"Sptl{node['rank']} in {node.get('tile_shape', 1)}")
-
     n_loops_of_intermediates = set()
     for t in tensors:
         if t.tensor_id not in intermediate_tensors:
@@ -633,8 +624,7 @@ def process_result(
     results["Latency"] = result.temporal_steps[einsum_id]
     results["Energy"] = energy
     for (level, tensor, einsum), count in accesses.items():
-        fulltiling.append(f"Accesses_{level}_{tensor}_{einsum}={count}")
-    # results["PE_Utilization"] = result.fanout[3][0]
+        fulltiling.append(f"Ac_{level}_{tensor}={count:.2e}")
     fulltiling.append(f"{result.fanout}")
     for (storage_id, n_loops), size in reservations.items():
         key = nameloop2col(storage_id, n_loops)
