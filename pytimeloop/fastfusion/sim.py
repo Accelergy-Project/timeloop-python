@@ -144,7 +144,7 @@ class SIM:
     def copy(self) -> "SIM":
         return SIM(self.tiling, self.mapping.copy())
 
-    def merge_next(self, n: "SIM", implied_tensors: set[str], delay: bool) -> "SIM":
+    def merge_next(self, n: "SIM", implied_tensors: set[str], delay: bool=False) -> "SIM":
         shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
         tiling = n.tiling
         mapping = self.mapping.merge(n.mapping, shared_loop_index, delay=delay)
