@@ -12,7 +12,9 @@ from combinatorics.splitter import split_dependent_product
 
 from pytimeloop.fastfusion.fastmodel import compile_mapping
 from pytimeloop.fastfusion.mapper.constraints import *
-from pytimeloop.fastfusion.mapper.per_einsum_mapper import LinearMapping, make_storage, make_temporal_fors, make_spatial_fors, make_mac_level_loops, explore_tile_shape, process_result, get_hardware_levels
+from pytimeloop.fastfusion.mapper.per_einsum_mapper import explore_tile_shape, process_result, get_hardware_levels
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat import make_subspaces
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
 
@@ -25,6 +27,7 @@ def per_einsum_mapper_snowcat(
     explore_glb_uneven,
     einsums_to_explore,
     energy_dict,
+    ffmt=False
 ):
     data = {}
     for einsum_id in einsums_to_explore:
@@ -56,53 +59,18 @@ def per_einsum_mapper_snowcat(
             for tensor in tensors
         }
 
-        top_level_ranks = reduce(
-            or_, (tensor_to_relevant_ranks[t] for t in intermediate_tensors), set()
-        )
-
-        def off_chip_storage(mapping):
-            off_chip_must_retain = tensors - intermediate_tensors
-            off_chip_can_retain = intermediate_tensors
-            yield from make_storage(
-                mapping,
-                level=0,
-                must_retain_tensors=off_chip_must_retain,
-                can_retain_tensors=off_chip_can_retain,
-                tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-                explore_uneven=False,
-                add_split_at_tensors=intermediate_tensors,
-                return_retained_tensors=True,
-            )
-
-        def fused_temporal_fors(mapping, unfused_tensors):
-            for partial_mapping in make_temporal_fors(mapping, all_ranks):
-                for partial_mapping in make_temporal_fors(mapping, all_ranks):
-                    for partial_mapping in make_temporal_fors_with_smallest_tile(mapping, all_ranks):
-                        yield partial_mapping, unfused_tensors
-
-        def glb_storage(mapping, unfused_tensors):
-            glb_fused_tensors = intermediate_tensors - unfused_tensors
-            yield from make_storage(
-                mapping,
-                level=1,
-                must_retain_tensors=tensors,
-                can_retain_tensors=set(),
-                tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-                explore_uneven=True,
-                add_split_at_tensors=glb_fused_tensors
-            )
-
-        def mac(mapping):
-             mapping.add_compute(einsum_id, 2)
-             yield mapping
-
-        subspaces = [
-            lambda: [LinearMapping()],
-            off_chip_storage,
-            fused_temporal_fors,
-            glb_storage,
-            mac
-        ]
+        if not ffmt:
+            subspaces = make_subspaces(tensors,
+                                       intermediate_tensors,
+                                       tensor_to_relevant_ranks,
+                                       einsum_id,
+                                       workload)
+        else:
+            subspaces = make_ffmt_subspaces(tensors,
+                                            intermediate_tensors,
+                                            tensor_to_relevant_ranks,
+                                            einsum_id,
+                                            workload)
 
         n_jobs=32
         parallelized_spaces, task_spaces = \
@@ -155,13 +123,12 @@ def per_einsum_mapper_snowcat(
             for k, v in res.items():
                 data[einsum_id][k] += v
 
+        print(einsum_id)
+        for k, v in data[einsum_id].items():
+            min_metric = float("inf")
+            for m in v:
+                min_metric = min(min_metric, m["Offchip_Ac"])
+            print(min_metric)
+
     return data
 
-
-def make_temporal_fors_with_smallest_tile(original, ranks):
-    for r in range(len(ranks) + 1):
-        for ordered_ranks in permutations(ranks, r=r):
-            mapping = original.copy()
-            for r in ordered_ranks:
-                mapping.add_temporal(r, tile_shape=1)
-            yield mapping

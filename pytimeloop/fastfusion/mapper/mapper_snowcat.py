@@ -30,6 +30,7 @@ def mapper(
     explore_glb_uneven,
     spec,
     tmp_path,
+    ffmt: bool=False
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -47,8 +48,12 @@ def mapper(
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
 
+    if not ffmt:
+        separated_einsums = None
+    else:
+        separated_einsums = get_ffmt_separated_einsums(workload)
     grouped_similar_einsums = convert_rank_to_group_renaming(
-        detect_similar_einsums(workload, analyzer),
+        detect_similar_einsums(workload, analyzer, separated_einsums),
         equivalent_groups
     )
     logger.info(f"Found {len(grouped_similar_einsums)} unique Einsums\n"
@@ -60,6 +65,7 @@ def mapper(
         explore_glb_uneven=explore_glb_uneven,
         spec=spec,
         energy_dict=energy_dict,
+        ffmt=ffmt
     )
 
     generated_data = {}
@@ -115,26 +121,29 @@ def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tenso
     
 
 
-def detect_similar_einsums(workload, analyzer, return_all_as_unique=False):
-    if return_all_as_unique:
-        return {ref: {} for ref in workload.einsum_id_to_name()}
+def detect_similar_einsums(workload, analyzer, separated_einsums=None):
+    if separated_einsums is None:
+        separated_einsums = [{i for i in workload.einsum_id_to_name()}]
 
-    ref_to_to_einsums = {}
-    for einsum in workload.einsum_id_to_name():
-        found = False
-        for from_einsum in ref_to_to_einsums:
-            rank_renaming, tensor_renaming = is_equivalent(from_einsum,
-                                                           einsum,
-                                                           workload,
-                                                           analyzer)
-            if rank_renaming is not None:
-                ref_to_to_einsums[from_einsum][einsum] = (rank_renaming,
-                                                            tensor_renaming)
-                found = True
-                break
-        if not found:
-            ref_to_to_einsums[einsum] = {}
-    return ref_to_to_einsums
+    total_ref_to_einsums = {}
+    for einsum_group in separated_einsums:
+        ref_to_to_einsums = {}
+        for einsum in einsum_group:
+            found = False
+            for from_einsum in ref_to_to_einsums:
+                rank_renaming, tensor_renaming = is_equivalent(from_einsum,
+                                                            einsum,
+                                                            workload,
+                                                            analyzer)
+                if rank_renaming is not None:
+                    ref_to_to_einsums[from_einsum][einsum] = (rank_renaming,
+                                                                tensor_renaming)
+                    found = True
+                    break
+            if not found:
+                ref_to_to_einsums[einsum] = {}
+        total_ref_to_einsums.update(ref_to_to_einsums)
+    return total_ref_to_einsums
 
 
 def convert_rank_to_group_renaming(ref_to_to_einsums, equiv_ranks):
@@ -146,6 +155,19 @@ def convert_rank_to_group_renaming(ref_to_to_einsums, equiv_ranks):
         }
         for ref, others in ref_to_to_einsums.items()
     }
+
+
+def get_ffmt_separated_einsums(workload):
+    first_einsum = {0}
+    second_einsum = {1}
+    last_einsum = {max(workload.einsum_id_to_name().keys())}
+    other_einsums = (
+        set(workload.einsum_id_to_name().keys())
+        - first_einsum
+        - second_einsum
+        - last_einsum
+    )
+    return [first_einsum, second_einsum, other_einsums, last_einsum]
 
 
 def _convert_rank_renaming(rank_renaming, equiv_ranks):
