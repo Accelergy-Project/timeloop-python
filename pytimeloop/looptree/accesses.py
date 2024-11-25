@@ -55,8 +55,8 @@ def reads_and_writes_from_fill_by_parent(fills: Mapping,
         if parent_buffer is not None:
             if dspace_id in workload.tensors_written_by_einsum(einsum_id):
                 writes[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
-                # TODO: first read elision
-                reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
+                # Subtracted term: elided first read of a read-write tensor
+                reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent - workload.get_tensor_volume(dspace_id)
             elif dspace_id in workload.tensors_read_by_einsum(einsum_id):
                 reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
         # Fills will write into current buffer except for compute (which does
