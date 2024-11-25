@@ -98,7 +98,6 @@ def mapper_place_fusion_level(
     partial_mapping,
     log_queue=None,
     verbose_stream=None,
-    snowcat_style: bool=False,
 ):
     # if log_queue is not None:
     #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
@@ -149,7 +148,7 @@ def mapper_place_fusion_level(
     count = 0
 
     for partial_mapping in make_temporal_fors(  # PE temporal
-        partial_mapping, all_ranks, snowcat_style=snowcat_style
+        partial_mapping, all_ranks
     ):
         # No bypassing at PE level. Can relax to explore more mappings
         pe_must_retain = tensors
@@ -160,7 +159,7 @@ def mapper_place_fusion_level(
             must_retain_tensors=pe_must_retain,
             can_retain_tensors=pe_can_retain,
             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-            explore_uneven=explore_pe_uneven and not snowcat_style,
+            explore_uneven=explore_pe_uneven,
         ):
             for partial_mapping in make_mac_level_loops(
                 partial_mapping,
@@ -220,7 +219,6 @@ def get_top_loop_jobs(
     energy_dict,
     log_queue=None,
     verbose_stream=None,
-    snowcat_style: bool=False,
 ):
     args = []
     for einsum_id in einsums_to_explore:
@@ -268,16 +266,14 @@ def get_top_loop_jobs(
                 partial_mapping,
                 top_level_ranks,
             ):
-                if snowcat_style:
-                    glb_must_retain = tensors
-                else:
-                    glb_must_retain = set(intermediate_tensors)
+                glb_must_retain = set(intermediate_tensors)
                 glb_can_retain = set()
                 for partial_mapping in make_storage(  # GLB level
                     partial_mapping,
                     level=1,
                     must_retain_tensors=glb_must_retain,
                     can_retain_tensors=glb_can_retain,
+                    must_fully_reuse_tensors=set(intermediate_tensors),
                     tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                     explore_uneven=explore_glb_uneven,
                     add_split_at_tensors=intermediate_tensors,
@@ -287,8 +283,7 @@ def get_top_loop_jobs(
                     for partial_mapping in make_spatial_fors(  # PE spatial
                         partial_mapping,
                         all_ranks,
-                        max_factor=pe_array_constraint.array_shape,
-                        snowcat_style=snowcat_style
+                        max_factor=pe_array_constraint.array_shape
                     ):
                         args.append(dict(
                             config=config,
@@ -326,6 +321,9 @@ def make_storage(
         add_split_at_tensors = set()
 
     tensors = must_retain_tensors | can_retain_tensors
+
+    if must_fully_reuse_tensors is None:
+        must_fully_reuse_tensors = set()
 
     # Further mutated mappings copy from original first.
     original = mapping
@@ -405,12 +403,7 @@ def make_storage(
 
 def make_spatial_fors(mapping,
                       ranks,
-                      max_factor,
-                      snowcat_style: bool=False):
-    if snowcat_style:
-        yield mapping.copy()
-        return
-
+                      max_factor):
     original = mapping.copy()
 
     for r in range(len(ranks) + 1):
@@ -425,12 +418,7 @@ def make_spatial_fors(mapping,
 
 def make_temporal_fors(mapping,
                        ranks,
-                       snowcat_style: bool=False,
                        logfunc: Callable=None):
-    if snowcat_style:
-        yield mapping.copy()
-        return
-
     original = mapping.copy()
 
     for r in range(len(ranks) + 1):

@@ -34,7 +34,6 @@ def mapper(
     spec,
     tmp_path,
     verbose_stream=None,
-    snowcat_style: bool=False
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -71,7 +70,6 @@ def mapper(
         energy_dict=energy_dict,
         log_queue=log_queue,
         verbose_stream=verbose_stream,
-        snowcat_style=snowcat_style
     )
 
     print(f'Number of jobs: {len(args)}')
