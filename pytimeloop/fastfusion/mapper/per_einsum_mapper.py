@@ -313,6 +313,7 @@ def make_storage(
     can_retain_tensors: Set,
     tensor_to_relevant_ranks,
     explore_uneven,
+    must_fully_reuse_tensors: Set=None,
     add_split_at_tensors: Set=None,
     must_have_terminal_storage: bool=False,
     logfunc: Callable=None,
@@ -352,6 +353,7 @@ def make_storage(
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
+        tensor_must_be_fully_reused = tensor_id in must_fully_reuse_tensors
         for i, node in enumerate(mapping):
             if node["type"] == "temporal":
                 rank_id = node["rank"]
@@ -359,11 +361,12 @@ def make_storage(
                 if last_is_relevant and not is_relevant:
                     # Choice 1: fused
                     tensor_choices.append(i)
-                    break
+                    if tensor_must_be_fully_reused:
+                        break
                 last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
-        if len(tensor_choices) == 0:
+        if last_is_relevant:
             tensor_choices.append(len(mapping))
 
         if tensor_id in can_retain_tensors:
@@ -385,12 +388,14 @@ def make_storage(
                 retained_tensors.add(tensor)
 
         mapping = original.copy()
-        for idx, tensors in sorted(idx_to_tensors.items(),
-                                   key=lambda pair: pair[0],
-                                   reverse=True):
-            if any(t in add_split_at_tensors for t in tensors):
+        for idx, tensors_at_idx in sorted(idx_to_tensors.items(),
+                                          key=lambda pair: pair[0],
+                                          reverse=True):
+            if any(t in add_split_at_tensors for t in tensors_at_idx):
                 mapping.add_sequential(idx)
-            mapping.add_storage(level, tensors, idx)
+            mapping.add_storage(level, tensors_at_idx, idx)
+
+        assert retained_tensors & must_retain_tensors == must_retain_tensors
 
         if return_retained_tensors:
             yield mapping, retained_tensors
@@ -623,8 +628,12 @@ def process_result(
     results = {}
     results["Latency"] = result.temporal_steps[einsum_id]
     results["Energy"] = energy
+    offchip_accesses = 0
     for (level, tensor, einsum), count in accesses.items():
+        if level == 0:
+            offchip_accesses += count
         fulltiling.append(f"Ac_{level}_{tensor}={count:.2e}")
+    results["Offchip_Ac"] = offchip_accesses
     fulltiling.append(f"{result.fanout}")
     for (storage_id, n_loops), size in reservations.items():
         key = nameloop2col(storage_id, n_loops)
@@ -681,3 +690,10 @@ def count(it):
     for _ in it:
         count += 1
     return count
+
+def make_temporal_fors_with_smallest_tile(original, ranks):
+    for ordered_ranks in permutations(ranks):
+        mapping = original.copy()
+        for r in ordered_ranks:
+            mapping.add_temporal(r, tile_shape=1)
+        yield mapping
