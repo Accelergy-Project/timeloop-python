@@ -105,7 +105,7 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
         for s2 in s:
             s2.consolidate(set())
         s_final = SIM.combine_combineable(s, set())[0]
-        data = s_final.mappings[0].data
+        data = s_final.mapping.data
         # Sort data by the columns "Latency" and "Energy"
         data = data.sort_values(by=["Latency", "Energy"])
         
@@ -125,6 +125,7 @@ class TestSnowcatMapper(LoadConfigMixin, unittest.TestCase):
             explore_glb_uneven=True,
             spec=spec,
             tmp_path=TEST_TMP_DIR,
+            ffmt=True,
         )
         
         import pandas as pd
@@ -191,7 +192,7 @@ class TestSnowcatMapper(LoadConfigMixin, unittest.TestCase):
         for s2 in s:
             s2.consolidate(set())
         s_final = SIM.combine_combineable(s, set())[0]
-        data = s_final.mappings[0].data
+        data = s_final.mapping.data
         # Sort data by the columns "Latency" and "Energy"
         data = data.sort_values(by=["Latency", "Energy"])
         
