@@ -24,8 +24,8 @@ def make_subspaces(tensors,
     def fused_temporal_fors(mapping, unfused_tensors):
         for partial_mapping in make_temporal_fors(mapping, all_ranks):
             # for partial_mapping in make_temporal_fors(mapping, all_ranks):
-                for partial_mapping in make_temporal_fors_with_smallest_tile(mapping, all_ranks):
-                    yield partial_mapping, unfused_tensors
+            for partial_mapping in make_temporal_fors_with_smallest_tile(partial_mapping, all_ranks):
+                yield partial_mapping, unfused_tensors
 
 
     def glb_storage(mapping, unfused_tensors):
