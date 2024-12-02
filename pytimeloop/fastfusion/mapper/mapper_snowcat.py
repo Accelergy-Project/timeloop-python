@@ -30,7 +30,8 @@ def mapper(
     explore_glb_uneven,
     spec,
     tmp_path,
-    ffmt: bool=False
+    ffmt: bool=False,
+    ffmt_refetch_weights: bool=True,
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -65,7 +66,8 @@ def mapper(
         explore_glb_uneven=explore_glb_uneven,
         spec=spec,
         energy_dict=energy_dict,
-        ffmt=ffmt
+        ffmt=ffmt,
+        ffmt_refetch_weights=ffmt_refetch_weights,
     )
 
     generated_data = {}
@@ -132,12 +134,12 @@ def detect_similar_einsums(workload, analyzer, separated_einsums=None):
             found = False
             for from_einsum in ref_to_to_einsums:
                 rank_renaming, tensor_renaming = is_equivalent(from_einsum,
-                                                            einsum,
-                                                            workload,
-                                                            analyzer)
+                                                               einsum,
+                                                               workload,
+                                                               analyzer)
                 if rank_renaming is not None:
                     ref_to_to_einsums[from_einsum][einsum] = (rank_renaming,
-                                                                tensor_renaming)
+                                                              tensor_renaming)
                     found = True
                     break
             if not found:
@@ -158,6 +160,14 @@ def convert_rank_to_group_renaming(ref_to_to_einsums, equiv_ranks):
 
 
 def get_ffmt_separated_einsums(workload):
+    einsum_id_to_name = workload.einsum_id_to_name()
+    if len(einsum_id_to_name) == 1:
+        return [{0}]
+    elif len(einsum_id_to_name) == 2:
+        return [{0}, {1}]
+    elif len(einsum_id_to_name) == 3:
+        return [{0}, {1}, {2}]
+
     first_einsum = {0}
     second_einsum = {1}
     last_einsum = {max(workload.einsum_id_to_name().keys())}

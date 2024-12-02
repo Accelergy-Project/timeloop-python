@@ -1,9 +1,5 @@
 from copy import deepcopy
 from collections import defaultdict
-from collections.abc import Callable, Set
-from itertools import combinations, product, permutations
-from functools import reduce
-from operator import or_, mul
 
 from joblib import Parallel, delayed
 
@@ -27,7 +23,8 @@ def per_einsum_mapper_snowcat(
     explore_glb_uneven,
     einsums_to_explore,
     energy_dict,
-    ffmt=False
+    ffmt=False,
+    ffmt_refetch_weights=True,
 ):
     data = {}
     for einsum_id in einsums_to_explore:
@@ -70,13 +67,15 @@ def per_einsum_mapper_snowcat(
                                             intermediate_tensors,
                                             tensor_to_relevant_ranks,
                                             einsum_id,
-                                            workload)
+                                            workload,
+                                            refetch_weights=ffmt_refetch_weights)
 
         n_jobs=32
         parallelized_spaces, task_spaces = \
             split_dependent_product(n_split_min=n_jobs, spaces=subspaces)
 
         partial_mappings = list(dependent_product(parallelized_spaces))
+        partial_mappings = [x if isinstance(x, tuple) else (x,) for x in partial_mappings]
 
         def per_worker_exploration(*args):
             analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -122,13 +121,6 @@ def per_einsum_mapper_snowcat(
         for res in results:
             for k, v in res.items():
                 data[einsum_id][k] += v
-
-        print(einsum_id)
-        for k, v in data[einsum_id].items():
-            min_metric = float("inf")
-            for m in v:
-                min_metric = min(min_metric, m["Offchip_Ac"])
-            print(min_metric)
 
     return data
 

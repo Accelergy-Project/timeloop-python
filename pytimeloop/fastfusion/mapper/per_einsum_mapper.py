@@ -688,3 +688,10 @@ def make_temporal_fors_with_smallest_tile(original, ranks):
         for r in ordered_ranks:
             mapping.add_temporal(r, tile_shape=1)
         yield mapping
+
+def make_temporal_fors_in_order(original, ranks):
+    for i in range(len(ranks)+1):
+        mapping = original.copy()
+        for r in ranks[:i]:
+            mapping.add_temporal(r)
+        yield mapping
