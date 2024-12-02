@@ -14,7 +14,7 @@ from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions, get_accesses
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
-from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
+from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors, get_last_storage_node
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
@@ -348,11 +348,14 @@ def make_storage(
 
     all_tensor_choices = []
     for tensor_id in tensors:
+        tensor_must_be_fully_reused = tensor_id in must_fully_reuse_tensors
+
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
-        tensor_must_be_fully_reused = tensor_id in must_fully_reuse_tensors
-        for i, node in enumerate(mapping):
+
+        min_i = get_last_storage_node(mapping, tensor_id)
+        for i, node in enumerate(mapping[min_i+1:]):
             if node["type"] == "temporal":
                 rank_id = node["rank"]
                 is_relevant = rank_id in relevant_ranks
