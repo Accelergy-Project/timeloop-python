@@ -356,6 +356,7 @@ def make_storage(
 
         min_i = get_last_storage_node(mapping, tensor_id)
         for i, node in enumerate(mapping[min_i+1:]):
+            i += min_i+1
             if node["type"] == "temporal":
                 rank_id = node["rank"]
                 is_relevant = rank_id in relevant_ranks
