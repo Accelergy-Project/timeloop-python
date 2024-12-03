@@ -56,6 +56,6 @@ def get_intermediate_tensors(workload: LooptreeWorkload):
 
 def get_last_storage_node(mapping, tensor):
     for i, node in enumerate(mapping):
-        if node['type'] == 'storage' and tensor in node['dspaces']:
+        if node['type'] == 'storage' and tensor in node['dspace']:
             return i
     return 0
