@@ -1,8 +1,9 @@
 from .subspaces import (
+    infer_smallest_tile_shape,
     LinearMapping,
     make_storage,
     make_temporal_fors,
-    make_temporal_fors_with_smallest_tile
+    make_temporal_fors_with_smallest_tile,
 )
 
 def make_subspaces(tensors,
@@ -46,6 +47,13 @@ def make_subspaces(tensors,
             add_split_at_tensors=glb_fused_tensors
         )
 
+    def tile_shape_optimization(mapping, unfused_tensors):
+        for partial_mapping in infer_smallest_tile_shape(mapping,
+                                                         workload,
+                                                         einsum_id,
+                                                         tensor_to_relevant_ranks):
+            yield partial_mapping, unfused_tensors
+
     def mac(mapping):
             mapping.add_compute(einsum_id, 2)
             yield mapping
@@ -55,5 +63,6 @@ def make_subspaces(tensors,
         off_chip_storage,
         fused_temporal_fors,
         glb_storage,
+        tile_shape_optimization,
         mac
     ]
