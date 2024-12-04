@@ -14,7 +14,7 @@ from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions, get_accesses
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
-from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
+from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors, get_last_storage_node
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
@@ -347,11 +347,15 @@ def make_storage(
 
     all_tensor_choices = []
     for tensor_id in tensors:
+        tensor_must_be_fully_reused = tensor_id in must_fully_reuse_tensors
+
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
-        tensor_must_be_fully_reused = tensor_id in must_fully_reuse_tensors
-        for i, node in enumerate(mapping):
+
+        min_i = get_last_storage_node(mapping, tensor_id)
+        for i, node in enumerate(mapping[min_i+1:]):
+            i += min_i+1
             if node["type"] == "temporal":
                 rank_id = node["rank"]
                 is_relevant = rank_id in relevant_ranks
@@ -696,4 +700,11 @@ def make_temporal_fors_with_smallest_tile(original, ranks):
         mapping = original.copy()
         for r in ordered_ranks:
             mapping.add_temporal(r, tile_shape=1)
+        yield mapping
+
+def make_temporal_fors_in_order(original, ranks):
+    for i in range(len(ranks)+1):
+        mapping = original.copy()
+        for r in ranks[:i]:
+            mapping.add_temporal(r)
         yield mapping

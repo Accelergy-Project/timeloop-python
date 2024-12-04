@@ -35,4 +35,3 @@ class TestLooptreeFastModel(LoadConfigMixin, unittest.TestCase):
 
         result = compile_mapping(mapping, workload, analyzer)
         print(result)
-        actions = gather_actions(result, spec.mapping, workload, BINDINGS)
