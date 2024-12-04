@@ -186,7 +186,7 @@ def mapper_place_fusion_level(
 
                 for shape, res in tile_shape_explorer:
                     count += 1
-                    is_pareto, fulltiling = process_result(
+                    is_pareto, results, fulltiling = process_result(
                         res,
                         shape,
                         data,
@@ -202,8 +202,7 @@ def mapper_place_fusion_level(
                     )
                     if count % 1e4 == 0:
                         print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
-                    # if is_pareto:
-                    #     shape_subspace.register_pareto_point()
+                    # shape_subspace.register_result(is_pareto, results)
     return einsum_id, data, count
 
 
@@ -386,12 +385,22 @@ def make_storage(
                 retained_tensors.add(tensor)
 
         mapping = original.copy()
+        success = True
         for idx, tensors_at_idx in sorted(idx_to_tensors.items(),
                                           key=lambda pair: pair[0],
                                           reverse=True):
             if any(t in add_split_at_tensors for t in tensors_at_idx):
                 mapping.add_sequential(idx)
             mapping.add_storage(level, tensors_at_idx, idx)
+            for t in tensors_at_idx:
+                for node in mapping[:idx]:
+                    if node["type"] == "storage" and t in node["dspace"]:
+                        break
+                    if node["type"] == "temporal" and node["rank"] not in tensor_to_relevant_ranks[t]:
+                        success = False
+                        break
+        if not success:
+            continue
 
         assert retained_tensors & must_retain_tensors == must_retain_tensors
 
@@ -643,7 +652,10 @@ def process_result(
             break
     if is_pareto:
         compatibility_to_df[tiling].append(results)
-    return is_pareto, fulltiling
+    results_return = {
+        k: v for k, v in results.items() if k != MAPPING
+    }
+    return is_pareto, results_return, fulltiling
 
 
 def get_hardware_levels(arch):

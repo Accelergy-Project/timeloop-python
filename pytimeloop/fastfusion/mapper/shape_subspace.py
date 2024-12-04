@@ -60,6 +60,11 @@ class ShapeSubspace:
     def __iter__(self) -> 'ShapeSubspaceIterator':
         return ShapeSubspaceIterator(self)
 
+def check_add_to_pareto(a, pareto):
+    for b in pareto:
+        if all(b[k] <= a[k] for k in a):
+            return False
+    return True
 
 class ShapeSubspaceIterator:
     def __init__(self, shape_subspace: ShapeSubspace):
@@ -78,9 +83,23 @@ class ShapeSubspaceIterator:
         self.choice = None
         self.is_first_choice = None
         
-        self.found_pareto = False
-        self.prev_found_pareto = False
-        self.prev_idx = None
+        self.paretos = None
+        self.prev_paretos = None
+        self.would_have_skipped = None
+
+    def _add_pareto_point(self, idx, point):
+        if check_add_to_pareto(point, self.paretos[idx]):
+            if self.would_have_skipped[idx]:
+                print(f'Would have skipped rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
+                to_print = []
+                to_print.append(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
+                for r in self.paretos[idx]:
+                    to_print.append(f'\tNEW: {r}')
+                for r in self.prev_paretos[idx]:
+                    to_print.append(f'\tOLD: {r}')
+                print('\n'.join(to_print))
+                self.would_have_skipped[idx] = True
+            self.paretos[idx].append(point)
 
     def __iter__(self):
         return self
@@ -93,6 +112,9 @@ class ShapeSubspaceIterator:
             self.is_done = True
             for idx in range(len(self.choice_iterators) - 1, -1, -1):
                 try:
+                    # if idx > 0:
+                    #     for r in self.paretos[idx]:
+                    #         self._add_pareto_point(idx - 1, r)
                     self.move_iterator(idx)
                     self.prev_idx = idx
                     break
@@ -144,9 +166,11 @@ class ShapeSubspaceIterator:
 
         self.just_skipped = True
 
-    def register_pareto_point(self):
-        for i in range(self.prev_idx+1):
-            self.found_pareto[i] = True
+    def register_result(self, is_pareto, result):
+        # if len(self.choice_iterators) > 0:
+        #     self._add_pareto_point(-1, result)
+        for i in range(len(self.choice_iterators)):
+            self._add_pareto_point(i, result)
 
     def make_choice_generators(self, shape_subspace: ShapeSubspace):
         choice_generators = []
@@ -171,8 +195,9 @@ class ShapeSubspaceIterator:
         self.choice_iterators = [None]*len(self.choice_generators)
         self.choice = [None]*len(self.choice_generators)
         self.is_first_choice = [None]*len(self.choice_generators)
-        self.found_pareto = [False]*len(self.choice_generators)
-        self.prev_found_pareto = [False]*len(self.choice_generators)
+        self.paretos = [None]*len(self.choice_generators)
+        self.prev_paretos = [None]*len(self.choice_generators)
+        self.would_have_skipped = [False]*len(self.choice_generators)
         for i in range(len(self.choice_generators)):
             try:
                 self.restart_iterator(i)
@@ -195,17 +220,27 @@ class ShapeSubspaceIterator:
                                              self.factor_constraints[idx]))
         self.choice[idx] = next(self.choice_iterators[idx])
         self.is_first_choice[idx] = True
-        self.found_pareto[idx] = False
-        self.prev_found_pareto[idx] = False
+        self.paretos[idx] = []
+        self.prev_paretos[idx] = None
+        self.would_have_skipped[idx] = False
 
     def move_iterator(self, idx):
-        # If we're going from a pareto-optimal to non-pareto optimal, stop iterating in this one
-        if self.prev_found_pareto[idx] and not self.found_pareto[idx]:
-            # print(f'Skipping index {idx}/{len(self.choice_iterators)}')
-            raise StopIteration()
         val = next(self.choice_iterators[idx])
+        # If none of the new pareto points are better than the previous pareto points, then we can stop
+        if self.paretos[idx] and self.prev_paretos[idx]:
+            if not any(check_add_to_pareto(r, self.prev_paretos[idx]) for r in self.paretos[idx]):
+                # print(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
+                # to_print = []
+                # to_print.append(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
+                # for r in self.paretos[idx]:
+                #     to_print.append(f'\tNEW: {r}')
+                # for r in self.prev_paretos[idx]:
+                #     to_print.append(f'\tOLD: {r}')
+                # print('\n'.join(to_print))
+                # raise StopIteration()
+                self.would_have_skipped[idx] = True
         self.choice[idx] = val
         self.is_first_choice[idx] = False
         self.is_done = False
-        self.prev_found_pareto[idx] = self.found_pareto[idx]
-        self.found_pareto[idx] = False
+        self.prev_paretos[idx] = self.paretos[idx]
+        self.paretos[idx] = []
