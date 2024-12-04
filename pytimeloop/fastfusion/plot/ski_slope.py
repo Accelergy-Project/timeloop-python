@@ -1,5 +1,6 @@
 import matplotlib.axes as mpax
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from pytimeloop.fastfusion.pareto import makepareto
@@ -34,12 +35,29 @@ def plot_ski_slope(data: pd.DataFrame,
         labels.append(None)
 
     for label, sub_df in zip(labels, separated_datas):
-        ax.plot(sub_df["Occupancy"], sub_df["Offchip_Ac"], label=label)
+        ax.plot(*_make_staircase(sub_df["Occupancy"].to_numpy(),
+                                 sub_df["Offchip_Ac"].to_numpy()),
+                label=label)
 
     ax.set_xlabel("Capacity")
     ax.set_ylabel("Off-chip Accesses")
 
     return fig, ax
+
+
+def _make_staircase(x: np.array, y: np.array):
+    sort_idx = np.argsort(x)
+    x, y = x[sort_idx], y[sort_idx]
+
+    shifted_x = x[1:]
+    shifted_y = y[:-1]
+    x = np.concat([x, shifted_x])
+    y = np.concat([y, shifted_y])
+
+    sort_idx = np.lexsort([x, -y])
+    x, y = x[sort_idx], y[sort_idx]
+
+    return x, y
 
 
 def _add_dataflow_to_data(data: pd.DataFrame):
@@ -55,3 +73,9 @@ def _dataflow_from_fulltiling(fulltiling: str):
             dataflow.append(int(term[1:].split(" size ")))
     return tuple(dataflow)
 
+
+if __name__ == '__main__':
+    print(_make_staircase(
+        np.array([1, 2, 3, 4]),
+        np.array([4, 3, 2, 1])
+    ))

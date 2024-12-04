@@ -72,7 +72,8 @@ def make_storage(
                 last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
-        if last_is_relevant:
+        if last_is_relevant and (not tensor_must_be_fully_reused
+                                 or len(tensor_choices) == 1):
             tensor_choices.append(len(mapping))
 
         if tensor_id in can_retain_tensors:
