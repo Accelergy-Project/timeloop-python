@@ -1,6 +1,6 @@
 import unittest
 
-from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.subspaces.tile_shape.shape_subspace import ShapeSubspace
 
 from tests.load_config_mixin import LoadConfigMixin
 

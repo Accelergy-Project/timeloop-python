@@ -1,88 +1,26 @@
 from collections import defaultdict
-from collections.abc import Callable, Set, Mapping
-from itertools import combinations, product, permutations
 from functools import reduce
-from operator import or_, mul
+from operator import or_
 
-from pytimeloop.fastfusion.fastmodel import compile_mapping, LooptreeOutput
+from pytimeloop.fastfusion.fastmodel import compile_mapping
 from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.mapper.logging import log_worker
-from pytimeloop.fastfusion.mapper.shape_subspace import ShapeSubspace
 from pytimeloop.fastfusion.pareto import nameloop2col
 from pytimeloop.fastfusion.pareto import MAPPING
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
+from .per_einsum_subspaces.subspaces import (
+    LinearMapping,
+    make_temporal_fors,
+    make_spatial_fors,
+    make_storage,
+    explore_tile_shape
+)
 
-from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions, get_accesses
+from pytimeloop.looptree.energy import gather_actions, get_accesses
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
-from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors, get_last_storage_node
+from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
-
-
-class LinearMapping:
-    def __init__(self):
-        self.mapping = []
-
-    def __iter__(self):
-        return iter(self.mapping)
-
-    def __getitem__(self, key):
-        return self.mapping[key]
-
-    def __len__(self):
-        return len(self.mapping)
-
-    def __repr__(self):
-        return repr(self.mapping)
-
-    def copy(self):
-        lm = LinearMapping()
-        lm.mapping = self.mapping.copy()
-        return lm
-
-    def add_compute(self, einsum_name, target):
-        self.mapping.append(
-            {"type": "compute", "einsum": einsum_name, "target": target}
-        )
-
-    def add_temporal(self, rank_name, tile_shape=None):
-        node = {"type": "temporal", "rank": rank_name}
-        if tile_shape is not None:
-            node["tile_shape"] = tile_shape
-        self.mapping.append(node)
-
-    def add_spatial(
-        self,
-        rank_name,
-        tile_shape=None,
-        tile_shape_constraint=None,
-        factor_constraint=None,
-    ):
-        node = {"type": "spatial", "rank": rank_name}
-        if tile_shape is not None:
-            node["tile_shape"] = tile_shape
-        if tile_shape_constraint is not None:
-            node["tile_shape_constraint"] = tile_shape_constraint
-        if factor_constraint is not None:
-            node["factor_constraint"] = factor_constraint
-        self.mapping.append(node)
-
-    def add_sequential(self, idx=None):
-        node = {"type": "sequential"}
-        if idx is None:
-            self.mapping.append(node)
-        else:
-            self.mapping.insert(idx, node)
-
-    def add_pipeline(self):
-        self.mapping.append({"type": "pipeline"})
-
-    def add_storage(self, target, dspaces, idx=None):
-        node = {"type": "storage", "target": target, "dspace": dspaces}
-        if idx is None:
-            self.mapping.append(node)
-        else:
-            self.mapping.insert(idx, node)
 
 
 @log_worker(f"{__name__}:_mapper_place_fusion_level")
@@ -300,150 +238,6 @@ def get_top_loop_jobs(
     return args
 
 
-def make_storage(
-    mapping: LinearMapping,
-    level,
-    must_retain_tensors: Set,
-    can_retain_tensors: Set,
-    tensor_to_relevant_ranks,
-    explore_uneven,
-    must_fully_reuse_tensors: Set=None,
-    add_split_at_tensors: Set=None,
-    must_have_terminal_storage: bool=False,
-    logfunc: Callable=None,
-    return_retained_tensors: bool=False
-):
-    if logfunc is None:
-        logfunc = lambda msg: None  # do nothing
-
-    if add_split_at_tensors is None:
-        add_split_at_tensors = set()
-
-    tensors = must_retain_tensors | can_retain_tensors
-
-    if must_fully_reuse_tensors is None:
-        must_fully_reuse_tensors = set()
-
-    # Further mutated mappings copy from original first.
-    original = mapping
-
-    if not explore_uneven:
-        for r in range(len(can_retain_tensors)+1):
-            for also_retained_tensors in combinations(can_retain_tensors, r):
-                mapping = original.copy()
-
-                retained_tensors = must_retain_tensors | set(also_retained_tensors)
-                mapping.add_storage(level, retained_tensors)
-                if any(t in add_split_at_tensors for t in retained_tensors):
-                    mapping.add_sequential()
-
-                if return_retained_tensors:
-                    yield mapping, retained_tensors
-                else:
-                    yield mapping
-        return
-
-    tensors = list(sorted(tensors))
-
-    all_tensor_choices = []
-    for tensor_id in tensors:
-        tensor_must_be_fully_reused = tensor_id in must_fully_reuse_tensors
-
-        relevant_ranks = tensor_to_relevant_ranks[tensor_id]
-        tensor_choices = []
-        last_is_relevant = True
-
-        min_i = get_last_storage_node(mapping, tensor_id)
-        for i, node in enumerate(mapping[min_i+1:]):
-            i += min_i+1
-            if node["type"] == "temporal":
-                rank_id = node["rank"]
-                is_relevant = rank_id in relevant_ranks
-                if last_is_relevant and not is_relevant:
-                    # Choice 1: fused
-                    tensor_choices.append(i)
-                    if tensor_must_be_fully_reused:
-                        break
-                last_is_relevant = is_relevant
-
-        # There has not been a single irrelevant loop
-        if last_is_relevant:
-            tensor_choices.append(len(mapping))
-
-        if tensor_id in can_retain_tensors:
-            tensor_choices.append(None)
-
-        all_tensor_choices.append(tensor_choices)
-
-    for choices in product(*all_tensor_choices):
-        if must_have_terminal_storage:
-            if not any(c == len(original) for c in choices):
-                continue
-
-        # Collect tensors with the same idx
-        retained_tensors = set()
-        idx_to_tensors = defaultdict(list)
-        for idx, tensor in zip(choices, tensors):
-            if idx is not None:
-                idx_to_tensors[idx].append(tensor)
-                retained_tensors.add(tensor)
-
-        mapping = original.copy()
-        success = True
-        for idx, tensors_at_idx in sorted(idx_to_tensors.items(),
-                                          key=lambda pair: pair[0],
-                                          reverse=True):
-            if any(t in add_split_at_tensors for t in tensors_at_idx):
-                mapping.add_sequential(idx)
-            mapping.add_storage(level, tensors_at_idx, idx)
-            for t in tensors_at_idx:
-                for node in mapping[:idx]:
-                    if node["type"] == "storage" and t in node["dspace"]:
-                        break
-                    if node["type"] == "temporal" and node["rank"] not in tensor_to_relevant_ranks[t]:
-                        success = False
-                        break
-        if not success:
-            continue
-
-        assert retained_tensors & must_retain_tensors == must_retain_tensors
-
-        if return_retained_tensors:
-            yield mapping, retained_tensors
-        else:
-            yield mapping
-
-
-def make_spatial_fors(mapping,
-                      ranks,
-                      max_factor):
-    original = mapping.copy()
-
-    for r in range(len(ranks) + 1):
-        for ordered_ranks in permutations(ranks, r=r):
-            mapping = original.copy()
-            for r in ordered_ranks:
-                mapping.add_spatial(
-                    r, factor_constraint=f"<={max_factor}"
-                )
-            yield mapping
-
-
-def make_temporal_fors(mapping,
-                       ranks,
-                       logfunc: Callable=None):
-    original = mapping.copy()
-
-    for r in range(len(ranks) + 1):
-        for ordered_ranks in permutations(ranks, r=r):
-            mapping = original.copy()
-            if logfunc is not None:
-                logfunc(f"{ordered_ranks}")
-            for r in ordered_ranks:
-                mapping.add_temporal(r)
-            yield mapping
-
-
 def make_mac_level_loops(
     mapping,
     einsum_id,
@@ -465,75 +259,6 @@ def make_mac_level_loops(
     mapping.add_spatial(reduced_rank, 1)
     mapping.add_compute(einsum_id, 3)
     yield mapping
-
-
-def explore_tile_shape(
-    mapping, rank_shapes, compiled_result, max_capacity, max_fanout, only_count=False
-):
-    ranks = []
-    tile_constraints = []
-    factor_constraints = []
-    for node in mapping:
-        if node["type"] in ["temporal", "spatial"] and "tile_shape" not in node:
-            ranks.append(node["rank"])
-            tile_constraint = []
-            factor_constraint = []
-            if "tile_constraint" in node:
-                tile_constraint.append(node["tile_constraint"])
-            if "factor_constraint" in node:
-                factor_constraint.append(node["factor_constraint"])
-            tile_constraints.append(tile_constraint)
-            factor_constraints.append(factor_constraint)
-
-    num_tile_shapes = 0
-    num_valid_tile_shapes = 0
-
-    shape_subspace = iter(ShapeSubspace(
-            rank_shapes,
-            ranks,
-            tile_constraints=tile_constraints,
-            factor_constraints=factor_constraints,
-    ))
-    yield shape_subspace
-    for shape in shape_subspace:
-        num_tile_shapes += 1
-        if only_count:
-            continue
-
-        result = LooptreeOutput()
-        result.ops = call_with_arg(compiled_result.ops, shape)
-        result.temporal_steps = call_with_arg(compiled_result.temporal_steps, shape)
-        result.fanout = call_with_arg(compiled_result.fanout, shape)
-        result.occupancy = call_with_arg(compiled_result.occupancy, shape)
-        result.fills_by_parent = call_with_arg(compiled_result.fills_by_parent, shape)
-        result.reads_to_parent = call_with_arg(compiled_result.reads_to_parent, shape)
-
-        skip = False
-
-        total_capacity = defaultdict(lambda: 0)
-        for (level, _), capacity in result.occupancy.items():
-            total_capacity[level] += capacity
-        for level, capacity in total_capacity.items():
-            if level in max_capacity and capacity > max_capacity[level]:
-                skip = True
-                break
-
-        if skip == True:
-            shape_subspace.skip_current_rank_iteration()
-            continue
-
-        invalid_spatial = False
-        for level, fanout in result.fanout.items():
-            if level in max_fanout:
-                invalid_spatial = invalid_spatial or (
-                    reduce(mul, fanout, 1) > reduce(mul, max_fanout[level], 1)
-                )
-
-        if not invalid_spatial:
-            num_valid_tile_shapes += 1
-            yield shape, result
-            
-    return num_tile_shapes, num_valid_tile_shapes
 
 
 def process_result(
@@ -682,29 +407,8 @@ def get_hardware_levels(arch):
     return bindings, fanout, max_capacity
 
 
-def call_with_arg(f, arg):
-    if isinstance(next(iter(f.values())), tuple):
-        return {k: (v[0], v[1](*arg)) for k, v in f.items()}
-    else:
-        return {k: v(*arg) for k, v in f.items()}
-
-
 def count(it):
     count = 0
     for _ in it:
         count += 1
     return count
-
-def make_temporal_fors_with_smallest_tile(original, ranks):
-    for ordered_ranks in permutations(ranks):
-        mapping = original.copy()
-        for r in ordered_ranks:
-            mapping.add_temporal(r, tile_shape=1)
-        yield mapping
-
-def make_temporal_fors_in_order(original, ranks):
-    for i in range(len(ranks)+1):
-        mapping = original.copy()
-        for r in ranks[:i]:
-            mapping.add_temporal(r)
-        yield mapping

@@ -1,4 +1,9 @@
-from pytimeloop.fastfusion.mapper.per_einsum_mapper import LinearMapping, make_storage, make_temporal_fors, make_temporal_fors_with_smallest_tile, make_temporal_fors_in_order
+from .subspaces import (
+    LinearMapping,
+    make_storage,
+    make_temporal_fors_with_smallest_tile,
+    make_temporal_fors_in_order
+)
 
 def make_ffmt_subspaces(tensors,
                         intermediate_tensors,
