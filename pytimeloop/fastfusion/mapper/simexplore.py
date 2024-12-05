@@ -8,7 +8,8 @@ from joblib import Parallel, delayed
 from pytimeloop.fastfusion.sim import SIM
 from pytimeloop.fastfusion.pareto import Pareto
 
-def explore_fusion(einsum_to_result: Mapping):
+def explore_fusion(einsum_to_result: Mapping, resource2capacity: dict=None):
+    resource2capacity = resource2capacity or {}
 
     r2 = {}
     for einsum_id, compat_dict in einsum_to_result.items():
@@ -22,47 +23,56 @@ def explore_fusion(einsum_to_result: Mapping):
 
 
     while sims:
+        print("\n\n")
+        print("\n\n" + "=" * 100 + f"\n{len(sims) + 1} Remaining\n" + "=" * 100)
         live_tensors = set.union(set(), *[sim[0].tensor_names for sim in sims])
         ns = sims.pop(0)
         next_live_tensors = set.union(set(), *[sim[0].tensor_names for sim in sims])
 
         for s2 in s:
-            s2.consolidate(live_tensors)
-
-        ns = SIM.combine_combineable(ns, next_live_tensors | s[0].tensor_names)
+            s2.consolidate(live_tensors, resource2capacity)
+        next_next_live_tensors = next_live_tensors | s[0].tensor_names
+        ns = SIM.combine_combineable(ns, next_next_live_tensors)
         ns = SIM.group_by_left(ns, s[0].tensor_names)
+        # for s2 in ns:
+        #     s2.consolidate(live_tensors, resource2capacity)
+        print(f"\tNEXT: Combined by {sorted(next_next_live_tensors)}")
+        print(f"\tNEXT: Grouped by {sorted(s[0].tensor_names)}")
+        print(f"\tPREV: Combined by {sorted(live_tensors)}")
+        print(f"\tPREV: Grouped by {sorted(live_tensors)}")
         s = SIM.combine_combineable(s, live_tensors)
         s = SIM.group_by_right(s, live_tensors)
 
-        print("\n\n")
-        print("\n\n" + "=" * 100 + f"\n{len(sims) + 1} Remaining\n" + "=" * 100)
-
-        DO_PRINT = False
-
-        with open('s_keys.txt', 'w') as f:
-            for key in sorted(s.keys()):
-                f.write(f"{key}\n")
-
-        with open('s2_keys.txt', 'w') as f:
-            for key in sorted(ns.keys()):
-                f.write(f"{key}\n")
+        DO_PRINT = True
 
         combined: list[SIM] = []
         for k in s:
             if k in ns:
                 for a, b in itertools.product(s[k], ns[k]):
                     if DO_PRINT:
-                        print(f"\t{a.tiling_str()} <--> {b.tiling_str()}")
-                    combined.append(a.merge_next(b, set(), delay=True))
-                    # combined_keys.append()
+                        print(f"\t{a.tiling_str()} {a.get_shared_loop_index(live_tensors)} <--> {b.tiling_str()}{b.get_shared_loop_index(next_next_live_tensors)}. ({len(a.mapping.data)})x({len(b.mapping.data)})")
+                    if len(a.mapping.data) * len(b.mapping.data) > 1e4:
+                        print(f'Many mappings detected: {len(a.mapping.data) * len(b.mapping.data)}')
+                        # a.merge_next(b, set(), next_live_tensors, resource2capacity, delay=False)
+
+                    combined.append(a.merge_next(b, set(), next_live_tensors, resource2capacity, delay=True))
             elif DO_PRINT:
-                print(f"\tNo match for {s[k][0].tiling_str()}")
+                print(f"\tNo match for {k} ||||||||| {s[k][0].tiling_str()}")
 
         for c, mapping in zip(combined, Parallel(n_jobs=128)(c.mapping for c in combined)):
             c.mapping = mapping
+        # for c, mapping in zip(combined, [c.mapping for c in combined]):
+            # c.mapping = mapping[0](*mapping[1], **mapping[2])
 
+        print(f"\tCombining {sum(len(s2) for s2 in s)}({len(s)}) x {sum(len(s2) for s2 in ns)}({len(ns)}) -> {len(combined)}")
+        if DO_PRINT:
+            for k in ns:
+                if k not in s:
+                    print(f"\tREVERSE: No match for {k} ||||||||| {ns[k][0].tiling_str()}")
         s = combined
-        print(f"Generated {len(s)} solutions")
+        print(f'Number of buckets: {len(s)}')
+        print(f'Number of mappings: {sum(len(s2.mapping.data) for s2 in s)}')
+        print(f'Mappings per bucket: {sum(len(s2.mapping.data) for s2 in s) / len(s)}')
         
     for s2 in s:
         s2.consolidate(set())

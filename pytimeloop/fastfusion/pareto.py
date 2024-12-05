@@ -130,12 +130,18 @@ def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int) -> pd.DataFra
         # LEFT data: Max to the same level on the right
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
-            max_to_col(data, target, c)
+            if target in data:
+                max_to_col(data, target, c)
+            else:
+                data.rename(columns={c: target}, inplace=True)
             nloops2right[n].add((target, name))
         # RIGHT data: Sum to the level below on the right
         for c, name in nloops2right[n]:
             target = nameloop2col(name, n - 1)
-            add_to_col(data, target, c)
+            if target in data:
+                add_to_col(data, target, c)
+            else:
+                data.rename(columns={c: target}, inplace=True)
             nloops2right[n - 1].add((target, name))
 
     keepcols = []
@@ -154,6 +160,8 @@ def merge_cross(
     left: pd.DataFrame,
     right: pd.DataFrame,
     shared_loop_index: int,  # -1 -> no shared loops, 0 -> outermost...
+    next_shared_loop_index: int,
+    resource2capacity: dict[str, int],
     as_pareto: bool = False,
 ) -> pd.DataFrame:
     left = makepareto(free_to_loop_index(left, shared_loop_index + 1))
@@ -195,23 +203,63 @@ def merge_cross(
     #     
     #  *  Can't bake into compatiblity unless we have a notion of left vs.
     #     right pipelined.
+    
+    
+    # PIPELINE CHANGES REQUIRED:
+    # - Latency above above loop index (first tile), below (all subsequent tiles)
+    # - Tiling includes information for how may be fused:
+    #   - Pipelined: Max below latencies, 
+    #   - Non-pipelined:
+    # Shared resources:
+    # - 
+    # SEQUENTIAL:
+    # - In parallel: Fetch all above-shared-loop resources for all operations
+    # - Sequentially: Fetch any below-shared-loop resources for all operations
+    # PIPELINE:
+    # - In parallel: Fetch all above-shared-loop resources for all operations
+    # - Sequentially: Fetch any below-shared-loop resources for the first iteration of all operations
+    # - In parallel: Fetch all below-shared-loop resources for all operations in all subsequent iterations
 
-    df = makepareto(df)
+    df = free_to_loop_index(df, next_shared_loop_index + 1)
+    for resource, capacity in resource2capacity.items():
+        colname = nameloop2col(resource, 0)
+        if colname in df:
+            if capacity is not None:
+                df = df[df[colname] <= capacity]
+            del df[colname]
+  
+    # import time
+    # t0 = time.time()
+    df2 = makepareto(df)
+    # t1 = time.time()
+    # if t1 - t0 > 2:
+    #     print("Took", t1 - t0, "seconds")
+    #     df2 = makepareto(df)
+        # df2.to_csv("slow.csv")
+
+    df = df2
 
     # Merge mappings
     c0, c1 = MAPPING + MERGE_SUFFIXES[0], MAPPING + MERGE_SUFFIXES[1]
-    df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
+    if len(df) > 0:
+        df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
+    else:
+        df[MAPPING] = []
+    # try:
+    #     df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
+    # except:
+    #     merge_cross(left, right, shared_loop_index, next_shared_loop_index, resource2capacity, as_pareto=True)
+    df = df[[c for c in df.columns if not is_merge_col(c)]]
 
     # Assert no NaNs
-    assert not df.isnull().values.any()    
+    assert not df.isnull().values.any()
     
-    df = df[[c for c in df.columns if not is_merge_col(c)]]
-    return Pareto(df) if as_pareto else df
+    return Pareto(df, skip_pareto=True) if as_pareto else df
 
 
 class Pareto:
-    def __init__(self, data: pd.DataFrame):
-        self.data: pd.DataFrame = makepareto(data)
+    def __init__(self, data: pd.DataFrame, skip_pareto: bool=False):
+        self.data: pd.DataFrame = data if skip_pareto else makepareto(data)
 
     def einsum_ids(self):
         return fzs(self.data[MAPPING].iloc[0].keys())
@@ -220,8 +268,8 @@ class Pareto:
     def concat(paretos: list["Pareto"]) -> "Pareto":
         return Pareto(pd.concat([p.data for p in paretos]).fillna(0))
 
-    def merge(self, other: "Pareto", shared_loop_index: int, delay: bool=False) -> "Pareto":
-        d = delayed(merge_cross)(self.data, other.data, shared_loop_index, as_pareto=True)
+    def merge(self, other: "Pareto", shared_loop_index: int, next_shared_loop_index: int, resource2capacity: dict[str, int], delay: bool=False) -> "Pareto":
+        d = delayed(merge_cross)(self.data, other.data, shared_loop_index, next_shared_loop_index, resource2capacity, as_pareto=True)
         return d if delay else d[0](*d[1], **d[2])
 
     @staticmethod
