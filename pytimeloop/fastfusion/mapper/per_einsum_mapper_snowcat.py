@@ -96,8 +96,10 @@ def per_einsum_mapper_snowcat(
                 # HACKY: Pop out the subspace object as the first in the iterator
                 shape_subspace = next(tile_shape_explorer)
 
+                count = 0
                 for shape, res in tile_shape_explorer:
-                    is_pareto, fulltiling = process_result(
+                    count += 1
+                    is_pareto, results, fulltiling = process_result(
                         res,
                         shape,
                         result,
