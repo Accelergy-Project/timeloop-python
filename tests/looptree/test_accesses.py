@@ -30,12 +30,12 @@ class TestLoopTreeAccess(unittest.TestCase):
                 (0, 'Fmap1', 'Fc1'): 18,
                 (0, 'Filter1', 'Fc1'): 8,
                 (0, 'Filter2', 'Fc2'): 32,
-                (0, 'Fmap3', 'Fc2'): 72,
+                (0, 'Fmap3', 'Fc2'): 0,
                 (1, 'Fmap1', 'Fc1'): 18,
                 (1, 'Filter1', 'Fc1'): 72,
                 (1, 'Filter2', 'Fc2'): 288,
-                (1, 'Fmap3', 'Fc2'): 288,
-                (2, 'Fmap2', 'Fc1'): 72,
+                (1, 'Fmap3', 'Fc2'): 216,
+                (2, 'Fmap2', 'Fc1'): 36,
                 (2, 'Fmap2', 'Fc2'): 36,
                 (3, 'Fmap1', 'Fc1'): 72,
                 (3, 'Fmap2', 'Fc2'): 288
@@ -43,7 +43,13 @@ class TestLoopTreeAccess(unittest.TestCase):
             {
                 (0, 'Fmap3', 'Fc2'): 72,
                 (1, 'Fmap3', 'Fc2'): 288,
-                (2, 'Fmap2', 'Fc1'): 72
+                (1, 'Filter1', 'Fc1'): 8,
+                (1, 'Filter2', 'Fc2'): 32,
+                (1, 'Fmap1', 'Fc1'): 18,
+                (1, 'Fmap3', 'Fc2'): 288,
+                (2, 'Fmap2', 'Fc1'): 72,
+                (3, 'Fmap1', 'Fc1'): 72,
+                (3, 'Fmap2', 'Fc2'): 288
             }
         )
 
@@ -60,20 +66,24 @@ class TestLoopTreeAccess(unittest.TestCase):
                 (0, 'Fmap1', 'Fc1'): 18,
                 (0, 'Filter1', 'Fc1'): 8,
                 (0, 'Filter2', 'Fc2'): 32,
-                (0, 'Fmap2', 'Fc1'): 36,
+                (0, 'Fmap2', 'Fc1'): 0,
                 (0, 'Fmap2', 'Fc2'): 36,
-                (0, 'Fmap3', 'Fc2'): 72,
+                (0, 'Fmap3', 'Fc2'): 0,
                 (1, 'Filter1', 'Fc1'): 72,
                 (1, 'Fmap1', 'Fc1'): 72,
-                (2, 'Fmap2', 'Fc1'): 72,
+                (2, 'Fmap2', 'Fc1'): 36,
                 (1, 'Filter2', 'Fc2'): 288,
-                (1, 'Fmap3', 'Fc2'): 288,
+                (1, 'Fmap3', 'Fc2'): 216,
                 (2, 'Fmap2', 'Fc2'): 288
             },
             {
                 (0, 'Fmap2', 'Fc1'): 36,
                 (0, 'Fmap3', 'Fc2'): 72,
+                (1, 'Fmap1', 'Fc1'): 18,
+                (1, 'Filter1', 'Fc1'): 8,
+                (1, 'Filter2', 'Fc2'): 32,
                 (2, 'Fmap2', 'Fc1'): 72,
+                (2, 'Fmap2', 'Fc2'): 288,
                 (1, 'Fmap3', 'Fc2'): 288
             }
         )
@@ -101,22 +111,20 @@ class TestLoopTreeAccess(unittest.TestCase):
         result = model.run()
         result = deserialize_looptree_output(result, isl.DEFAULT_CONTEXT)
 
-        # print(result.fills_by_parent)
         reads, writes = reads_and_writes_from_fill_by_parent(
-            result.fills_by_parent,
+            result.fills,
+            result.reads_to_parent,
             config['mapping'],
             workload
         )
 
-        self.assertEqual(read_refs, get_total_accesses(reads))
-        self.assertEqual(write_refs, get_total_accesses(writes))
+        self.assertEqual(read_refs, dict(reads))
+        self.assertEqual(write_refs, dict(writes))
 
         reads, writes = reads_and_writes_from_fill_by_peer(
-            result.fills_by_peer,
+            result.reads_to_peer,
             config['mapping'],
             workload
         )
-        reads = get_total_accesses(reads)
-        writes = get_total_accesses(writes)
         self.assertEqual(0, sum(reads.values()))
         self.assertEqual(0, sum(writes.values()))

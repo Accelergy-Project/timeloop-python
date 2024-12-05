@@ -41,14 +41,10 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False)
 
 
 def get_accesses(looptree_results, mapping, workload, is_path=False):
-    if 'reads_to_parent' in looptree_results.__dict__:
-        reads_to_parent = looptree_results.reads_to_parent
-    else:
-        # TODO: the other option is multicast-accurate
-        reads_to_parent = looptree_results.fills_by_parent
+    reads_to_parent = looptree_results.reads_to_parent
 
     reads, writes = reads_and_writes_from_fill_by_parent(
-        looptree_results.fills_by_parent,
+        looptree_results.fills,
         reads_to_parent,
         mapping,
         workload,
@@ -57,7 +53,7 @@ def get_accesses(looptree_results, mapping, workload, is_path=False):
     reads, writes = get_total_accesses(reads), get_total_accesses(writes)
 
     peer_reads, peer_writes = reads_and_writes_from_fill_by_peer(
-        looptree_results.fills_by_peer,
+        looptree_results.reads_to_peer,
         mapping,
         workload,
         is_path

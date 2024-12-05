@@ -352,8 +352,8 @@ def process_result(
     )
 
     results = {}
-    results["Latency"] = result.temporal_steps[einsum_id]
-    results["Energy"] = energy
+    # results["Latency"] = result.temporal_steps[einsum_id]
+    # results["Energy"] = energy
     offchip_accesses = 0
     for (level, tensor, einsum), count in accesses.items():
         if level == 0:
@@ -368,8 +368,8 @@ def process_result(
     for r in results:
         if "RESOURCE" in r:
             fulltiling.append(f"{r.replace('RESOURCE', 'R')}={results[r]:.2e}")
-    fulltiling.append(f"L={results['Latency']:.2e}")
-    fulltiling.append(f"E={results['Energy']:.2e}")
+    # fulltiling.append(f"L={results['Latency']:.2e}")
+    # fulltiling.append(f"E={results['Energy']:.2e}")
     results[MAPPING] = {einsum_id: str(fulltiling)}
     
     is_pareto = True

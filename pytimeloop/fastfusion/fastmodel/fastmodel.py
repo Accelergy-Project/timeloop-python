@@ -142,7 +142,7 @@ def compile_mapping(mapping,
 
                 output.occupancy[(target, tensor_id)] = tensor_size[tensor_id]
 
-                output.fills_by_parent[(target, tensor_id, einsum_id)] = (
+                output.fills[(target, tensor_id, einsum_id)] = (
                     None,
                     (
                         original_tensor_size[tensor_id]
@@ -173,7 +173,7 @@ def compile_mapping(mapping,
             for tensor_id in tensors:
                 output.occupancy[(target, tensor_id)] = tensor_size[tensor_id]
 
-                output.fills_by_parent[(target, tensor_id, einsum_id)] = (
+                output.fills[(target, tensor_id, einsum_id)] = (
                     None,
                     (
                         original_tensor_size[tensor_id]
@@ -214,7 +214,7 @@ def compile_mapping(mapping,
     output.temporal_steps = lambdify(output.temporal_steps)
     output.fanout = lambdify(output.fanout)
     output.occupancy = lambdify(output.occupancy)
-    output.fills_by_parent = lambdify(output.fills_by_parent)
+    output.fills = lambdify(output.fills)
     output.reads_to_parent = lambdify(output.reads_to_parent)
 
     return tile_shapes, output

@@ -50,7 +50,7 @@ def explore_tile_shape(
         result.temporal_steps = call_with_arg(compiled_result.temporal_steps, shape)
         result.fanout = call_with_arg(compiled_result.fanout, shape)
         result.occupancy = call_with_arg(compiled_result.occupancy, shape)
-        result.fills_by_parent = call_with_arg(compiled_result.fills_by_parent, shape)
+        result.fills = call_with_arg(compiled_result.fills, shape)
         result.reads_to_parent = call_with_arg(compiled_result.reads_to_parent, shape)
 
         skip = False

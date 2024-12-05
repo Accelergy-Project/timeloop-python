@@ -6,10 +6,10 @@ import bindings
 class LooptreeOutput:
     def __init__(self):
         self.ops = {}
+        self.fills = {}
         self.occupancy = {}
         self.op_occupancy = {}
-        self.fills_by_peer = {}
-        self.fills_by_parent = {}
+        self.reads_to_peer = {}
         self.reads_to_parent = {}
         self.temporal_steps = {}
         self.fanout = {}
@@ -19,7 +19,7 @@ class LooptreeOutput:
             f'LooptreeOutput(' +
             f'ops={self.ops}, ' +
             f'occupancy={self.occupancy}, ' +
-            f'fills_by_parent={self.fills_by_parent})'
+            f'reads_to_parent={self.reads_to_parent})'
         )
 
 
@@ -34,19 +34,24 @@ def deserialize_looptree_output(
         for k, (dims, v) in looptree_output.ops.items()
     }
 
+    output.fills = {
+        k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
+        for k, (dims, v) in looptree_output.fills.items()
+    }
+
     output.occupancy = {
         k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
         for k, (dims, v) in looptree_output.occupancy.items()
     }
 
-    output.fills_by_peer = {
+    output.reads_to_peer = {
         k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
-        for k, (dims, v) in looptree_output.fills_by_peer.items()
+        for k, (dims, v) in looptree_output.reads_to_peer.items()
     }
 
-    output.fills_by_parent = {
+    output.reads_to_parent = {
         k: (dims, isl.PwQPolynomial.read_from_str(isl_ctx, v))
-        for k, (dims, v) in looptree_output.fills_by_parent.items()
+        for k, (dims, v) in looptree_output.reads_to_parent.items()
     }
 
     output.temporal_steps = {

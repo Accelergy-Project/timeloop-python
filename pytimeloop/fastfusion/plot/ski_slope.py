@@ -12,7 +12,8 @@ DATAFLOW_COLUMN = "dataflow"
 def plot_ski_slope(data: pd.DataFrame,
                    categorize_by_dataflow: bool=False,
                    split_by_dataflow: bool=False,
-                   ax: mpax.Axes=None):
+                   ax: mpax.Axes=None,
+                   **kwargs):
     if ax is None:
         fig, ax = plt.subplots()
     else:
@@ -37,10 +38,13 @@ def plot_ski_slope(data: pd.DataFrame,
     for label, sub_df in zip(labels, separated_datas):
         ax.plot(*_make_staircase(sub_df["Occupancy"].to_numpy(),
                                  sub_df["Offchip_Ac"].to_numpy()),
-                label=label)
+                label=label,
+                **kwargs)
 
     ax.set_xlabel("Capacity")
     ax.set_ylabel("Off-chip Accesses")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
 
     return fig, ax
 
@@ -61,7 +65,7 @@ def _make_staircase(x: np.array, y: np.array):
 
 
 def _add_dataflow_to_data(data: pd.DataFrame):
-    data[DATAFLOW_COLUMN] = data["_Mappings"].apply(_dataflow_from_fulltiling)
+    data[DATAFLOW_COLUMN] = data["__Mappings"].apply(_dataflow_from_fulltiling)
 
 
 def _dataflow_from_fulltiling(fulltiling: str):

@@ -41,28 +41,39 @@ def reads_and_writes_from_fill_by_parent(fills: Mapping,
 
     einsums_with_complete_mappings = get_einsums_with_complete_mappings(mapping, workload, is_path)
 
-    compute_node = mapping[-1]
-    assert compute_node["type"] == "compute"
-    compute_target = compute_node["target"]
+    compute_targets = set()
+    for compute_node in get_leaves(mapping, is_path):
+        assert compute_node["type"] == "compute"
+        compute_targets.add(compute_node["target"])
 
     for (buffer_id, dspace_id, einsum_id), (tags, fill) in fills.items():
         read_to_parent = reads_to_parent[(buffer_id, dspace_id, einsum_id)][1]
+
+        read_to_parent = get_sum_of_pw_qpolynomial(read_to_parent)
+        fill = get_sum_of_pw_qpolynomial(fill)
+
         dspace_name = dspace_id_to_name[dspace_id]
         einsum_name = einsum_id_to_name[einsum_id]
         if einsum_id not in einsums_with_complete_mappings:
             continue
         parent_buffer = parent_buffers[(buffer_id, dspace_id, einsum_id)]
         if parent_buffer is not None:
+            key = (parent_buffer, dspace_name, einsum_name)
             if dspace_id in workload.tensors_written_by_einsum(einsum_id):
-                writes[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
+                writes[key] += read_to_parent
                 # Subtracted term: elided first read of a read-write tensor
-                reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent - workload.get_tensor_volume(dspace_id)
+                reads[key] += \
+                    read_to_parent - workload.get_tensor_volume(dspace_id)
             elif dspace_id in workload.tensors_read_by_einsum(einsum_id):
-                reads[(parent_buffer, dspace_name, einsum_name)] += read_to_parent
+                reads[key] += read_to_parent
         # Fills will write into current buffer except for compute (which does
         # not have write action) and top-level buffer
-        if buffer_id != compute_target and parent_buffer is not None:
-            writes[(buffer_id, dspace_name, einsum_name)] += fill
+        if buffer_id not in compute_targets and parent_buffer is not None:
+            if dspace_id in workload.tensors_written_by_einsum(einsum_id):
+                writes[(buffer_id, dspace_name, einsum_name)] += \
+                    fill - workload.get_tensor_volume(dspace_id)
+            else:
+                writes[(buffer_id, dspace_name, einsum_name)] += fill
 
     return reads, writes
 
@@ -78,13 +89,14 @@ def reads_and_writes_from_fill_by_peer(fills: Mapping, mapping, workload, is_pat
     einsums_with_complete_mappings = get_einsums_with_complete_mappings(mapping, workload, is_path)
 
     for (buffer_id, dspace_id, einsum_id), (tags, fill) in fills.items():
+        fill = get_sum_of_pw_qpolynomial(fill)
         einsum_name = einsum_id_to_name[einsum_id]
         dspace_name = dspace_id_to_name[dspace_id]
         if einsum_id not in einsums_with_complete_mappings:
             continue
 
         reads[(buffer_id, dspace_name, einsum_name)] = fill
-        writes[(buffer_id, dspace_name, einsum_name)] = fill
+        writes[(buffer_id, dspace_name, einsum_name)] = 0 # already accounted for in above
 
     return reads, writes
 

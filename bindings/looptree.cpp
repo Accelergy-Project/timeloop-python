@@ -39,8 +39,8 @@ namespace pytimeloop::looptree_bindings
     py::class_<application::LooptreeModel::Result>(m, "LooptreeResult")
         .def_readwrite("ops", &application::LooptreeModel::Result::ops)
         .def_readwrite("fills", &application::LooptreeModel::Result::fills)
-        .def_readwrite("fills_by_parent", &application::LooptreeModel::Result::fills_by_parent)
-        .def_readwrite("fills_by_peer", &application::LooptreeModel::Result::fills_by_peer)
+        .def_readwrite("reads_to_parent", &application::LooptreeModel::Result::reads_to_parent)
+        .def_readwrite("reads_to_peer", &application::LooptreeModel::Result::reads_to_peer)
         .def_readwrite("occupancy", &application::LooptreeModel::Result::occupancy)
         .def_readwrite("temporal_steps", &application::LooptreeModel::Result::temporal_steps);
 
