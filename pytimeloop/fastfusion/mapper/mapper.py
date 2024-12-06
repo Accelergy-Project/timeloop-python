@@ -1,228 +1,192 @@
-from collections import defaultdict, deque
-from functools import partial
+from collections import defaultdict
+from copy import deepcopy
+import logging.handlers
+from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
 
 from ruamel.yaml import YAML
-yaml = YAML(typ='safe')
+from joblib import Parallel, delayed
 
-from bindings.looptree import (
-    LooptreeWorkload,
-    LooptreeWorkloadDependencyAnalyzer
-)
+yaml = YAML(typ="safe")
 
-from pytimeloop.fastfusion.exploration import explore_fusion_sets
-from pytimeloop.fastfusion.fusionset import FusionSet
-from pytimeloop.fastfusion.pareto import OpData, Pareto
+from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
-from .level_mapper.compute import ComputeLevelMapper
-from .level_mapper.exhaustive import ExhaustiveLevelMapper
-from .level_mapper.top_level import TopLevelMapper
-from .stepped_model import Stats, SteppedModel, SteppedModelState
+from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
+
+from pytimeloop.fastfusion.mapper.constraints import *
+from pytimeloop.fastfusion.layerdeduplication import is_equivalent
+from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
+from pytimeloop.fastfusion.mapper.per_einsum_mapper import get_top_loop_jobs, mapper_place_fusion_level
+from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
+from pytimeloop.fastfusion.pareto import MAPPING
+
+from pytimeloop.timeloopfe.v4 import Ert
+from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
 
 
-def mapper(config, spec, tmp_path, verbose_stream=None):
-    workload = LooptreeWorkload.parse_cfg(config.root['problem'])
+def mapper(
+    config,
+    pe_array_constraint: PeArrayConstraint,
+    mac_array_constraint: MacArrayConstraint,
+    explore_glb_uneven,
+    explore_pe_uneven,
+    spec,
+    tmp_path,
+    verbose_stream=None,
+):
+    logger.info(f"Calling mapper for {spec}")
+
+    log_queue, log_queue_listener = make_queue_and_listener()
+
+    workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
-
-    def print_info(s):
-        if verbose_stream is not None:
-            print(s, file=verbose_stream)
-
-    adj_list = get_neighbors(workload)
+    equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
     einsum_name_to_id = workload.einsum_name_to_id()
-    per_einsum_mappings = deque()
-    for einsum_name, einsum_id in einsum_name_to_id.items():
-        tensors = (
-            workload.tensors_read_by_einsum(einsum_id)
-            |
-            workload.tensors_written_by_einsum(einsum_id)
-        )
-        fusable_tensors = tensors & get_intermediate_tensors(workload)
 
-        print_info(f'Generating mappings for Einsum {einsum_name}')
-        data = layer_mapper(config,
-                            einsum_name,
-                            fusable_tensors,
-                            adj_list[einsum_id],
-                            workload,
-                            analyzer,
-                            spec,
-                            tmp_path)
-        per_einsum_mappings.append((
-            einsum_id,
-            [FusionSet({op_comp}, pareto) for op_comp, pareto in data.items()]
-        ))
-    print_info('Exploring fusion sets')
-    explore_fusion_sets(per_einsum_mappings, verbose_stream)
+    if isinstance(tmp_path, Path):
+        tmp_path = str(tmp_path)
+    call_accelergy_verbose(spec, tmp_path)
+    ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
+    ert = Ert(ert_dict["ERT"])
+    energy_dict = ert.to_dict()
 
+    grouped_similar_einsums = convert_rank_to_group_renaming(
+        detect_similar_einsums(workload, analyzer),
+        equivalent_groups
+    )
+    logger.info(f"Found {len(grouped_similar_einsums)} unique Einsums\n"
+                + f"\tConverter: {grouped_similar_einsums}")
 
-def layer_mapper(config,
-                 name_of_einsum_to_eval,
-                 fusable_tensors,
-                 neighbors,
-                 workload,
-                 analyzer,
-                 spec,
-                 tmp_path):
-    einsum_name_to_id = workload.einsum_name_to_id()
-    id_of_einsum_to_eval = einsum_name_to_id[name_of_einsum_to_eval]
-
-    bindings, max_spatial, max_capacity = get_hardware_levels(spec.architecture)
-
-    ranks = workload.einsum_ospace_dimensions(id_of_einsum_to_eval)
-    tensors = (
-        workload.tensors_read_by_einsum(id_of_einsum_to_eval)
-        |
-        workload.tensors_written_by_einsum(id_of_einsum_to_eval)
+    args = get_top_loop_jobs(
+        einsums_to_explore=list(grouped_similar_einsums.keys()),
+        config=config,
+        pe_array_constraint=pe_array_constraint,
+        mac_array_constraint=mac_array_constraint,
+        explore_glb_uneven=explore_glb_uneven,
+        explore_pe_uneven=explore_pe_uneven,
+        spec=spec,
+        energy_dict=energy_dict,
+        log_queue=log_queue,
+        verbose_stream=verbose_stream,
     )
 
-    # Shape is given as *inclusive* (min, max) by workload
-    einsum_shape = {
-        rank_id: workload.get_rank_shape(rank_id)[1]+1 for rank_id in ranks
+    print(f'Number of jobs: {len(args)}')
+    n_workers = 64
+    logger.debug(f"Starting {n_workers} workers")
+    log_queue_listener.start()
+    
+    result = Parallel(n_jobs=n_workers)(
+        delayed(mapper_place_fusion_level)(**a) for a in args
+    )
+    data = defaultdict(dict)
+    total = 0
+    for einsum_id, mappings, count in result:
+        for k, v in mappings.items():
+            if k in data[einsum_id]:
+                data[einsum_id][k] += v
+            else:
+                data[einsum_id][k] = v
+                
+        total += count
+    print(f"Total number of mappings: {total}")
+        
+    log_queue_listener.stop()
+    logger.info(f"Mapper finished for {spec}")
+
+    generated_data = {}
+    logger.info(f"Generating data for non-unique Einsums")
+    for from_einsum, others in grouped_similar_einsums.items():
+        for to_einsum, (rank_renaming, tensor_renaming) in others.items():
+            logger.info(f"Generating data for {to_einsum}. "
+                        + f"Rank renaming={rank_renaming}. "
+                        + f"Tensor renaming={tensor_renaming}")
+            generated_data[to_einsum] = generate_data(from_einsum,
+                                                      to_einsum,
+                                                      data[from_einsum],
+                                                      rank_renaming,
+                                                      tensor_renaming)
+            
+
+    for einsum, mapping in generated_data.items():
+        data[einsum] = mapping
+
+    logger.info(f"Final set of Einsums: {set(data.keys())}")
+
+    # data has to come out in sorted Einsum-id order
+    data = {k: v for k, v in sorted(data.items(), key=lambda item: item[0])}
+
+    return data
+
+
+def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):
+    return {
+        _convert_tiling(tiling, rank_renaming, tensor_renaming)
+        :
+        _convert_stats(from_einsum, to_einsum, stats, rank_renaming, tensor_renaming)
+        for tiling, stats in data.items()
     }
 
-    model = SteppedModel(config, spec, bindings, workload, analyzer)
-    model.call_accelergy(tmp_path)
-    state = SteppedModelState()
-    model.initialize(state, 0, id_of_einsum_to_eval, list(tensors))
 
-    def step_back_model():
-        model.step_back()
-
-    def final_model(level, state, temporal_loops, spatial_loops, retained_tensors):
-        model.add_compute(state,
-                          level,
-                          name_of_einsum_to_eval,
-                          temporal_loops,
-                          spatial_loops)
-        return model.run(state)
-
-    def partial_model(level, state, temporal_loops, spatial_loops, retained_tensors):
-        model.add_level_uneven(state,
-                               level,
-                               temporal_loops,
-                               spatial_loops,
-                               retained_tensors)
-        return Stats()
+def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
+    return Tiling(
+        loops=tuple(Loop(rank_renaming[l.rank_id], l.bound, l.is_spatial)
+                    for l in tiling.loops),
+        tensors=frozenset(TensorStorage(tensor_renaming[ts.tensor_id],
+                                        ts.backer_id,
+                                        ts.above_loop_index,
+                                        ts.tile_size)
+                          for ts in tiling.tensors)
+    )
 
 
-
-    cur_mapper = None
-    for hw_level in reversed(range(1, len(bindings))):
-        if hw_level in max_capacity:
-            level_max_cap = max_capacity[hw_level]
-        else:
-            level_max_cap = None
-        if cur_mapper is None:  # Compute level
-            cur_mapper = ComputeLevelMapper(hw_level,
-                                            ranks,
-                                            tensors,
-                                            max_spatial=max_spatial[hw_level],
-                                            max_capacity=level_max_cap,
-                                            can_bypass=False,
-                                            lower_mapper=None,
-                                            partial_model=partial(final_model,
-                                                                  level=hw_level),
-                                            step_back_model=step_back_model)
-        else:
-            cur_mapper = ExhaustiveLevelMapper(hw_level,
-                                               ranks,
-                                               tensors,
-                                               max_spatial=max_spatial[hw_level],
-                                               max_capacity=level_max_cap,
-                                               can_bypass=True,
-                                               lower_mapper=cur_mapper,
-                                               analyzer=analyzer,
-                                               partial_model=partial(partial_model,
-                                                                     level=hw_level),
-                                               step_back_model=step_back_model)
-
-    hw_level = 0
-    if hw_level in max_capacity:
-        level_max_cap = max_capacity[hw_level]
-    else:
-        level_max_cap = None
-    cur_mapper = TopLevelMapper(hw_level,
-                                ranks,
-                                tensors,
-                                fusable_tensors,
-                                id_of_einsum_to_eval,
-                                neighbors=neighbors,
-                                lower_mapper=cur_mapper,
-                                model=model,
-                                bits_per_word=8,
-                                analyzer=analyzer,
-                                partial_model=partial(partial_model, level=0),
-                                step_back_model=step_back_model,
-                                max_spatial=max_spatial[hw_level],
-                                max_capacity=level_max_cap)
-
-    cur_mapper.run(einsum_shape)
-
-    result = cur_mapper.get_result()
-    before_pareto_size = sum(v.shape[0] for v in result.values())
-
-    result_dict = {}
-    op_data = OpData(frozenset({id_of_einsum_to_eval}), frozenset(tensors))
-    after_pareto_size = 0
-    for op_comp, data in result.items():
-        result_dict[op_comp] = Pareto({op_data: data})
-        after_pareto_size += sum(
-            v.shape[0] for v in result_dict[op_comp].data.values()
-        )
-
-    print('mapspace size:', before_pareto_size)
-    print('mapspace after pareto size:', after_pareto_size)
-
-    return result_dict
+def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
+    stats = deepcopy(stats)
+    for s in stats:
+        s[MAPPING][to_einsum] = s[MAPPING].pop(from_einsum)
+    return stats
+    
 
 
-def get_hardware_levels(arch):
-    bindings = {}
-    fanout = {}
-    max_capacity = {}
-    for node in arch['nodes']:
-        bindings_id = len(bindings)
-        bindings[bindings_id] = node['name']
-        fanout[bindings_id] = (node.spatial.meshX, node.spatial.meshY)
-        attribute = node.attributes
-        if 'width' in attribute and 'depth' in attribute:
-            width = attribute.width
-            depth = attribute.depth
-            datawidth = attribute.datawidth
-            if all(x is not None for x in (width, depth, datawidth)):
-                max_capacity[bindings_id] = \
-                    attribute.width * attribute.depth / attribute.datawidth
-    return bindings, fanout, max_capacity
+def detect_similar_einsums(workload, analyzer, return_all_as_unique=False):
+    if return_all_as_unique:
+        return {ref: {} for ref in workload.einsum_id_to_name()}
 
-
-def get_neighbors(workload):
-    adj_list = defaultdict(lambda: list())
-    for einsum_u_id in workload.einsum_id_to_name():
-        for einsum_v_id in workload.einsum_id_to_name():
-            u_written_tensor = workload.tensors_written_by_einsum(einsum_u_id)
-            v_read_tensors = workload.tensors_read_by_einsum(einsum_v_id)
-            if u_written_tensor is not None and u_written_tensor in v_read_tensors:
-                adj_list[einsum_u_id].append(einsum_v_id)
-                adj_list[einsum_v_id].append(einsum_u_id)
-                continue
-            u_read_tensors = workload.tensors_read_by_einsum(einsum_u_id)
-            v_written_tensor = workload.tensors_written_by_einsum(einsum_v_id)
-            if v_written_tensor is not None and v_written_tensor in u_read_tensors:
-                adj_list[einsum_u_id].append(einsum_v_id)
-                adj_list[einsum_v_id].append(einsum_u_id)
-    return adj_list
-
-
-def get_intermediate_tensors(workload: LooptreeWorkload):
-    result = set()
+    ref_to_to_einsums = {}
     for einsum in workload.einsum_id_to_name():
-        written_tensors = workload.tensors_written_by_einsum(einsum)
-        for tensor in written_tensors:
-            reader_einsums = workload.reader_einsums(tensor)
-            for reader in reader_einsums:
-                if reader in workload.einsum_id_to_name():
-                    result.add(tensor)
-                    break
+        found = False
+        for from_einsum in ref_to_to_einsums:
+            rank_renaming, tensor_renaming = is_equivalent(from_einsum,
+                                                           einsum,
+                                                           workload,
+                                                           analyzer)
+            if rank_renaming is not None:
+                ref_to_to_einsums[from_einsum][einsum] = (rank_renaming,
+                                                            tensor_renaming)
+                found = True
+                break
+        if not found:
+            ref_to_to_einsums[einsum] = {}
+    return ref_to_to_einsums
 
-    return result
+
+def convert_rank_to_group_renaming(ref_to_to_einsums, equiv_ranks):
+    return {
+        ref: {
+            other: (_convert_rank_renaming(rank_renaming, equiv_ranks),
+                    tensor_renaming)
+            for other, (rank_renaming, tensor_renaming) in others.items()
+        }
+        for ref, others in ref_to_to_einsums.items()
+    }
+
+
+def _convert_rank_renaming(rank_renaming, equiv_ranks):
+    # The Tiling class uses string ids
+    return {
+        str(equiv_ranks.rank_to_group_id[r1])
+        :
+        str(equiv_ranks.rank_to_group_id[r2])
+        for r1, r2 in rank_renaming.items()
+    }
