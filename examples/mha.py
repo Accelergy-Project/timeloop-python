@@ -12,9 +12,10 @@ from tests.util import CONFIG_DIR, TEST_TMP_DIR
 
 
 class MhaExperiment:
-    WORKLOAD_TEMPLATE = "cascaded_mha.workload_template.yaml"
-    def __init__(self):
-        workload_fname = CONFIG_DIR / MhaExperiment.WORKLOAD_TEMPLATE
+    def __init__(self, workload_fname):
+        self.workload_fname = workload_fname
+        workload_fname = CONFIG_DIR / workload_fname
+        self.constraint_config = ''
         with open(workload_fname, "r", encoding="utf-8") as f:
             self.workload_template = f.read()
 
@@ -26,17 +27,34 @@ class MhaExperiment:
         with open(arch_fname, "r") as f:
             self.arch_config = f.read()
 
+    def configure_constraints(self, constraint_fname: str | Path):
+        constraint_fname = CONFIG_DIR / constraint_fname
+        with open(constraint_fname, "r") as f:
+            self.constraint_config = f.read()
+
+    def save_data(self):
+        self.data.to_csv(f'{self.workload_fname}.csv')
+
+    def load_data(self):
+        self.data = pd.read_csv(f'{self.workload_fname}.csv', index_col=0)
+
     def run_experiment(self):
-        config_str = self.workload_config + "\n" + self.arch_config
+        config_str = (
+            self.workload_config + "\n"
+            + self.arch_config + "\n"
+        )
         config = Config(config_str, "yaml")
+
+        config_str += self.constraint_config
         with open(TEST_TMP_DIR / "tmp.yaml", "w") as f:
             f.write(config_str)
         spec = Specification.from_yaml_files([TEST_TMP_DIR / "tmp.yaml"])
+
         result = mapper(config,
                         explore_glb_uneven=True,
                         spec=spec,
                         tmp_path=TEST_TMP_DIR)
-        self.data = explore_fusion(result)
+        self.data = explore_fusion(result)[["__Mappings", "Offchip_Ac", "Occupancy"]]
 
     def plot_ski_slope(self, **kwargs):
         fig, ax = plot_ski_slope(self.data, **kwargs)
