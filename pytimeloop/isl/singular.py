@@ -1,7 +1,12 @@
+from numbers import Number
+
 import islpy as isl
 
 
 def get_sum_of_pw_qpolynomial(pw_qp):
+    if isinstance(pw_qp, Number):
+        return pw_qp
+
     sum = get_value_from_singular_qpolynomial(isl.PwQPolynomial.sum(pw_qp))
     if sum.is_nan():
         return 0

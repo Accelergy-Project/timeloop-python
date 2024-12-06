@@ -25,6 +25,7 @@ def per_einsum_mapper_snowcat(
     energy_dict,
     ffmt=False,
     ffmt_refetch_weights=True,
+    dataflow_constraint=None
 ):
     data = {}
     for einsum_id in einsums_to_explore:
@@ -61,7 +62,8 @@ def per_einsum_mapper_snowcat(
                                        intermediate_tensors,
                                        tensor_to_relevant_ranks,
                                        einsum_id,
-                                       workload)
+                                       workload,
+                                       dataflow_constraint[einsum_id])
         else:
             subspaces = make_ffmt_subspaces(tensors,
                                             intermediate_tensors,

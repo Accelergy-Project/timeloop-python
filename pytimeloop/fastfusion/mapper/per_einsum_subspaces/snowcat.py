@@ -3,14 +3,15 @@ from .subspaces import (
     LinearMapping,
     make_storage,
     make_temporal_fors,
-    make_temporal_fors_with_smallest_tile,
 )
+from pytimeloop.fastfusion.mapper.constraints import DataflowConstraint
 
 def make_subspaces(tensors,
                    intermediate_tensors,
                    tensor_to_relevant_ranks,
                    einsum_id,
-                   workload):
+                   workload,
+                   dataflow_constraint: DataflowConstraint=None):
     def off_chip_storage(mapping):
         off_chip_must_retain = tensors - intermediate_tensors
         off_chip_can_retain = intermediate_tensors
@@ -28,7 +29,9 @@ def make_subspaces(tensors,
     all_ranks = list(sorted(workload.einsum_ospace_dimensions(einsum_id)))
 
     def fused_temporal_fors(mapping, unfused_tensors):
-        for partial_mapping in make_temporal_fors(mapping, all_ranks):
+        for partial_mapping in make_temporal_fors(mapping,
+                                                  all_ranks,
+                                                  dataflow_constraint=dataflow_constraint):
             # for partial_mapping in make_temporal_fors(mapping, all_ranks):
             # for partial_mapping in make_temporal_fors_with_smallest_tile(partial_mapping, all_ranks):
             # print(partial_mapping)

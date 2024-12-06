@@ -41,6 +41,14 @@ def mapper(
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
     equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
+    if "mapping_constraints" in spec:
+        dataflow_constraint = DataflowConstraint.parse(
+            spec["mapping_constraints"],
+            workload
+        )
+    else:
+        dataflow_constraint = DataflowConstraint.default(workload)
+
 
     if isinstance(tmp_path, Path):
         tmp_path = str(tmp_path)
@@ -68,6 +76,7 @@ def mapper(
         energy_dict=energy_dict,
         ffmt=ffmt,
         ffmt_refetch_weights=ffmt_refetch_weights,
+        dataflow_constraint=dataflow_constraint
     )
 
     generated_data = {}

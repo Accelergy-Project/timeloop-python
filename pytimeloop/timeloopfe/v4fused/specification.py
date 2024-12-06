@@ -50,6 +50,7 @@ class Specification(BaseSpecification):
             required_type=FusedProblem,
             default=[]
         )
+        super().add_attr("mapping_constraints", default={})
         super().add_attr("variables", Variables, {"version": 0.4})
         super().add_attr("globals", Globals, {"version": 0.4}, part_name_match=True)
         super().add_attr("ERT", Ert, {"version": 0.4, "tables": []})
