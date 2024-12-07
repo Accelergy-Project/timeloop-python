@@ -1,6 +1,4 @@
 from collections import defaultdict
-from functools import reduce
-from operator import mul
 
 import sympy
 
@@ -78,7 +76,8 @@ def compile_mapping(mapping,
                 tile_shapes.append(tile_shape)
             else:
                 tile_shape = node['tile_shape']
-            factor = einsum_shape[group_id] / tile_shape
+            factor = sympy.ceiling(einsum_shape[group_id] / tile_shape)
+            tile_shape = einsum_shape[group_id] / factor
             einsum_shape[group_id] = tile_shape
 
             latency *= factor
@@ -108,7 +107,8 @@ def compile_mapping(mapping,
                 tile_shapes.append(tile_shape)
             else:
                 tile_shape = node['tile_shape']
-            factor = einsum_shape[group_id] / tile_shape
+            factor = sympy.ceiling(einsum_shape[group_id] / tile_shape)
+            tile_shape = einsum_shape[group_id] / factor
             einsum_shape[group_id] = tile_shape
  
             for tensor_id in tensors:
