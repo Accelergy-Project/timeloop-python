@@ -94,6 +94,7 @@ def per_einsum_mapper_snowcat(
                     compiled_results,
                     max_capacity,
                     max_fanout,
+                    tensors=tensors,
                 )
                 # HACKY: Pop out the subspace object as the first in the iterator
                 shape_subspace = next(tile_shape_explorer)

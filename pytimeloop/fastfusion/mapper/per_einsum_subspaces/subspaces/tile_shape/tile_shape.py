@@ -13,11 +13,14 @@ def explore_tile_shape(
     compiled_result,
     max_capacity,
     max_fanout,
+    tensors,
     only_count=False
 ):
     ranks = []
     tile_constraints = []
     factor_constraints = []
+    tensors_not_found = set(tensors)
+    n_fusion_relevant_loops = None
     for node in mapping:
         if node["type"] in ["temporal", "spatial"] and "tile_shape" not in node:
             ranks.append(node["rank"])
@@ -27,8 +30,15 @@ def explore_tile_shape(
                 tile_constraint.append(node["tile_constraint"])
             if "factor_constraint" in node:
                 factor_constraint.append(node["factor_constraint"])
+            # if node["type"] == "temporal" and "factor_constraint" not in node and "tile_constraint" not in node:
+            #     factor_constraint.append(">1")
+
             tile_constraints.append(tile_constraint)
             factor_constraints.append(factor_constraint)
+        elif node["type"] == "storage" and tensors_not_found:
+            tensors_not_found -= set(node["dspace"])
+            if not tensors_not_found:
+                n_fusion_relevant_loops = len(ranks)
 
     num_tile_shapes = 0
     num_valid_tile_shapes = 0
@@ -38,6 +48,7 @@ def explore_tile_shape(
             ranks,
             tile_constraints=tile_constraints,
             factor_constraints=factor_constraints,
+            n_fusion_relevant_loops=n_fusion_relevant_loops
     ))
     yield shape_subspace
     for shape in shape_subspace:

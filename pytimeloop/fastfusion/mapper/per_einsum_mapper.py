@@ -99,6 +99,20 @@ def mapper_place_fusion_level(
             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
             explore_uneven=explore_pe_uneven,
         ):
+            found_storages = set()
+            fail = False
+            for i, p in enumerate(partial_mapping):
+                if p["type"] == "storage":
+                    found_storages |= set(p["dspace"])
+                if len(found_storages) < len(tensors) or i == 0:
+                    continue
+                prev = partial_mapping[i - 1]
+                for t in ["spatial"]: # "temporal", TEMPORAL DOESN"T WORK. WEIRD INTERACTIONS WITH LOOP RELEVANCE PRINCIPLE
+                    if p["type"] == t and prev["type"] == t and p["rank"] < prev["rank"]:
+                        fail = True
+                        # print(f'Skipping partial mapping: {partial_mapping}')
+            if fail:
+                continue
             for partial_mapping in make_mac_level_loops(
                 partial_mapping,
                 einsum_id,
@@ -112,18 +126,21 @@ def mapper_place_fusion_level(
                 _, compiled_results = compile_mapping(
                     partial_mapping, workload, analyzer
                 )
+                # print(f'Einsum {einsum_id} partial mapping: {partial_mapping}')
                 tile_shape_explorer = explore_tile_shape(
                     partial_mapping,
                     einsum_shape,
                     compiled_results,
                     max_capacity,
                     max_fanout,
+                    tensors=tensors,
                 )
                 # HACKY: Pop out the subspace object as the first in the iterator
                 shape_subspace = next(tile_shape_explorer)
 
                 for shape, res in tile_shape_explorer:
                     count += 1
+                    # print(f'Running partial mapping: {partial_mapping} with shape: {shape}')
                     is_pareto, results, fulltiling = process_result(
                         res,
                         shape,
@@ -140,7 +157,8 @@ def mapper_place_fusion_level(
                     )
                     if count % 1e4 == 0:
                         print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
-                    # shape_subspace.register_result(is_pareto, results)
+                    shape_subspace.register_result(is_pareto, results)
+    # assert False
     return einsum_id, data, count
 
 
@@ -216,12 +234,27 @@ def get_top_loop_jobs(
                     add_split_at_tensors=intermediate_tensors,
                     must_have_terminal_storage=True,  # GLB only opt.
                     logfunc=None
-                ):
+                ):                   
                     for partial_mapping in make_spatial_fors(  # PE spatial
                         partial_mapping,
                         all_ranks,
                         max_factor=pe_array_constraint.array_shape
                     ):
+                        # found_storages = set()
+                        # fail = False
+                        # for i, p in enumerate(partial_mapping):
+                        #     if p["type"] == "storage":
+                        #         found_storages |= set(p["dspace"])
+                        #     if len(found_storages) < len(tensors) or i == 0:
+                        #         continue
+                        #     prev = partial_mapping[i - 1]
+                        #     for t in ["temporal", "spatial"]:
+                        #         if p["type"] == t and prev["type"] == t and p["rank"] < prev["rank"]:
+                        #             fail = True
+                        #             print(f'Skipping partial mapping: {partial_mapping}')
+                        # if fail:
+                        #     continue
+                        print(f'Partial mapping: {partial_mapping}')
                         args.append(dict(
                             config=config,
                             pe_array_constraint=pe_array_constraint,
