@@ -45,17 +45,15 @@ def make_temporal_fors(mapping,
             raise NotImplementedError("Constraint not implemented")
 
     original = mapping.copy()
-    for r in top_ranks:
-        original.add_temporal(r)
-
-    for r in range(len(other_ranks) + 1):
-        for ordered_ranks in permutations(other_ranks, r=r):
-            mapping = original.copy()
-            if logfunc is not None:
-                logfunc(f"{ordered_ranks}")
-            for r in ordered_ranks:
-                mapping.add_temporal(r)
-            yield mapping
+    for i in range(len(top_ranks)+1):
+        for j in range(len(other_ranks) + 1):
+            for ordered_ranks in permutations(other_ranks, r=j):
+                mapping = original.copy()
+                for r in top_ranks[:i]:
+                    mapping.add_temporal(r)
+                for r in ordered_ranks:
+                    mapping.add_temporal(r)
+                yield mapping
 
 
 def make_temporal_fors_with_smallest_tile(original, ranks):

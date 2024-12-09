@@ -1,3 +1,4 @@
+from copy import deepcopy
 from functools import partial, reduce
 from operator import and_, or_
 
@@ -24,7 +25,7 @@ def infer_smallest_tile_shape(mapping,
     )
 
     ranks_relevant_to_unstored = relevant_ranks(unstored_tensor)
-    mapping = mapping.copy()
+    mapping = deepcopy(mapping)
     for node in mapping:
         if node["type"] == "temporal":
             rank = node["rank"]

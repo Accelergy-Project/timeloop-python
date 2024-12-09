@@ -61,8 +61,8 @@ def make_subspaces(tensors,
             yield partial_mapping
 
     def mac(mapping):
-            mapping.add_compute(einsum_id, 2)
-            yield mapping
+        mapping.add_compute(einsum_id, 2)
+        yield mapping
 
     return [
         lambda: [LinearMapping()],
