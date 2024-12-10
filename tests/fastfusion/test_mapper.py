@@ -3,15 +3,11 @@ import sys
 import unittest
 import logging
 
-from bindings.looptree import LooptreeWorkload
-
-from pytimeloop.fastfusion.mapper.mapper2 import mapper, PeArrayConstraint, MacArrayConstraint
+from pytimeloop.fastfusion.mapper.mapper import mapper, PeArrayConstraint, MacArrayConstraint
 from pytimeloop.fastfusion.mapper.mapper_snowcat import mapper as mapper_snowcat
 
 from tests.load_config_mixin import LoadConfigMixin
 from tests.util import TEST_TMP_DIR
-
-from tests.load_config_mixin import CONFIG_DIR
 
 class TestMapper(LoadConfigMixin, unittest.TestCase):
     def test_mapper(self):
