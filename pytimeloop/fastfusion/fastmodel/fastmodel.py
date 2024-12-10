@@ -1,4 +1,6 @@
 from collections import defaultdict
+from functools import reduce
+from operator import mul
 
 import sympy
 
@@ -51,6 +53,8 @@ def compile_mapping(mapping,
         }
         for tensor_id, relevant_ranks in tensor_to_relevant_ranks.items()
     }
+
+    level_to_op_intensity = {}
 
     tile_shapes = []
 
@@ -140,6 +144,12 @@ def compile_mapping(mapping,
                 if cur_fanout is None:
                     cur_fanout = [1]
 
+                output.op_intensity[target] = (
+                    sum(tensor_size.values())
+                    /
+                    reduce(mul, einsum_shape.values(), 1)
+                )
+
                 output.occupancy[(target, tensor_id)] = tensor_size[tensor_id]
 
                 output.fills[(target, tensor_id, einsum_id)] = (
@@ -216,5 +226,6 @@ def compile_mapping(mapping,
     output.occupancy = lambdify(output.occupancy)
     output.fills = lambdify(output.fills)
     output.reads_to_parent = lambdify(output.reads_to_parent)
+    output.op_intensity = lambdify(output.op_intensity)
 
     return tile_shapes, output

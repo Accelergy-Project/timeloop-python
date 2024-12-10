@@ -19,7 +19,7 @@ class Metrics(Flag):
 
     @classmethod
     def all_metrics(cls):
-        return reduce(or_, iter(cls), cls.LATENCY)
+        return reduce(or_, iter(cls), cls.LATENCY) ^ Metrics.OP_INTENSITY
 
 
 def process_result(
@@ -147,6 +147,9 @@ def process_result(
         fulltiling.append(f"E={results['Energy']:.2e}")
 
     results[MAPPING] = {einsum_id: str(fulltiling)}
+
+    if Metrics.OP_INTENSITY in metrics:
+        results["Op_Intensity"] = result.op_intensity[1]
     
     is_pareto = True
     for prev_stats in compatibility_to_df[tiling]:

@@ -13,6 +13,7 @@ class LooptreeOutput:
         self.reads_to_parent = {}
         self.temporal_steps = {}
         self.fanout = {}
+        self.op_intensity = {}
 
     def __repr__(self):
         return (

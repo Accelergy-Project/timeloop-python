@@ -63,6 +63,7 @@ def explore_tile_shape(
         result.occupancy = call_with_arg(compiled_result.occupancy, shape)
         result.fills = call_with_arg(compiled_result.fills, shape)
         result.reads_to_parent = call_with_arg(compiled_result.reads_to_parent, shape)
+        result.op_intensity = call_with_arg(compiled_result.op_intensity, shape)
 
         skip = False
 
