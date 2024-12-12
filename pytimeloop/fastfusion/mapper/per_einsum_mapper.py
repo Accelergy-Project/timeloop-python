@@ -155,7 +155,7 @@ def mapper_place_fusion_level(
                     )
                     if count % 1e4 == 0:
                         print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
-                    shape_subspace.register_result(is_pareto, results)
+                    # shape_subspace.register_result(is_pareto, results)
     # assert False
     return einsum_id, data, count
 
