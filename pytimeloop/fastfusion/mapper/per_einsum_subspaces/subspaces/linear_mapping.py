@@ -24,10 +24,20 @@ class LinearMapping:
             {"type": "compute", "einsum": einsum_name, "target": target}
         )
 
-    def add_temporal(self, rank_name, tile_shape=None):
+    def add_temporal(
+        self,
+        rank_name,
+        tile_shape=None,
+        tile_shape_constraint=None,
+        factor_constraint=None,
+    ):
         node = {"type": "temporal", "rank": rank_name}
         if tile_shape is not None:
             node["tile_shape"] = tile_shape
+        if tile_shape_constraint is not None:
+            node["tile_constraint"] = tile_shape_constraint
+        if factor_constraint is not None:
+            node["factor_constraint"] = factor_constraint
         self.mapping.append(node)
 
     def add_spatial(
@@ -41,7 +51,7 @@ class LinearMapping:
         if tile_shape is not None:
             node["tile_shape"] = tile_shape
         if tile_shape_constraint is not None:
-            node["tile_shape_constraint"] = tile_shape_constraint
+            node["tile_constraint"] = tile_shape_constraint
         if factor_constraint is not None:
             node["factor_constraint"] = factor_constraint
         self.mapping.append(node)
