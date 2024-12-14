@@ -101,6 +101,11 @@ def mapper_place_fusion_level(
             fail = False
             for i, p in enumerate(partial_mapping):
                 if p["type"] == "storage":
+                    for t in set(p["dspace"]) - found_storages:
+                        for p2 in partial_mapping[:i]:
+                            if p2["type"] in ["temporal", "spatial"] and p2["rank"] not in tensor_to_relevant_ranks[t]:
+                                fail = True
+                                break
                     found_storages |= set(p["dspace"])
                 if len(found_storages) < len(tensors) or i == 0:
                     continue
