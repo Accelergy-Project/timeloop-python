@@ -58,29 +58,34 @@ def process_result(
     tensors = []
     found_tensors = []
     reservations = {}
+    reservations_fulltiling = []
     found_intermediate_tensors = 0
     
     def record_backing_storage(dspace, target, n_loops):
+        # Returns true if it's the backing storage
         if dspace in found_tensors:
-            return
+            return False
         
         nonlocal found_intermediate_tensors
-        tensors.append(TensorStorage(dspace, target, n_loops, 0))
+        tensors.append(TensorStorage(dspace, target, n_loops, result.occupancy[(target, dspace)]))
         found_tensors.append(dspace)
         if dspace in intermediate_tensors:
             found_intermediate_tensors += 1
+        return True
 
-    def record_reservation(dspace, target, n_loops):
+    def record_non_backing_reservation(dspace, target, n_loops):
         reservations.setdefault((target, n_loops), 0)
         reservations[(target, n_loops)] += result.occupancy[(target, dspace)]
-
 
     fulltiling = []
     for node in mapping:
         if node["type"] == "storage":
             for dspace in node["dspace"]:
-                record_backing_storage(dspace, node["target"], len(cur_loops))
-                record_reservation(dspace, node["target"], len(cur_loops))
+                if not record_backing_storage(dspace, node["target"], len(cur_loops)):
+                    record_non_backing_reservation(dspace, node["target"], len(cur_loops))
+                reservations_fulltiling.append(
+                    TensorStorage(dspace, node["target"], len(cur_loops), result.occupancy[(node["target"], dspace)])
+                )
             fulltiling.append(f"Strg({node['dspace']} in {node['target']})")
 
         elif node["type"] == "spatial" or node["type"] == "temporal":
@@ -136,15 +141,24 @@ def process_result(
             key = nameloop2col(storage_id, n_loops)
             results.setdefault(key, 0)
             results[key] += size
-        for r in results:
-            if "RESOURCE" in r:
-                fulltiling.append(f"{r.replace('RESOURCE', 'R')}={results[r]:.2e}")
+        # for r in results:
+        #     if "RESOURCE" in r:
+        #         fulltiling.append(f"{r.replace('RESOURCE', 'R')}={results[r]:.2e}")
 
     if Metrics.LATENCY in metrics:
         fulltiling.append(f"L={results['Latency']:.2e}")
 
     if Metrics.ENERGY in metrics:
         fulltiling.append(f"E={results['Energy']:.2e}")
+        
+    # for r in reservations_fulltiling:
+    #     fulltiling.append(str(r))
+    
+    for r in reservations_fulltiling:
+        r: TensorStorage
+        key = nameloop2col(r.backer_id, r.above_loop_index)
+        results.setdefault(key, 0)
+        results[key] += size
 
     results[MAPPING] = {einsum_id: str(fulltiling)}
 

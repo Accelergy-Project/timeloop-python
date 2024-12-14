@@ -68,10 +68,10 @@ class TensorStorage:
         return self.tile_size
 
     def __str__(self):
-        return f"{self.tensor_id}({self.backer_id},{self.above_loop_index})"
+        return f"{self.tensor_id} sz {self.tile_size} in {self.backer_id} above {self.above_loop_index} "
 
     def __repr__(self):
-        return f"{self.tensor_id}({self.backer_id},{self.above_loop_index})"
+        return self.__str__()
 
 
 @dataclass(frozen=True)
@@ -102,11 +102,14 @@ class Tiling:
     def __hash__(self):
         return hash((self.loops, self.tensors))
 
-    def clear_dead_tensors(self, live_tensors: set[str]) -> "Tiling":
-        return Tiling(
-            self.loops[: self.shared_loop_index(live_tensors) + 1],
-            tuple(t for t in self.tensors if t.tensor_id in live_tensors),
-        )
+    def clear_dead_tensors(
+        self, 
+        live_tensors: set[str],
+        keep_loops: bool = False
+    ) -> "Tiling":
+        loops = self.loops if keep_loops else self.loops[: self.shared_loop_index(live_tensors) + 1]
+        tensors = tuple(t for t in self.tensors if t.tensor_id in live_tensors)
+        return Tiling(loops, tensors)
 
     def __lt__(self, other):
         return self.loops < other.loops
@@ -117,6 +120,11 @@ class Tiling:
     
     def __repr__(self):
         return self.__str__()
+    
+    def absorb_tensors(self, prev: "Tiling", live_tensors: set[str]) -> "Tiling":
+        tensors = fzs(t for t in (prev.tensors | self.tensors) if t.tensor_id in live_tensors)
+        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, prev])
+        return Tiling(self.loops[:shared_loop_index+1], tensors)
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -139,41 +147,23 @@ class SIM:
         return set(self.tensors)
 
     def _free_tensor(self, tensor_id: str):
-        self.tensors.pop(tensor_id)
+        t = self.tensors.pop(tensor_id)
+        self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
 
     def copy(self) -> "SIM":
         return SIM(self.tiling, self.mapping.copy())
 
-    def merge_next(self, n: "SIM", implied_tensors: set[str], live_tensors: set[str], resource2capacity: dict[str, int], delay: bool=False) -> "SIM":
+    def merge_next(self, n: "SIM", live_tensors: set[str], resource2capacity: dict[str, int], delay: bool=False) -> "SIM":
         shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
-        next_shared_loop_index = n.tiling.shared_loop_index(live_tensors)
-        tiling = n.tiling
+        tiling = n.tiling.absorb_tensors(self.tiling, live_tensors)
+        next_shared_loop_index = tiling.shared_loop_index(live_tensors)
         mapping = self.mapping.merge(n.mapping, shared_loop_index, next_shared_loop_index, resource2capacity, delay=delay)
         s = SIM(tiling, mapping)
+        assert len(tiling.loops) == next_shared_loop_index + 1, f"{self.tiling} {n.tiling} {next_shared_loop_index + 1} -> {tiling} {len(tiling.loops)}"
         s.tensors.update(n.tensors)
         s.tensors.update(self.tensors)
-        assert not implied_tensors, "TODO"
         return s
-        
-        self.tiling = n.tiling
-        # TODO: This copy() may not be needed because we squish together left mapping,
-        # so each right mapping will be merged with only one?
-        self.mapping = self.mapping.merge(n.mapping, shared_loop_index, delay=delay)
-        self.tensors.update(n.tensors)
 
-        for t in implied_tensors:
-            assert (
-                False  # This is only for residuals. WRITE TESTS FOR THE FOLLOWING CODE
-            )
-            # If the tensor is stored above a shared loop, then it is already in shared
-            # storage for the existing mapping. Otherwise, we should allocate it in
-            # the new mapping.
-            if self.tensors[t].above_loop_index > shared_loop_index:
-                for m in self.mapping[-len(n.mapping) :]:
-                    m.alloc(
-                        t, self.tensors[t].tile_size, self.tensors[t].above_loop_index
-                    )
-                    
     def _limit_capacity(self, resource2capacity: dict[str, int]):
         if resource2capacity is None:
             return
@@ -184,44 +174,14 @@ class SIM:
         return self.tiling.shared_loop_index(live_tensors)
 
     def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None):
+        dead_tensors = set(self.tensors) - (next_live_tensors or set())
+        for t in dead_tensors:
+            self._free_tensor(t)
         if next_live_tensors is None:
             self.mapping.free_to_loop_index(0)
             self.mapping.squish_left_right()
-        self._limit_capacity(resource2capacity)
-        return
-        if len(self) <= 1:
-            self._limit_capacity(resource2capacity)
-            return
-
-        # Can merge mapping that have the same # of co-tiled loops as total loops
-        tl = self.tiling
-        live_tensors = [t.tensor_names for t in tl] + [next_live_tensors]
-        shared_loop_index = [
-            tl[i].shared_loop_index(live_tensors[i + 1]) for i in range(len(tl))
-        ]
-        i = 0
-        while i < len(shared_loop_index) - 1:
-            if shared_loop_index[i] >= shared_loop_index[i + 1]:
-                assert i == 0 or shared_loop_index[i - 1] < shared_loop_index[i]
-                self.tiling.pop(i)
-                m0, m1 = self.mapping.pop(i), self.mapping.pop(i)
-                shared_index = shared_loop_index.pop(i)
-                m0.free_to_loop_index(shared_index+1)
-                m1.free_to_loop_index(shared_index+1)
-                self.mapping.insert(i, m0.merge(m1, shared_index))
-                self._limit_capacity(resource2capacity, i)
-                i = max(0, i - 1)
-            else:
-                i += 1
-        if len(self.mapping) == 1:
-            self.mapping.free_to_loop_index(shared_loop_index[0]+1)
-        self._limit_capacity(resource2capacity)
-
-    def clear_dead_tensors(self, live_tensors: set[str]):
-        dead_tensors = set(self.tensors) - live_tensors
-        for t in dead_tensors:
-            self._free_tensor(t)
-        self.tiling = self.tiling.clear_dead_tensors(live_tensors)
+        shared_loop_index = self.tiling.shared_loop_index(next_live_tensors)
+        self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
@@ -236,10 +196,10 @@ class SIM:
         return SIM(sims[0].tiling, Pareto.concat([s.mapping for s in sims]))
 
     @staticmethod
-    def _group(sims: list["SIM"], live_tensors: set[str]) -> dict[tuple[Tiling, ...], list["SIM"]]:
+    def _group(sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
-            grouped[s.tiling.clear_dead_tensors(live_tensors)].append(s)
+            grouped[s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops)].append(s)
         return grouped
 
     @staticmethod
@@ -247,9 +207,9 @@ class SIM:
         return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
 
     def group_by_right(
-        sims: list["SIM"], live_tensors: set[str]
+        sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors)
+        return SIM._group(sims, live_tensors, keep_loops)
 
     def group_by_left(
         sims: list["SIM"], live_tensors: set[str]
@@ -337,8 +297,8 @@ class TestSIM(unittest.TestCase):
 
         sims2 = copy.deepcopy(sims)
         while len(sims) > 1:
-            sims[0].merge_next(sims.pop(1), set())
-            sims2[0].merge_next(sims2.pop(1), set())
+            sims[0].merge_next(sims.pop(1))
+            sims2[0].merge_next(sims2.pop(1))
             sims2[0].consolidate(set().union(*[s.tensor_names for s in sims2]))
         sims[0].consolidate()
         sims2[0].consolidate()

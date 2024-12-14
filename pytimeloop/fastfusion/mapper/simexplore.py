@@ -15,43 +15,33 @@ def explore_fusion(einsum_to_result: Mapping, resource2capacity: dict=None):
     for einsum_id, compat_dict in einsum_to_result.items():
         r2[einsum_id] = Parallel(n_jobs=1)(delayed(paretofy)(k, v) for k, v in compat_dict.items())
 
-    # for einsum_id, compat_dict in result.items():
-    #     r2[einsum_id] = [SIM(k, Pareto(pd.DataFrame(v).fillna(0))) for k, v in compat_dict.items()]
-        
     sims = list(r2.values())
     s = sims.pop(0)
 
-
     while sims:
-        # print("\n\n")
-        # print("\n\n" + "=" * 100 + f"\n{len(sims) + 1} Remaining\n" + "=" * 100)
         live_tensors = set.union(set(), *[sim[0].tensor_names for sim in sims])
         ns = sims.pop(0)
         next_live_tensors = set.union(set(), *[sim[0].tensor_names for sim in sims])
-
         for s2 in s:
             s2.consolidate(live_tensors, resource2capacity)
-        next_next_live_tensors = next_live_tensors | s[0].tensor_names
-        ns = SIM.combine_combineable(ns, next_next_live_tensors)
+        next_and_prev_live_tensors = next_live_tensors | s[0].tensor_names
+        first_ns = ns[0]
+        ns = SIM.combine_combineable(ns, next_and_prev_live_tensors)
         ns = SIM.group_by_left(ns, s[0].tensor_names)
-        # for s2 in ns:
-        #     s2.consolidate(live_tensors, resource2capacity)
-        # print(f"\tNEXT: Combined by {sorted(next_next_live_tensors)}")
-        # print(f"\tNEXT: Grouped by {sorted(s[0].tensor_names)}")
-        # print(f"\tPREV: Combined by {sorted(live_tensors)}")
-        # print(f"\tPREV: Grouped by {sorted(live_tensors)}")
         s = SIM.combine_combineable(s, live_tensors)
-        s = SIM.group_by_right(s, live_tensors)
+        s = SIM.group_by_right(s, first_ns.tensor_names, keep_loops=True)
 
-        DO_PRINT = False
+        DO_PRINT = True
 
         combined: list[SIM] = []
         for k in s:
             if k in ns:
                 for a, b in itertools.product(s[k], ns[k]):
+                    s: SIM
+                    ns: SIM
                     if DO_PRINT:
-                        print(f"\t{a.tiling_str()} {a.get_shared_loop_index(live_tensors)} <--> {b.tiling_str()}{b.get_shared_loop_index(next_next_live_tensors)}. ({len(a.mapping.data)})x({len(b.mapping.data)})")
-                    combined.append(a.merge_next(b, set(), next_live_tensors, resource2capacity, delay=True))
+                        print(f"\t{a.tiling_str()} {a.get_shared_loop_index(live_tensors)} <--> {b.tiling_str()}{b.get_shared_loop_index(next_and_prev_live_tensors)}. ({len(a.mapping.data)})x({len(b.mapping.data)})")
+                    combined.append(a.merge_next(b, next_live_tensors, resource2capacity, delay=True))
             elif DO_PRINT:
                 print(f"\tNo match for {k} ||||||||| {s[k][0].tiling_str()}")
 

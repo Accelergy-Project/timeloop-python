@@ -116,7 +116,7 @@ def squish_left_right(data: pd.DataFrame):
     keepcols = [c for c in data.columns if not is_left_col(c)]
     return data[keepcols]
 
-def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int) -> pd.DataFrame:
+def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: bool=False) -> pd.DataFrame:
     nloops2left = defaultdict(set)
     nloops2right = defaultdict(set)
     for c in data.columns:
@@ -152,21 +152,21 @@ def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int) -> pd.DataFra
                 keepcols.append(c)
         else:
             keepcols.append(c)
-                
+            
+    if not skip_pareto:
+        return makepareto(data[keepcols])
     return data[keepcols]
 
 
 def merge_cross(
     left: pd.DataFrame,
     right: pd.DataFrame,
-    shared_loop_index: int,  # -1 -> no shared loops, 0 -> outermost...
-    next_shared_loop_index: int,
+    shared_loop_index: int,  
+    next_shared_loop_index: int, # -1 -> no shared loops, 0 -> outermost...
     resource2capacity: dict[str, int],
     as_pareto: bool = False,
 ) -> pd.DataFrame:
-    left = makepareto(free_to_loop_index(left, shared_loop_index + 1))
-    right = makepareto(right)
-
+    left = free_to_loop_index(left, shared_loop_index + 1)
     df = pd.merge(left, right, how="cross", suffixes=MERGE_SUFFIXES)
     shared_columns = set(left.columns) & set(right.columns) - set([MAPPING])
 
@@ -228,15 +228,7 @@ def merge_cross(
                 df = df[df[colname] <= capacity]
             del df[colname]
   
-    # import time
-    # t0 = time.time()
     df2 = makepareto(df)
-    # t1 = time.time()
-    # if t1 - t0 > 2:
-    #     print("Took", t1 - t0, "seconds")
-    #     df2 = makepareto(df)
-        # df2.to_csv("slow.csv")
-
     df = df2
 
     # Merge mappings
@@ -245,12 +237,7 @@ def merge_cross(
         df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
     else:
         df[MAPPING] = []
-    # try:
-    #     df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
-    # except:
-    #     merge_cross(left, right, shared_loop_index, next_shared_loop_index, resource2capacity, as_pareto=True)
     df = df[[c for c in df.columns if not is_merge_col(c)]]
-
     # Assert no NaNs
     assert not df.isnull().values.any()
     
@@ -277,9 +264,12 @@ class Pareto:
         df = pd.DataFrame({OCCUPANCY: [1, 2], MAPPING: [{"A": "A"}] * 2})
         return Pareto(df)
 
-    def free_to_loop_index(self, n: int) -> "Pareto":
-        self.data = free_to_loop_index(self.data, n)
+    def free_to_loop_index(self, n: int, resource2capacity: Optional[dict[str, Optional[int]]]=None) -> "Pareto":
+        self.data = free_to_loop_index(self.data, n, skip_pareto=True)
+        if resource2capacity is not None:
+            self.limit_capacity(resource2capacity)
         self.data = makepareto(self.data)
+        
 
     def alloc(self, resource_name: str, size: int, above_loop_index: int):
         n = nameloop2col(resource_name, above_loop_index)
