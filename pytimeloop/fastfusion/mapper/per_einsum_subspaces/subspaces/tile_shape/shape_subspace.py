@@ -14,12 +14,14 @@ def parse_constraint(constraint_str: str):
         return lambda x: x >= limit
     elif comparison == '>':
         return lambda x: x > limit
-    if comparison == '<=':
+    elif comparison == '<=':
         return lambda x: x <= limit
     elif comparison == '<':
         return lambda x: x < limit
     elif comparison == '==':
         return lambda x: x == limit
+    else:
+        raise RuntimeError(f'Unknown comparison operator {comparison}')
 
 
 class ShapeSubspace:
@@ -49,6 +51,7 @@ class ShapeSubspace:
         self.position_to_last = {}
         self.n_fusion_relevant_loops = n_fusion_relevant_loops
         self.fill_position_to_next()
+        # print(f'Made shape subspace with tile constraints {self.tile_constraints} and factor constraints {self.factor_constraints}')
 
     def fill_position_to_next(self):
         self.rank_to_last = {}
@@ -180,15 +183,13 @@ class ShapeSubspaceIterator:
 
         def gen(shape, tile_constraints, factor_constraints):
             if shape == 1:
-                return [1]
+                res = [(1, 1)]
             else:
-                res = [
-                    s for s in
-                    integer_factorizations_to_n_parts(shape, 2)
-                ][:-1]
-                res = [i for i in res if all(c(i[0]) for c in tile_constraints)]
-                res = [i for i in res if all(c(i[1]) for c in factor_constraints)]
-                return [i[0] for i in res]
+                res = list(integer_factorizations_to_n_parts(shape, 2))[:-1]
+            res = [i for i in res if all(c(i[0]) for c in tile_constraints)]
+            res = [i for i in res if all(c(i[1]) for c in factor_constraints)]
+            res = [i[0] for i in res]
+            return res
 
         for _ in shape_subspace.ranks:
             choice_generators.append(gen)
@@ -230,7 +231,7 @@ class ShapeSubspaceIterator:
     def move_iterator(self, idx):
         val = next(self.choice_iterators[idx])
         # If none of the new pareto points are better than the previous pareto points, then we can stop
-        if self.paretos[idx] and self.prev_paretos[idx] and idx > self.n_fusion_relevant_loops:
+        if self.paretos[idx] and self.prev_paretos[idx] and idx > self.n_fusion_relevant_loops: # Remove self.paretos[idx] and it'll stop if the first iteration of all inner loops fails.
             if not any(check_add_to_pareto(r, self.prev_paretos[idx]) for r in self.paretos[idx]):
                 # print(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
                 # to_print = []
