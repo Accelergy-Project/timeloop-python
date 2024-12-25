@@ -1,8 +1,13 @@
 import copy
+import io
 from numbers import Number
 import os
+import re
 from typing import Any, Dict, Tuple, List, Union
 import yaml
+
+
+LEVEL_PATTERN = re.compile("=== (?P<level>.*) ===")
 
 
 def parse_stats_file(path: str) -> Tuple[int, int, float, dict]:
@@ -15,7 +20,21 @@ def parse_stats_file(path: str) -> Tuple[int, int, float, dict]:
         Tuple[int, int, float, dict]: The cycles, computes, percent utilization, and energy.
 
     """
-    lines = open(path, "r").readlines()
+    with open(path, 'r') as f:
+        return parse_stats_stream(f)
+
+
+def parse_stats_stream(stream: io.TextIOBase):
+    """
+    Parse a stream of stats file from Timeloop.
+    Args:
+        stream: the stream containing the stats
+
+    Returns:
+        Tuple[int, int, float, dict]: The cycles, computes, percent utilization, and energy.
+
+    """
+    lines = stream.readlines()
     cycles, computes, util, energy = None, None, None, {}
     for i, l in enumerate(lines):
         if "Computes =" in l:
@@ -26,9 +45,9 @@ def parse_stats_file(path: str) -> Tuple[int, int, float, dict]:
         if "Utilization" in l:
             util = float(l.split()[-1][:-1]) / 100
 
-    assert cycles is not None, f"Could not find cycles in stats at {path}."
-    assert computes is not None, f"Could not find computes in stats at {path}."
-    assert util is not None, f"Could not find percent_utilization in stats at {path}."
+    assert cycles is not None, f"Could not find cycles in stats."
+    assert computes is not None, f"Could not find computes in stats."
+    assert util is not None, f"Could not find percent_utilization in stats."
 
     for l in lines[i + 1 :]:
         if "=" in l:
@@ -37,7 +56,26 @@ def parse_stats_file(path: str) -> Tuple[int, int, float, dict]:
                 continue
             energy[e.strip()] = float(v.strip()) * computes / 1e15
 
-    return cycles, computes, util, energy
+    accesses = {}
+    cur_level = None
+    for line in lines:
+        match = LEVEL_PATTERN.match(line)
+        if match is not None:
+            cur_level = match.group('level')
+            accesses[cur_level] = {}
+        
+        line = line.strip()
+        if line.startswith("Actual scalar reads"):
+            reads = float(line.split(":")[1].strip())
+            accesses[cur_level]['reads'] = reads
+        elif line.startswith("Actual scalar fills"):
+            fills = float(line.split(":")[1].strip())
+            accesses[cur_level]['fills'] = fills
+        elif line.startswith("Actual scalar updates"):
+            updates = float(line.split(":")[1].strip())
+            accesses[cur_level]['updates'] = updates
+
+    return cycles, computes, util, energy, accesses
 
 
 def get_area_from_art(path: str) -> dict:
@@ -107,6 +145,7 @@ class OutputStats:
         per_component_energy: Dict[str, float],
         per_component_area: Dict[str, float],
         variables: dict,
+        accesses: dict,
         mapping: str = "",
     ):
         self.percent_utilization: float = percent_utilization
@@ -134,6 +173,7 @@ class OutputStats:
             self.computes_per_second / self.area
         )
         self.computes_per_joule: float = self.computes / self.energy
+        self.accesses = accesses
         self.mapping: str = mapping
 
     def scale_computes_by(self, factor: float):
@@ -164,6 +204,13 @@ class OutputStats:
                 results["per_component_energy"][k] = (
                     results["per_component_energy"].get(k, 0) + v
                 )
+        results["accesses"] = {}
+        for t in tests:
+            for k, v in t.accesses.items():
+                accumulator = results["accesses"].get(k, {})
+                for metric in ["reads", "fills", "updates"]:
+                    accumulator[metric] += v[metric]
+                results["accesses"][k] = accumulator
 
         # Weighted average
         results["percent_utilization"] = (
@@ -413,7 +460,8 @@ def parse_timeloop_output(
     stats_path = os.path.join(output_dir, f"{prefix}.stats.txt")
     art_path = os.path.join(output_dir, f"{prefix}.ART.yaml")
 
-    cycles, computes, percent_utilization, energy = parse_stats_file(stats_path)
+    cycles, computes, percent_utilization, energy, accesses = \
+        parse_stats_file(stats_path)
     area = get_area_from_art(art_path)
 
     for k in list(area.keys()) + list(energy.keys()):
@@ -445,5 +493,6 @@ def parse_timeloop_output(
         per_component_energy=energy,
         per_component_area=area,
         variables=spec.variables,
+        accesses=accesses,
         mapping=mapping,
     )
