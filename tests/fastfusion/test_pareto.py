@@ -6,7 +6,7 @@ from pytimeloop.fastfusion.pareto import *
 class ParetoTest(unittest.TestCase):
     def test_pareto(self):
         od1 = OpData(fzs(["A"]))
-        data = pd.DataFrame({"A": [1, 2], OCCUPANCY: [2, 1], MAPPING: [{"A": "A"}] * 2})
+        data = pd.DataFrame({"A": [1, 2], OCCUPANCY: [2, 1], LOGSTRING: [{"A": "A"}] * 2})
         Pareto({od1: data})
 
     def test_vertical_combine(self):
@@ -16,7 +16,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
                 OCCUPANCY: [3, 3, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
         od2 = OpData(fzs(["A"]))
@@ -25,7 +25,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
                 OCCUPANCY: [3, 3, 1],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
         od3 = OpData(fzs(["B"]))
@@ -49,7 +49,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
                 OCCUPANCY: [3, 3, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
         od2 = OpData(fzs(["B"]))
@@ -58,7 +58,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
                 OCCUPANCY: [3, 3, 1],
-                MAPPING: [{"B": "B"}] * 3,
+                LOGSTRING: [{"B": "B"}] * 3,
             }
         )
 
@@ -77,7 +77,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
                 OCCUPANCY: [3, 3, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
         od2 = OpData(fzs(["B"]))
@@ -86,7 +86,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
                 OCCUPANCY: [3, 3, 1],
-                MAPPING: [{"B": "B"}] * 3,
+                LOGSTRING: [{"B": "B"}] * 3,
             }
         )
         p = Pareto({od1: data1, od2: data2})
@@ -112,7 +112,7 @@ class ParetoTest(unittest.TestCase):
                 OCCUPANCY: [3, 3, 3],
                 DATA_SIZE("T1"): [1, 2, 3],
                 NUM_ELEMS("T1"): [3, 2, 1],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
         od2 = OpData(fzs(["B"]), fzs(["T1"]))
@@ -123,7 +123,7 @@ class ParetoTest(unittest.TestCase):
                 OCCUPANCY: [3, 3, 1],
                 DATA_SIZE("T1"): [2, 2, 2],
                 NUM_ELEMS("T1"): [1, 1, 1],
-                MAPPING: [{"B": "B"}] * 3,
+                LOGSTRING: [{"B": "B"}] * 3,
             }
         )
         p = Pareto({od1: data1, od2: data2})
