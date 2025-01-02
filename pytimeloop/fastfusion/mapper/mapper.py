@@ -19,7 +19,7 @@ from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import get_top_loop_jobs, mapper_place_fusion_level
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
-from pytimeloop.fastfusion.pareto import MAPPING
+from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -37,7 +37,8 @@ def mapper(
 ):
     logger.info(f"Calling mapper for {spec}")
 
-    log_queue, log_queue_listener = make_queue_and_listener()
+    # log_queue, log_queue_listener = make_queue_and_listener()
+    log_queue, log_queue_listener = None, None
 
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -75,7 +76,11 @@ def mapper(
     print(f'Number of jobs: {len(args)}')
     n_workers = 64
     logger.debug(f"Starting {n_workers} workers")
-    log_queue_listener.start()
+    if log_queue_listener is not None:
+        log_queue_listener.start()
+        
+    # for a in args:
+    #     mapper_place_fusion_level(**a)
     
     result = Parallel(n_jobs=n_workers)(
         delayed(mapper_place_fusion_level)(**a) for a in args
@@ -91,8 +96,8 @@ def mapper(
                 
         total += count
     print(f"Total number of mappings: {total}")
-        
-    log_queue_listener.stop()
+    if log_queue_listener is not None:
+        log_queue_listener.stop()
     logger.info(f"Mapper finished for {spec}")
 
     generated_data = {}
@@ -131,22 +136,17 @@ def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_
 
 def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
     return Tiling(
-        loops=tuple(Loop(rank_renaming[l.rank_id], l.bound, l.is_spatial)
-                    for l in tiling.loops),
-        tensors=frozenset(TensorStorage(tensor_renaming[ts.tensor_id],
-                                        ts.backer_id,
-                                        ts.above_loop_index,
-                                        ts.tile_size)
-                          for ts in tiling.tensors)
+        loops=tuple(l.rename(rank_renaming, tensor_renaming) for l in tiling.loops),
+        tensors=frozenset(ts.rename(rank_renaming, tensor_renaming) for ts in tiling.tensors),
     )
 
 
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
     stats = deepcopy(stats)
     for s in stats:
-        s[MAPPING][to_einsum] = s[MAPPING].pop(from_einsum)
+        s[LOGSTRING][to_einsum] = s[LOGSTRING].pop(from_einsum)
+        s[MAPPING][to_einsum] = s[MAPPING].pop(from_einsum).rename(rank_renaming, tensor_renaming)
     return stats
-    
 
 
 def detect_similar_einsums(workload, analyzer, return_all_as_unique=False):

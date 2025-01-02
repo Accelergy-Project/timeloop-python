@@ -2,11 +2,12 @@ from collections import defaultdict
 import copy
 from dataclasses import dataclass
 from functools import cached_property
+import struct
 from typing import Any, Iterable, Optional
 
 import pandas as pd
 
-from .pareto import Pareto, MAPPING, nameloop2col
+from .pareto import Pareto, LOGSTRING, nameloop2col
 from .util import fzs
 
 # Abstractions:
@@ -49,6 +50,8 @@ class Loop:
     def __str__(self):
         return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
 
+    def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "Loop":
+        return Loop(rank_renaming[self.rank_id], self.bound, self.is_spatial)
 
 @dataclass(frozen=True)
 class TensorStorage:
@@ -72,6 +75,9 @@ class TensorStorage:
 
     def __repr__(self):
         return self.__str__()
+    
+    def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "TensorStorage":
+        return TensorStorage(tensor_renaming[self.tensor_id], self.backer_id, self.above_loop_index, self.tile_size)
 
 
 @dataclass(frozen=True)
@@ -125,6 +131,12 @@ class Tiling:
         tensors = fzs(t for t in (prev.tensors | self.tensors) if t.tensor_id in live_tensors)
         shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, prev])
         return Tiling(self.loops[:shared_loop_index+1], tensors)
+    
+    def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "Tiling":
+        return Tiling(
+            tuple(l.rename(rank_renaming, tensor_renaming) for l in self.loops), 
+            fzs(t.rename(rank_renaming, tensor_renaming) for t in self.tensors)
+        )
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -216,6 +228,124 @@ class SIM:
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors)
 
+    # def to_pydot_acc_util(self, title: str, info_text: pd.DataFrame):
+    #     import pydot
+        
+    #     title = f"{title}\n" + pretty_sci_notation(
+    #         f"{info_text[paretos.UTIL_COL]:.2e} utilization (LEFT), "
+    #         f"{info_text[paretos.ACCESSES_COL]:.2e} accesses (RIGHT)"
+    #     )
+
+    #     def getstat(s):
+    #         return info_text.get(s, 0)
+
+    #     max_op_util = max(getstat(f"{op.name} {paretos.UTIL_COL}") for op in self)
+    #     max_op_acc = max(getstat(f"{op.name} {paretos.ACCESSES_COL}") for op in self)
+    #     max_t_util = max(getstat(f"{t.name} {paretos.UTIL_COL}") for t in self.tensors)
+    #     max_t_acc = max(
+    #         getstat(f"{t.name} {paretos.ACCESSES_COL}") for t in self.tensors
+    #     )
+
+    #     def get_tensor_node(tensor, acc_info: bool):
+    #         acc = getstat(f"{tensor.name} {paretos.ACCESSES_COL}")
+    #         util = getstat(f"{tensor.name} {paretos.UTIL_COL}")
+    #         tsize = tensor.size()
+
+    #         if acc_info:
+    #             s, t = acc / max(max_t_acc, 1), f"{acc:.1e}A (x{acc//tsize})"
+    #         else:
+    #             s, t = (
+    #                 util / max(max_t_util, 1),
+    #                 f"{util:.1e}U (/{tsize//max(util, 1)})",
+    #             )
+
+    #         t = pretty_sci_notation(t)
+
+    #         importance = 0.3 + 0.7 * s
+    #         basecolor = struct.unpack("BBB", bytes.fromhex("f9f9f9"))
+    #         scaled = (int(i * importance) for i in basecolor)
+
+    #         text = f"{tensor.name}\n{t}"
+    #         node = pydot.Node(
+    #             name=f"Tensor {tensor.name} {acc_info}".replace(":", "_").replace(
+    #                 "/", "_"
+    #             ),
+    #             shape="box",
+    #             style="filled",
+    #             fillcolor="#" + bytes.hex(struct.pack("BBB", *scaled)),
+    #             label=text,
+    #             fontsize="10",
+    #             width=0,
+    #             penwidth=1,
+    #             margin="0",
+    #             height=0,
+    #         )
+    #         graph.add_node(node)
+    #         tensor._graph_node = node
+    #         return node
+
+    #     def get_op_node(op, acc_info: bool):
+    #         acc = getstat(f"{op.name} {paretos.ACCESSES_COL}")
+    #         util = getstat(f"{op.name} {paretos.UTIL_COL}")
+
+    #         if acc_info:
+    #             s, t = acc / max(max_op_acc, 1), f"{acc:.1e}A"
+    #         else:
+    #             s, t = util / max(max_op_util, 1), f"{util:.1e}U"
+    #         t = pretty_sci_notation(t)
+
+    #         importance = 0.3 + 0.7 * s
+    #         basecolor = struct.unpack("BBB", bytes.fromhex("ffcccc"))
+    #         scaled = (int(i * importance) for i in basecolor)
+
+    #         text = f"{op.name} (x{op.scale_accesses_by})\n{t}"
+    #         node = pydot.Node(
+    #             f"{op.name} {acc_info}".replace(":", "_").replace("/", "_"),
+    #             shape="box",
+    #             style="filled",
+    #             fillcolor="#" + bytes.hex(struct.pack("BBB", *scaled)),
+    #             label=text,
+    #             fontsize="10",
+    #             width=0,
+    #             margin="0",
+    #             height=0,
+    #         )
+    #         graph.add_node(node)
+    #         op._graph_node = node
+    #         return node
+
+    #     graph = pydot.Dot(
+    #         graph_type="digraph",
+    #         label=title,
+    #         ranksep="0.1",
+    #         nodesep="0.1",
+    #         labelloc="t",
+    #     )
+
+    #     # Create nodes for each tensor and add them to the graph
+    #     for tensor in self.tensors:
+    #         get_tensor_node(tensor, False)
+    #     for op in self:
+    #         get_op_node(op, False)
+    #         for t in op.input_tensors:
+    #             edge = pydot.Edge(t._graph_node, op._graph_node, color="blue")
+    #             graph.add_edge(edge)
+    #         for t in op.output_tensors:
+    #             edge = pydot.Edge(op._graph_node, t._graph_node, color="red")
+    #             graph.add_edge(edge)
+
+    #     for tensor in self.tensors:
+    #         get_tensor_node(tensor, True)
+    #     for op in self:
+    #         get_op_node(op, True)
+    #         for t in op.input_tensors:
+    #             edge = pydot.Edge(t._graph_node, op._graph_node, color="blue")
+    #             graph.add_edge(edge)
+    #         for t in op.output_tensors:
+    #             edge = pydot.Edge(op._graph_node, t._graph_node, color="red")
+    #             graph.add_edge(edge)
+
+    #     return graph
 
 import unittest
 
@@ -247,7 +377,7 @@ class TestSIM(unittest.TestCase):
         for tensors, loops in zip([tensors0, tensors1, tensors2, tensors3], loops):
             tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), fzs(tensors))
             mapping = Pareto(pd.DataFrame({"Energy": [1]}))
-            mapping.data[MAPPING] = [{}]
+            mapping.data[LOGSTRING] = [{}]
             for t in tensors:
                 mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
             sims.append(SIM(tiling, mapping))
@@ -290,7 +420,7 @@ class TestSIM(unittest.TestCase):
         for tensors, loops in zip([tensors0, tensors1, tensors2, tensors3], loops):
             tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), fzs(tensors))
             mapping = Pareto(pd.DataFrame({"Energy": [1]}))
-            mapping.data[MAPPING] = [{}]
+            mapping.data[LOGSTRING] = [{}]
             for t in tensors:
                 mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
             sims.append(SIM(tiling, mapping))

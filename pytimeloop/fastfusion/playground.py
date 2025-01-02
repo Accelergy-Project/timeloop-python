@@ -6,7 +6,7 @@ import tqdm
 from util import fzs
 
 from sim import SIM, Loop, TensorStorage, Tiling
-from pareto import Pareto, MAPPING
+from pareto import Pareto, LOGSTRING
 from more_itertools import powerset
 from itertools import permutations
 
@@ -56,7 +56,7 @@ def get_sims():
                                 )
                             )
                             maxlen = max(maxlen, j)
-                        m = pd.DataFrame({"Energy": [1], MAPPING: [{}]})
+                        m = pd.DataFrame({"Energy": [1], LOGSTRING: [{}]})
                         sims.append(SIM(Tiling(loops, fzs(tns)), Pareto(m)))
 
                     if not factors:

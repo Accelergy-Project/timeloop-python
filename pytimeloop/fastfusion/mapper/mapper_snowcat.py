@@ -19,7 +19,7 @@ from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper_snowcat import per_einsum_mapper_snowcat
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
-from pytimeloop.fastfusion.pareto import MAPPING
+from pytimeloop.fastfusion.pareto import LOGSTRING
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -127,7 +127,7 @@ def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
     stats = deepcopy(stats)
     for s in stats:
-        s[MAPPING][to_einsum] = s[MAPPING].pop(from_einsum)
+        s[LOGSTRING][to_einsum] = s[LOGSTRING].pop(from_einsum)
     return stats
     
 

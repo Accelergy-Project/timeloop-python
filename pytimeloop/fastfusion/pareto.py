@@ -18,8 +18,12 @@ from paretoset import paretoset
 import pandas as pd
 import functools
 
-MAPPING = "__Mappings"
+LOGSTRING = "__Mappings"
+MAPPING = "__LOOPNEST"
 OCCUPANCY = "__Occupancy"
+
+RESERVED_COLUMNS = set([LOGSTRING, MAPPING])
+DICT_COLUMNS = set([LOGSTRING, MAPPING])
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
@@ -80,7 +84,7 @@ def max_to_col(df, c, c2):
 
 
 def makepareto(data: pd.DataFrame) -> pd.DataFrame:
-    columns = [c for c in data.columns if c != MAPPING and not is_merge_col(c)]
+    columns = [c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)]
     # Drop any columns that are all zeros
     for c in list(columns):
         if not data[c].any():
@@ -168,7 +172,7 @@ def merge_cross(
 ) -> pd.DataFrame:
     left = free_to_loop_index(left, shared_loop_index + 1)
     df = pd.merge(left, right, how="cross", suffixes=MERGE_SUFFIXES)
-    shared_columns = set(left.columns) & set(right.columns) - set([MAPPING])
+    shared_columns = set(left.columns) & set(right.columns) - RESERVED_COLUMNS
 
     for c in shared_columns:
         # Unknown loop index -> add
@@ -230,14 +234,12 @@ def merge_cross(
   
     df2 = makepareto(df)
     df = df2
-
-    # Merge mappings
-    c0, c1 = MAPPING + MERGE_SUFFIXES[0], MAPPING + MERGE_SUFFIXES[1]
-    if len(df) > 0:
-        df[MAPPING] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1)
-    else:
-        df[MAPPING] = []
+    
+    for k in DICT_COLUMNS:
+        c0, c1 = k + MERGE_SUFFIXES[0], k + MERGE_SUFFIXES[1]
+        df[k] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1) if len(df) > 0 else []
     df = df[[c for c in df.columns if not is_merge_col(c)]]
+
     # Assert no NaNs
     assert not df.isnull().values.any()
     
@@ -249,7 +251,7 @@ class Pareto:
         self.data: pd.DataFrame = data if skip_pareto else makepareto(data)
 
     def einsum_ids(self):
-        return fzs(self.data[MAPPING].iloc[0].keys())
+        return fzs(self.data[LOGSTRING].iloc[0].keys())
 
     @staticmethod
     def concat(paretos: list["Pareto"]) -> "Pareto":
@@ -261,7 +263,7 @@ class Pareto:
 
     @staticmethod
     def get_dummy() -> "Pareto":
-        df = pd.DataFrame({OCCUPANCY: [1, 2], MAPPING: [{"A": "A"}] * 2})
+        df = pd.DataFrame({OCCUPANCY: [1, 2], LOGSTRING: [{"A": "A"}] * 2})
         return Pareto(df)
 
     def free_to_loop_index(self, n: int, resource2capacity: Optional[dict[str, Optional[int]]]=None) -> "Pareto":
@@ -302,7 +304,7 @@ import unittest
 class ParetoTest(unittest.TestCase):
     def test_pareto(self):
         occ_key = nameloop2col("GLB", 5)
-        data = pd.DataFrame({"A": [1, 2], occ_key: [2, 1], MAPPING: [{"A": "A"}] * 2})
+        data = pd.DataFrame({"A": [1, 2], occ_key: [2, 1], LOGSTRING: [{"A": "A"}] * 2})
         Pareto(data)
 
     def test_vertical_combine(self):
@@ -312,7 +314,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
                 occ_key: [3, 3, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
         data2 = pd.DataFrame(
@@ -320,7 +322,7 @@ class ParetoTest(unittest.TestCase):
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
                 occ_key: [3, 3, 1],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
             }
         )
 
@@ -333,10 +335,10 @@ class ParetoTest(unittest.TestCase):
 
     def test_merge(self):
         data1 = pd.DataFrame(
-            {"A": [1, 3, 3], "B": [3, 1, 3], MAPPING: [{"A": "A"}] * 3}
+            {"A": [1, 3, 3], "B": [3, 1, 3], LOGSTRING: [{"A": "A"}] * 3}
         )
         data2 = pd.DataFrame(
-            {"A": [3, 3, 3], "B": [3, 3, 3], MAPPING: [{"A": "A"}] * 3}
+            {"A": [3, 3, 3], "B": [3, 3, 3], LOGSTRING: [{"A": "A"}] * 3}
         )
         p = Pareto(data1).merge(Pareto(data2), 0)
         d = p.data
@@ -349,7 +351,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
                 occ_key: [3, 3, 3],
             }
         )
@@ -357,7 +359,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
                 occ_key: [2, 2, 2],
             }
         )
@@ -380,7 +382,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
                 occ_key_1: [3, 3, 3],
                 occ_key_2: [8, 8, 8],
             }
@@ -389,7 +391,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [3, 3, 3],
                 "B": [3, 3, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
                 occ_key_1: [4, 4, 4],
                 occ_key_2: [6, 6, 6],
             }
@@ -428,7 +430,7 @@ class ParetoTest(unittest.TestCase):
             {
                 "A": [1, 3, 3],
                 "B": [3, 1, 3],
-                MAPPING: [{"A": "A"}] * 3,
+                LOGSTRING: [{"A": "A"}] * 3,
                 occ_key_1: [3, 3, 3],
                 occ_key_2: [8, 8, 8],
             }
@@ -437,11 +439,11 @@ class ParetoTest(unittest.TestCase):
         p = Pareto(data1)
         d = p.data
         p.free_to_loop_index(2)
-        self.assertEqual(d.columns.tolist(), ["A", "B", MAPPING, occ_key_1, occ_key_2])
+        self.assertEqual(d.columns.tolist(), ["A", "B", LOGSTRING, occ_key_1, occ_key_2])
 
         p.free_to_loop_index(0)
         d = p.data
-        self.assertEqual(d.columns.tolist(), ["A", "B", MAPPING, occ_key_1])
+        self.assertEqual(d.columns.tolist(), ["A", "B", LOGSTRING, occ_key_1])
         self.assertEqual(d[occ_key_1].tolist(), [11, 11])
 
 
