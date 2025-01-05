@@ -3,7 +3,7 @@ from enum import auto, Flag
 from functools import reduce
 from operator import or_
 
-from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, nameloop2col, DICT_COLUMNS
+from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, nameloop2col, DICT_COLUMNS, RESERVED_COLUMNS
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
 from pytimeloop.looptree.energy import gather_actions, get_accesses
@@ -15,7 +15,7 @@ import pytimeloop.fastfusion.looptreedisplay as looptreedisplay
 class Metrics(Flag):
     LATENCY = auto()
     ENERGY = auto()
-    OCCUPANCY = auto()
+    # OCCUPANCY = auto()
     OFF_CHIP_ACCESSES = auto()
     OP_INTENSITY = auto()
 
@@ -36,8 +36,9 @@ def process_result(
     energy_dict,
     equiv_groups: EquivalentGroups,
     explore_fusion_uneven,
+    einsum_shape,
     logfunc=None,
-    metrics=Metrics.all_metrics()
+    metrics=Metrics.all_metrics(),
 ):
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
@@ -57,71 +58,62 @@ def process_result(
 
     cur_idx = 0
     cur_loops = []
-    tensors = []
-    found_tensors = []
-    reservations = {}
-    reservations_logstring = []
-    found_intermediate_tensors = 0
+    intermediate_backing_storages = []
+    non_intermediate_or_non_backing_storages = []
+    all_storages = []
+    intermediates_to_find = set(intermediate_tensors)
+    n_steps = 1
+    ranks_remaining = {k: v for k, v in einsum_shape.items()}
+    n_repititions = 1
     
-    def record_backing_storage(dspace, target, n_loops):
-        # Returns true if it's the backing storage
-        if dspace in found_tensors:
-            return False
-        
-        nonlocal found_intermediate_tensors
-        tensors.append(TensorStorage(dspace, target, n_loops, result.occupancy[(target, dspace)]))
-        found_tensors.append(dspace)
-        if dspace in intermediate_tensors:
-            found_intermediate_tensors += 1
-        return True
+    def record_storage(node):
+        for dspace in node["dspace"]:
+            storage = TensorStorage(
+                dspace, node["target"], 
+                len(full_tiling), 
+                result.occupancy[(node["target"], dspace)],
+                n_repititions=n_repititions,
+            )
+            all_storages.append(storage)
+            t = storage.tensor_id
+            if t in intermediates_to_find:
+                intermediates_to_find.remove(t)
+                intermediate_backing_storages.append(storage)
+            else:
+                non_intermediate_or_non_backing_storages.append(storage)
+        logstring.append(f"Strg({node['dspace']} in {node['target']})")
+            
+    def record_loop(node):
+        nonlocal cur_idx, n_repititions
+        if "tile_shape" in node:
+            tile_shape = node["tile_shape"]
+        else:
+            tile_shape = shape[cur_idx]
+            cur_idx += 1
+        loop = Loop(
+            str(equiv_groups.rank_to_group_id[node["rank"]]),
+            tile_shape,
+            node["type"] == "spatial",
+        )
+        n_repititions *= (ranks_remaining[node["rank"]] // tile_shape)
+        ranks_remaining[node["rank"]] = tile_shape
+        if intermediates_to_find:
+            cur_loops.append(loop)
+        full_tiling.append(loop)
+        logstring.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
 
-    def record_non_backing_reservation(dspace, target, n_loops):
-        reservations.setdefault((target, n_loops), 0)
-        reservations[(target, n_loops)] += result.occupancy[(target, dspace)]
 
     logstring = []
     full_tiling = []
-    all_storages = []
     for node in mapping:
         if node["type"] == "storage":
-            storages = []
-            for dspace in node["dspace"]:
-                if not record_backing_storage(dspace, node["target"], len(cur_loops)):
-                    record_non_backing_reservation(dspace, node["target"], len(cur_loops))
-                storages.append(TensorStorage(dspace, node["target"], len(cur_loops), result.occupancy[(node["target"], dspace)]))
-            reservations_logstring += storages
-            all_storages += storages
-            logstring.append(f"Strg({node['dspace']} in {node['target']})")
-
+            record_storage(node)
         elif node["type"] == "spatial" or node["type"] == "temporal":
-            if "tile_shape" in node:
-                tile_shape = node["tile_shape"]
-            else:
-                tile_shape = shape[cur_idx]
-                cur_idx += 1
-
-            loop = Loop(
-                str(equiv_groups.rank_to_group_id[node["rank"]]),
-                tile_shape,
-                node["type"] == "spatial",
-            )
-
-            if found_intermediate_tensors < len(intermediate_tensors):
-                cur_loops.append(loop)
-            full_tiling.append(loop)
-            logstring.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
-
-    n_loops_of_intermediates = set()
-    for t in tensors:
-        if t.tensor_id not in intermediate_tensors:
-            continue
-        n_loops_of_intermediates.add(t.above_loop_index)
-    if len(n_loops_of_intermediates) > 1 and not explore_fusion_uneven:
-        logfunc(f"n_loops_of_intermediates: {n_loops_of_intermediates}")
+            record_loop(node)
 
     tiling_compatibility = Tiling(
         loops=tuple(cur_loops),
-        tensors=frozenset(t for t in tensors if t.tensor_id in intermediate_tensors),
+        tensors=frozenset(t for t in intermediate_backing_storages if t.tensor_id in intermediate_tensors),
     )
     tiling_full = Tiling(
         loops=tuple(full_tiling),
@@ -141,16 +133,29 @@ def process_result(
         if level == 0:
             offchip_accesses += count
         logstring.append(f"Ac_{level}_{tensor}={count:.2e}")
+
     if Metrics.OFF_CHIP_ACCESSES in metrics:
         results["Offchip_Ac"] = offchip_accesses
 
     logstring.append(f"{result.fanout}")
 
-    if Metrics.OCCUPANCY in metrics:
-        for (storage_id, n_loops), size in reservations.items():
-            key = nameloop2col(storage_id, n_loops)
-            results.setdefault(key, 0)
-            results[key] += size
+    # Handled below. All occupancies are needed to ensure occupancies
+    # < capacity when we fuse
+    # if Metrics.OCCUPANCY in metrics:
+    #     for (storage_id, n_loops), size in non_intermediate_or_non_backing_storages.items():
+    #         key = nameloop2col(storage_id, n_loops)
+    #         results.setdefault(key, 0)
+    #         results[key] += size
+
+    # Only record non-backing reservations. We'll reserve backing storage later
+    # when we free the tensors & we know all operations for which the tensor must
+    # be backed
+    for r in non_intermediate_or_non_backing_storages:
+        r: TensorStorage
+        key = nameloop2col(r.backer_id, r.above_loop_index)
+        results.setdefault(key, 0)
+        results[key] += r.tile_size
+        # logstring.append(f"{r}")
 
     if Metrics.LATENCY in metrics:
         logstring.append(f"L={results['Latency']:.2e}")
@@ -158,14 +163,11 @@ def process_result(
     if Metrics.ENERGY in metrics:
         logstring.append(f"E={results['Energy']:.2e}")
     
-    for r in reservations_logstring:
-        r: TensorStorage
-        key = nameloop2col(r.backer_id, r.above_loop_index)
-        results.setdefault(key, 0)
-        results[key] += size
-
+    logstring.append(f"Results: {results}")
     results[LOGSTRING] = {einsum_id: str(logstring)}
     results[MAPPING] = {einsum_id: tiling_full}
+    results[STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+    
 
     if Metrics.OP_INTENSITY in metrics:
         results["Op_Intensity"] = result.op_intensity[1]

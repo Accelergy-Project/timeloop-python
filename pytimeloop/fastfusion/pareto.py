@@ -20,10 +20,11 @@ import functools
 
 LOGSTRING = "__Mappings"
 MAPPING = "__LOOPNEST"
+STATS = "__STATS"
 OCCUPANCY = "__Occupancy"
 
-RESERVED_COLUMNS = set([LOGSTRING, MAPPING])
-DICT_COLUMNS = set([LOGSTRING, MAPPING])
+RESERVED_COLUMNS = set([LOGSTRING, MAPPING, STATS])
+DICT_COLUMNS = set([LOGSTRING, MAPPING, STATS])
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
@@ -170,7 +171,7 @@ def merge_cross(
     resource2capacity: dict[str, int],
     as_pareto: bool = False,
 ) -> pd.DataFrame:
-    left = free_to_loop_index(left, shared_loop_index + 1)
+    # left = free_to_loop_index(left, shared_loop_index + 1)
     df = pd.merge(left, right, how="cross", suffixes=MERGE_SUFFIXES)
     shared_columns = set(left.columns) & set(right.columns) - RESERVED_COLUMNS
 
@@ -224,13 +225,13 @@ def merge_cross(
     # - Sequentially: Fetch any below-shared-loop resources for the first iteration of all operations
     # - In parallel: Fetch all below-shared-loop resources for all operations in all subsequent iterations
 
-    df = free_to_loop_index(df, next_shared_loop_index + 1)
-    for resource, capacity in resource2capacity.items():
-        colname = nameloop2col(resource, 0)
-        if colname in df:
-            if capacity is not None:
-                df = df[df[colname] <= capacity]
-            del df[colname]
+    # df = free_to_loop_index(df, next_shared_loop_index + 1)
+    # for resource, capacity in resource2capacity.items():
+    #     colname = nameloop2col(resource, 0)
+    #     if colname in df:
+    #         if capacity is not None:
+    #             df = df[df[colname] <= capacity]
+    #         del df[colname]
   
     df2 = makepareto(df)
     df = df2
@@ -269,12 +270,14 @@ class Pareto:
     def free_to_loop_index(self, n: int, resource2capacity: Optional[dict[str, Optional[int]]]=None) -> "Pareto":
         self.data = free_to_loop_index(self.data, n, skip_pareto=True)
         if resource2capacity is not None:
-            self.limit_capacity(resource2capacity)
+            self.limit_capacity(n, resource2capacity, skip_pareto=True)
         self.data = makepareto(self.data)
         
 
     def alloc(self, resource_name: str, size: int, above_loop_index: int):
         n = nameloop2col(resource_name, above_loop_index)
+        # if resource_name == 1 and size >= 64:
+        #     print("AHHH")
         if n in self.data:
             self.data[n] += size
         else:
@@ -283,18 +286,18 @@ class Pareto:
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())
     
-    def limit_capacity(self, resource2capacity: dict[str, Optional[int]]):
+    def limit_capacity(self, n: int, resource2capacity: dict[str, Optional[int]], skip_pareto: bool=False):
         found = False
         for resource, capacity in resource2capacity.items():
-            colname = nameloop2col(resource, 0)
+            colname = nameloop2col(resource, n)
             if colname in self.data:
                 if capacity is not None:
                     self.data = self.data[self.data[colname] <= capacity]
                 del self.data[colname]
                 found = True
-        if found:
+        if found and not skip_pareto:
             self.data = makepareto(self.data)
-            
+
     def squish_left_right(self):
         self.data = squish_left_right(self.data)
 

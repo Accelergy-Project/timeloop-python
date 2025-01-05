@@ -8,7 +8,7 @@ from typing import Any, Iterable, Optional
 import pandas as pd
 
 from .pareto import Pareto, LOGSTRING, nameloop2col
-from .util import fzs
+from .util import expfmt, fzs
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -52,6 +52,14 @@ class Loop:
 
     def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "Loop":
         return Loop(rank_renaming[self.rank_id], self.bound, self.is_spatial)
+    
+    def to_yaml(self):
+        return {
+            "type": "loop",
+            "rank_id": self.rank_id,
+            "bound": self.bound,
+            "is_spatial": self.is_spatial,
+        }
 
 @dataclass(frozen=True)
 class TensorStorage:
@@ -59,6 +67,7 @@ class TensorStorage:
     backer_id: str
     above_loop_index: int
     tile_size: int
+    n_repititions: int = 1
 
     def __lt__(self, other: "TensorStorage"):
         return self.__tuple__() < other.__tuple__()
@@ -71,13 +80,32 @@ class TensorStorage:
         return self.tile_size
 
     def __str__(self):
-        return f"{self.tensor_id} sz {self.tile_size} in {self.backer_id} above {self.above_loop_index} "
+        return f"{self.tensor_id} sz {expfmt(self.tile_size)} in {self.backer_id} above {self.above_loop_index} x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
         return self.__str__()
     
+    def pydot_str(self):
+        return f"{self.tensor_id} in {self.backer_id} size " \
+            f"{expfmt(self.tile_size)}*{expfmt(self.n_repititions)}={expfmt(self.tile_size * self.n_repititions)}"
+    
     def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "TensorStorage":
-        return TensorStorage(tensor_renaming[self.tensor_id], self.backer_id, self.above_loop_index, self.tile_size)
+        return TensorStorage(
+            tensor_renaming[self.tensor_id], 
+            self.backer_id, 
+            self.above_loop_index, 
+            self.tile_size, 
+            self.n_repititions
+        )
+    
+    def to_yaml(self):
+        return {
+            "type": "storage",
+            "tensor_id": self.tensor_id,
+            "backer_id": self.backer_id,
+            "above_loop_index": self.above_loop_index,
+            "tile_size": self.tile_size,
+        }
 
 
 @dataclass(frozen=True)
@@ -88,9 +116,16 @@ class Tiling:
     @cached_property
     def tensor_names(self) -> set[str]:
         return {t.tensor_id for t in self.tensors}
+    
+    def get_backing_levels(self) -> dict[str, int]:
+        backings = {}
+        for t in self.tensors:
+            prev = backings.get(t.tensor_id, t.above_loop_index)
+            backings[t.tensor_id] = min(prev, t.above_loop_index)
+        return backings
 
     def shared_loop_index(self, live_tensors: set[str]) -> int:
-        n = [t.above_loop_index for t in self.tensors if t.tensor_id in live_tensors]
+        n = [l for t, l in self.get_backing_levels().items() if t in live_tensors]
         return max(n) - 1 if n else -1
 
     def __eq__(self, other):
@@ -176,11 +211,6 @@ class SIM:
         s.tensors.update(self.tensors)
         return s
 
-    def _limit_capacity(self, resource2capacity: dict[str, int]):
-        if resource2capacity is None:
-            return
-        self.mapping.limit_capacity(resource2capacity)
-
     def get_shared_loop_index(self, next_live_tensors: set[str]) -> int:
         live_tensors = list(self.tiling.tensor_names) + [next_live_tensors]
         return self.tiling.shared_loop_index(live_tensors)
@@ -192,8 +222,14 @@ class SIM:
         if next_live_tensors is None:
             self.mapping.free_to_loop_index(0)
             self.mapping.squish_left_right()
-        shared_loop_index = self.tiling.shared_loop_index(next_live_tensors)
-        self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
+        else:
+            # Can free the deepest of:
+            # - The shared loop with the next SIM
+            # - My deepest loop that hasn't yet been freed
+            shared_loop_index = self.tiling.shared_loop_index(next_live_tensors)
+            if self.tensors:
+                shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
+            self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
@@ -205,6 +241,7 @@ class SIM:
     def concat(sims: Iterable["SIM"]) -> "SIM":
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
+        assert len(set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims)) == 1, "Cannot concat SIMs with different tensors"
         return SIM(sims[0].tiling, Pareto.concat([s.mapping for s in sims]))
 
     @staticmethod

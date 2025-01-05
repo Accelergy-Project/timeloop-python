@@ -13,7 +13,7 @@ from .per_einsum_subspaces.subspaces import (
     explore_tile_shape
 )
 
-from pytimeloop.fastfusion.mapper.process_results import process_result
+from pytimeloop.fastfusion.mapper.process_results import Metrics, process_result
 
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
@@ -34,6 +34,7 @@ def mapper_place_fusion_level(
     partial_mapping,
     log_queue=None,
     verbose_stream=None,
+    metrics=Metrics.all_metrics(),
 ):
     # if log_queue is not None:
     #     log_queue.info(f"[{einsum_id}] Exploring mapspace of Einsum {einsum_id}")
@@ -156,7 +157,9 @@ def mapper_place_fusion_level(
                         energy_dict,
                         equivalent_groups,
                         logfunc=logfunc,
-                        explore_fusion_uneven=explore_glb_uneven
+                        explore_fusion_uneven=explore_glb_uneven,
+                        einsum_shape=einsum_shape,
+                        metrics=metrics,
                     )
                     if count % 1e4 == 0:
                         print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
@@ -177,6 +180,7 @@ def get_top_loop_jobs(
     energy_dict,
     log_queue=None,
     verbose_stream=None,
+    metrics=Metrics.all_metrics(),
 ):
     args = []
     for einsum_id in einsums_to_explore:
@@ -270,6 +274,7 @@ def get_top_loop_jobs(
                             partial_mapping=partial_mapping,
                             log_queue=log_queue,
                             verbose_stream=verbose_stream,
+                            metrics=metrics,
                         ))
     return args
 

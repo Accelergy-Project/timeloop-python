@@ -19,7 +19,8 @@ from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import get_top_loop_jobs, mapper_place_fusion_level
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
-from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING
+from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS
+from pytimeloop.fastfusion.mapper.process_results import Metrics
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -34,6 +35,7 @@ def mapper(
     spec,
     tmp_path,
     verbose_stream=None,
+    metrics=Metrics.all_metrics(),
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -71,6 +73,7 @@ def mapper(
         energy_dict=energy_dict,
         log_queue=log_queue,
         verbose_stream=verbose_stream,
+        metrics=metrics,
     )
 
     print(f'Number of jobs: {len(args)}')
@@ -85,15 +88,11 @@ def mapper(
     result = Parallel(n_jobs=n_workers)(
         delayed(mapper_place_fusion_level)(**a) for a in args
     )
-    data = defaultdict(dict)
+    data = {einsum_id: defaultdict(list) for einsum_id in grouped_similar_einsums}
     total = 0
     for einsum_id, mappings, count in result:
         for k, v in mappings.items():
-            if k in data[einsum_id]:
-                data[einsum_id][k] += v
-            else:
-                data[einsum_id][k] = v
-                
+            data[einsum_id][k].extend(v)
         total += count
     print(f"Total number of mappings: {total}")
     if log_queue_listener is not None:
@@ -144,8 +143,9 @@ def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
     stats = deepcopy(stats)
     for s in stats:
-        s[LOGSTRING][to_einsum] = s[LOGSTRING].pop(from_einsum)
-        s[MAPPING][to_einsum] = s[MAPPING].pop(from_einsum).rename(rank_renaming, tensor_renaming)
+        for d in DICT_COLUMNS:
+            s[d][to_einsum] = s[d].pop(from_einsum)
+        s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
     return stats
 
 
