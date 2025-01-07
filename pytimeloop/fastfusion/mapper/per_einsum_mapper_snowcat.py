@@ -13,6 +13,7 @@ from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat import make_subsp
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
+from pytimeloop.fastfusion.mapper.process_results import Metrics, process_result
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
@@ -25,7 +26,8 @@ def per_einsum_mapper_snowcat(
     energy_dict,
     ffmt=False,
     ffmt_refetch_weights=True,
-    dataflow_constraint=None
+    dataflow_constraint=None,
+    metrics=Metrics.all_metrics(),
 ):
     data = {}
     for einsum_id in einsums_to_explore:
@@ -79,6 +81,29 @@ def per_einsum_mapper_snowcat(
         partial_mappings = list(dependent_product(parallelized_spaces))
         partial_mappings = [x if isinstance(x, tuple) else (x,) for x in partial_mappings]
 
+        # successful_partial_mappings = []
+        # for p in partial_mappings:
+        #     partial_mapping = p[0]
+        #     found_storages = set()
+        #     fail = False
+        #     for i, p in enumerate(partial_mapping):
+        #         if p["type"] == "storage":
+        #             for t in set(p["dspace"]) - found_storages:
+        #                 for p2 in partial_mapping[:i]:
+        #                     if p2["type"] in ["temporal", "spatial"] and p2["rank"] not in tensor_to_relevant_ranks[t]:
+        #                         fail = True
+        #                         break
+        #             found_storages |= set(p["dspace"])
+        #         if len(found_storages) < len(tensors) or i == 0:
+        #             continue
+        #         prev = partial_mapping[i - 1]
+        #         for t in ["spatial"]: # "temporal", TEMPORAL DOESN"T WORK. WEIRD INTERACTIONS WITH LOOP RELEVANCE PRINCIPLE
+        #             if p["type"] == t and prev["type"] == t and p["rank"] < prev["rank"]:
+        #                 fail = True
+        #         if not fail:
+        #             successful_partial_mappings.append(p)
+        # partial_mappings = successful_partial_mappings
+
         def per_worker_exploration(*args):
             analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
             local_task_spaces = deepcopy(task_spaces)
@@ -113,7 +138,9 @@ def per_einsum_mapper_snowcat(
                         workload,
                         energy_dict,
                         equivalent_groups,
-                        explore_fusion_uneven=explore_glb_uneven
+                        explore_fusion_uneven=explore_glb_uneven,
+                        metrics=metrics,
+                        einsum_shape=einsum_shape,
                     )
             return result
 

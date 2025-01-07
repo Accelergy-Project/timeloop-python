@@ -19,7 +19,8 @@ from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper_snowcat import per_einsum_mapper_snowcat
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
-from pytimeloop.fastfusion.pareto import LOGSTRING
+from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS, TENSORS
+from pytimeloop.fastfusion.mapper.process_results import Metrics
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
@@ -32,6 +33,7 @@ def mapper(
     tmp_path,
     ffmt: bool=False,
     ffmt_refetch_weights: bool=True,
+    metrics=Metrics.all_metrics(),
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -76,7 +78,8 @@ def mapper(
         energy_dict=energy_dict,
         ffmt=ffmt,
         ffmt_refetch_weights=ffmt_refetch_weights,
-        dataflow_constraint=dataflow_constraint
+        dataflow_constraint=dataflow_constraint,
+        metrics=metrics,
     )
 
     generated_data = {}
@@ -127,7 +130,10 @@ def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
     stats = deepcopy(stats)
     for s in stats:
-        s[LOGSTRING][to_einsum] = s[LOGSTRING].pop(from_einsum)
+        for d in DICT_COLUMNS:
+            s[d][to_einsum] = s[d].pop(from_einsum)
+        s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
+        s[TENSORS][to_einsum] = [t.rename(rank_renaming, tensor_renaming) for t in s[TENSORS][to_einsum]]
     return stats
     
 

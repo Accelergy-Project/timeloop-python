@@ -1,4 +1,5 @@
 from collections import defaultdict
+import copy
 import itertools
 import re
 
@@ -22,9 +23,11 @@ LOGSTRING = "__Mappings"
 MAPPING = "__LOOPNEST"
 STATS = "__STATS"
 OCCUPANCY = "__Occupancy"
+TENSORS = "__TENSORS"
+IN_PROGRESS_STATS = "__IN_PROGRESS_STATS"
 
-RESERVED_COLUMNS = set([LOGSTRING, MAPPING, STATS])
-DICT_COLUMNS = set([LOGSTRING, MAPPING, STATS])
+RESERVED_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS])
+DICT_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS])
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
@@ -162,6 +165,8 @@ def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: 
         return makepareto(data[keepcols])
     return data[keepcols]
 
+def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    return data[paretoset(data[columns])].reset_index(drop=True)
 
 def merge_cross(
     left: pd.DataFrame,
@@ -169,6 +174,7 @@ def merge_cross(
     shared_loop_index: int,  
     next_shared_loop_index: int, # -1 -> no shared loops, 0 -> outermost...
     resource2capacity: dict[str, int],
+    next_live_tensors: set[int],
     as_pareto: bool = False,
 ) -> pd.DataFrame:
     # left = free_to_loop_index(left, shared_loop_index + 1)
@@ -240,6 +246,31 @@ def merge_cross(
         c0, c1 = k + MERGE_SUFFIXES[0], k + MERGE_SUFFIXES[1]
         df[k] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1) if len(df) > 0 else []
     df = df[[c for c in df.columns if not is_merge_col(c)]]
+    
+    if len(df) > 0:
+        first_row = df.iloc[0]
+        tensors = first_row[TENSORS]
+        einsums = list(tensors.keys())
+        prev_to_last = einsums[-2]
+        last = einsums[-1]
+        still_live = [t for t in tensors[prev_to_last] if t.tensor_id in next_live_tensors]
+        must_reserve = [t for t in still_live if not any(t.tensor_id == t2.tensor_id for t2 in tensors[last])]
+        if must_reserve:
+            for r, r2 in zip(df[TENSORS], df[MAPPING]):
+                for t in r[last]:
+                    if t not in r2[last].tensors:
+                        raise ValueError(f"Missing tensor: {t}. Tiling tensors: {r2[last].tensors}. Tensors: {r[last]}")
+            for r in df[TENSORS]:
+                r[last] = r[last] + must_reserve
+                for i, t0 in enumerate(r[last]):
+                    for t1 in r[last][i+1:]:
+                        if t0.tensor_id == t1.tensor_id and t0.backer_id == t1.backer_id:
+                            raise ValueError(f"Duplicate storage: {t0} {t1}")
+                        
+    cols = [c for c in df.columns if c not in DICT_COLUMNS]
+    # Update the IN_PROGRESS_STATS
+    for i, r in df[cols].iterrows():
+        df.at[i, IN_PROGRESS_STATS][last] = r.to_dict()
 
     # Assert no NaNs
     assert not df.isnull().values.any()
@@ -258,8 +289,8 @@ class Pareto:
     def concat(paretos: list["Pareto"]) -> "Pareto":
         return Pareto(pd.concat([p.data for p in paretos]).fillna(0))
 
-    def merge(self, other: "Pareto", shared_loop_index: int, next_shared_loop_index: int, resource2capacity: dict[str, int], delay: bool=False) -> "Pareto":
-        d = delayed(merge_cross)(self.data, other.data, shared_loop_index, next_shared_loop_index, resource2capacity, as_pareto=True)
+    def merge(self, other: "Pareto", shared_loop_index: int, next_shared_loop_index: int, resource2capacity: dict[str, int], next_live_tensors: set[int], delay: bool=False) -> "Pareto":
+        d = delayed(merge_cross)(self.data, other.data, shared_loop_index, next_shared_loop_index, resource2capacity, next_live_tensors=next_live_tensors, as_pareto=True)
         return d if delay else d[0](*d[1], **d[2])
 
     @staticmethod

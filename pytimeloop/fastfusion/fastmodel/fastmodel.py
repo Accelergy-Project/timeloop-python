@@ -133,11 +133,11 @@ def compile_mapping(mapping,
         elif node['type'] == 'storage':
             target = node['target']
             tensor_names = node['dspace']
-            for tensor_name in tensor_names:
-                if isinstance(tensor_name, int):
-                    tensor_id = tensor_name
+            for tensor_id in tensor_names:
+                if isinstance(tensor_id, int):
+                    tensor_id = tensor_id
                 else:
-                    tensor_id = tensor_name_to_id[tensor_name]
+                    tensor_id = tensor_name_to_id[tensor_id]
                 if tensor_id not in tensors:
                     continue
 

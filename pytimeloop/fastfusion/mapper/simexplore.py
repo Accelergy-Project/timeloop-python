@@ -37,7 +37,7 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
         first_ns = ns[0]
         ns = SIM.group_by_left(ns, s[0].tensor_names)
         s = SIM.group_by_right(s, first_ns.tensor_names, keep_loops=True)
-        
+
         for k, ns2 in ns.items():
             for ns3 in ns2:
                 ns3.consolidate(next_live_tensors, resource2capacity)
@@ -77,6 +77,7 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
         s2.consolidate(set(), resource2capacity)
     s_final = SIM.combine_combineable(s, set())[0]
     data = s_final.mapping.data
+
     # last_level_occupancy = None
     # for i in reversed(range(3)):
     #     if f"RESOURCE_1_LEVEL_{i}" not in data:
