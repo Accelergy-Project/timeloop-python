@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['data_5fspaces_0',['data_spaces',['../classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Shape.html#a76d9e6dad91a0b601e4889442ae0bfab',1,'pytimeloop.timeloopfe.v4.problem.Shape.data_spaces'],['../classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Shape.html#a8127d28f308703925f7bf896e7007526',1,'pytimeloop.timeloopfe.v4.problem.Shape.data_spaces'],['../classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1RepresentationFormat.html#a04e4091b050e01b9cf57c8182c17da6e',1,'pytimeloop.timeloopfe.v4.sparse_optimizations.RepresentationFormat.data_spaces']]],
+  ['data_5fspaces_0',['data_spaces',['../classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1Shape.html#a76d9e6dad91a0b601e4889442ae0bfab',1,'pytimeloop.timeloopfe.v4.problem.Shape.data_spaces'],['../classpytimeloop_1_1timeloopfe_1_1v4_1_1sparse__optimizations_1_1RepresentationFormat.html#a04e4091b050e01b9cf57c8182c17da6e',1,'pytimeloop.timeloopfe.v4.sparse_optimizations.RepresentationFormat.data_spaces']]],
   ['dataspace_1',['DataSpace',['../classpytimeloop_1_1timeloopfe_1_1v4_1_1problem_1_1DataSpace.html',1,'pytimeloop::timeloopfe::v4::problem']]],
   ['dataspace_2',['Dataspace',['../classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Dataspace.html',1,'pytimeloop::timeloopfe::v4::constraints']]],
   ['dataspace_3',['dataspace',['../classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1ConstraintGroup.html#ab89da218ed6722dcb1e4b573dfd2d2bb',1,'pytimeloop::timeloopfe::v4::constraints::ConstraintGroup']]],

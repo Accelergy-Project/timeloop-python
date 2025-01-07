@@ -1,16 +1,14 @@
 <map id="pytimeloop.timeloopfe.v4.globals.AccelergyPlugIns" name="pytimeloop.timeloopfe.v4.globals.AccelergyPlugIns">
-<area shape="rect" id="Node000001" title="A list of paths to Python files containing Accelergy plug&#45;ins." alt="" coords="174,364,385,405"/>
-<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1CombinableListNode.html" title="A list node that can be combined with others by extending." alt="" coords="160,274,400,315"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="282,330,282,364,277,364,277,330"/>
-<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="160,184,400,225"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="282,240,282,274,277,274,277,240"/>
-<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,109,277,135"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="177,141,247,181,245,186,174,145"/>
-<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="293,115,303,122,278,130,277,125,298,122,291,120"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="80,5,128,31"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="116,44,139,108,134,109,111,46"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="152,5,207,31"/>
-<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="172,46,148,109,143,108,167,44"/>
-<area shape="rect" id="Node000007" title=" " alt="" coords="399,109,438,135"/>
-<area shape="poly" id="edge7_Node000003_Node000007" title=" " alt="" coords="387,144,315,186,312,181,385,140"/>
+<area shape="rect" id="Node000001" title="A list of paths to Python files containing Accelergy plug&#45;ins." alt="" coords="174,335,385,376"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1CombinableListNode.html" title="A list node that can be combined with others by extending." alt="" coords="160,245,400,286"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="282,302,282,335,277,335,277,302"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="160,155,400,196"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="282,212,282,245,277,245,277,212"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,80,277,106"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="177,112,247,153,245,157,174,117"/>
+<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="293,87,303,93,278,102,277,96,298,93,291,92"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="117,5,165,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="144,46,144,80,138,80,138,46"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="399,80,438,106"/>
+<area shape="poly" id="edge6_Node000003_Node000006" title=" " alt="" coords="387,115,315,157,312,152,385,111"/>
 </map>

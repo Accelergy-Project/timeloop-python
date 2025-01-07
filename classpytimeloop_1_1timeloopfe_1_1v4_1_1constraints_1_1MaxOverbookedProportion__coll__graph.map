@@ -1,18 +1,14 @@
 <map id="pytimeloop.timeloopfe.v4.constraints.MaxOverbookedProportion" name="pytimeloop.timeloopfe.v4.constraints.MaxOverbookedProportion">
-<area shape="rect" id="Node000001" title="A constraint that defines the maximum overbooked proportion." alt="" coords="251,378,484,418"/>
-<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Constraint.html" title="A constraint in the system." alt="" coords="163,274,396,315"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="309,325,353,376,349,379,304,328"/>
-<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="160,184,400,225"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="282,240,282,274,277,274,277,240"/>
-<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,109,277,135"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="177,141,247,181,245,186,174,145"/>
-<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="293,115,303,122,278,130,277,125,298,122,291,120"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="80,5,128,31"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="116,44,139,108,134,109,111,46"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="152,5,207,31"/>
-<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="172,46,148,109,143,108,167,44"/>
-<area shape="rect" id="Node000007" title=" " alt="" coords="398,109,441,135"/>
-<area shape="poly" id="edge7_Node000003_Node000007" title=" " alt="" coords="386,145,315,186,312,181,384,141"/>
-<area shape="rect" id="Node000008" title=" " alt="" coords="421,282,490,307"/>
-<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="437,321,387,379,383,375,433,317"/>
+<area shape="rect" id="Node000001" title="A constraint that defines the maximum overbooked proportion." alt="" coords="232,335,466,376"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1constraints_1_1Constraint.html" title="A constraint in the system." alt="" coords="232,245,466,286"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="352,302,352,335,346,335,346,302"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="229,155,469,196"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="352,212,352,245,346,245,346,212"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,80,277,106"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="188,110,299,152,297,157,186,115"/>
+<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="293,87,303,93,278,102,277,96,298,93,291,92"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="117,5,165,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="144,46,144,80,138,80,138,46"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="398,80,441,106"/>
+<area shape="poly" id="edge6_Node000003_Node000006" title=" " alt="" coords="401,120,368,157,364,153,397,116"/>
 </map>

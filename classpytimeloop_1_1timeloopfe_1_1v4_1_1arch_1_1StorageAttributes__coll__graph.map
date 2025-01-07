@@ -1,18 +1,15 @@
 <map id="pytimeloop.timeloopfe.v4.arch.StorageAttributes" name="pytimeloop.timeloopfe.v4.arch.StorageAttributes">
-<area shape="rect" id="Node000001" title="Represents the attributes of a storage element." alt="" coords="123,518,317,559"/>
-<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Attributes.html" title="A class representing attributes for a node in the architecture." alt="" coords="123,428,317,469"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,484,215,518,210,518,209,485"/>
-<area shape="poly" id="edge8_Node000001_Node000002" title=" " alt="" coords="231,485,230,518,225,518,226,484"/>
-<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="181,261,422,302"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="287,317,232,429,227,427,283,315"/>
-<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="166,109,437,135"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="304,150,304,261,299,261,299,150"/>
-<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="454,115,464,122,438,130,437,125,458,122,451,120"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="277,5,326,31"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="304,47,304,109,299,109,299,47"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="19,5,74,31"/>
-<area shape="poly" id="edge9_Node000001_Node000006" title=" " alt="" coords="33,45,16,80,10,100,8,121,8,450,11,468,18,484,29,497,44,507,81,523,123,531,122,536,80,528,41,512,26,500,13,487,5,470,3,450,3,120,5,99,11,78,28,43"/>
-<area shape="poly" id="edge6_Node000004_Node000006" title=" " alt="" coords="83,36,182,83,255,106,253,111,180,87,81,41"/>
-<area shape="rect" id="Node000007" title=" " alt="" coords="99,109,141,135"/>
-<area shape="poly" id="edge7_Node000003_Node000007" title=" " alt="" coords="147,143,280,259,277,263,143,147"/>
+<area shape="rect" id="Node000001" title="Represents the attributes of a storage element." alt="" coords="252,335,446,376"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1v4_1_1arch_1_1Attributes.html" title="A class representing attributes for a node in the architecture." alt="" coords="252,245,446,286"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="343,301,344,335,339,335,338,302"/>
+<area shape="poly" id="edge7_Node000001_Node000002" title=" " alt="" coords="360,302,359,335,354,335,355,301"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="229,155,469,196"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="352,212,352,245,346,245,346,212"/>
+<area shape="rect" id="Node000004" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="5,80,277,106"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="188,110,299,152,297,157,186,115"/>
+<area shape="poly" id="edge5_Node000004_Node000004" title=" " alt="" coords="293,87,303,93,278,102,277,96,298,93,291,92"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="117,5,165,31"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="144,46,144,80,138,80,138,46"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="398,80,441,106"/>
+<area shape="poly" id="edge6_Node000003_Node000006" title=" " alt="" coords="401,120,368,157,364,153,397,116"/>
 </map>

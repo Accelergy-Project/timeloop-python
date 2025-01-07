@@ -1,22 +1,21 @@
 <map id="pytimeloop.timeloopfe.common.base_specification.BaseSpecification" name="pytimeloop.timeloopfe.common.base_specification.BaseSpecification">
-<area shape="rect" id="Node000001" title="Base class for specifications in the Timeloop framework." alt="" coords="960,100,1190,141"/>
-<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="544,100,785,141"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="800,127,959,126,959,132,800,132"/>
-<area shape="poly" id="edge7_Node000001_Node000002" title=" " alt="" coords="800,110,959,110,959,115,800,115"/>
-<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="224,95,495,120"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="511,111,544,113,544,118,511,117"/>
-<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="329,77,340,71,359,68,378,70,389,76,392,86,387,96,382,93,387,85,385,80,376,75,359,73,342,76,332,82"/>
-<area shape="rect" id="Node000007" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="544,35,785,76"/>
-<area shape="poly" id="edge9_Node000007_Node000003" title=" " alt="" coords="454,89,544,73,545,79,454,94"/>
-<area shape="rect" id="Node000004" title=" " alt="" coords="9,69,57,95"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="73,83,223,94,223,100,72,88"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="5,120,61,146"/>
-<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="76,131,199,127,274,118,275,124,200,132,77,136"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="338,144,380,170"/>
-<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="396,150,544,132,544,138,396,155"/>
-<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="801,68,936,88,985,97,984,102,935,93,800,73"/>
-<area shape="rect" id="Node000008" title=" " alt="" coords="340,5,379,31"/>
-<area shape="poly" id="edge10_Node000007_Node000008" title=" " alt="" coords="394,20,544,38,544,43,394,25"/>
-<area shape="rect" id="Node000009" title=" " alt="" coords="643,185,686,211"/>
-<area shape="poly" id="edge11_Node000001_Node000009" title=" " alt="" coords="702,195,807,188,871,180,935,169,981,155,1024,139,1026,144,983,160,936,174,872,186,808,193,702,200"/>
+<area shape="rect" id="Node000001" title="Base class for specifications in the Timeloop framework." alt="" coords="1100,98,1330,138"/>
+<area shape="rect" id="Node000002" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1DictNode.html" title="A node that is a dictionary of other nodes." alt="" coords="685,98,925,138"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="940,124,1100,124,1100,129,940,129"/>
+<area shape="poly" id="edge6_Node000001_Node000002" title=" " alt="" coords="940,107,1100,107,1100,113,940,112"/>
+<area shape="rect" id="Node000003" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1Node.html" title="Base class for all nodes in the hierarchy." alt="" coords="103,95,374,120"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="390,108,685,113,684,119,390,113"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="209,77,219,71,239,68,257,70,268,76,271,86,266,96,261,93,266,85,264,80,255,75,239,73,221,76,212,82"/>
+<area shape="rect" id="Node000006" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1nodes_1_1ListNode.html" title="A node that is a list of other nodes." alt="" coords="685,32,925,73"/>
+<area shape="poly" id="edge8_Node000006_Node000003" title=" " alt="" coords="390,90,684,62,685,67,390,96"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,179,54,204"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="52,165,75,146,102,129,131,118,132,123,104,134,78,150,55,169"/>
+<area shape="rect" id="Node000008" href="$classpytimeloop_1_1timeloopfe_1_1common_1_1processor_1_1Processor.html" title="Base class for all processors, which are used to modify the specification before it is passed to Acce..." alt="" coords="398,187,661,228"/>
+<area shape="poly" id="edge11_Node000008_Node000004" title=" " alt="" coords="69,190,398,201,398,206,69,195"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="218,144,260,170"/>
+<area shape="poly" id="edge5_Node000002_Node000005" title=" " alt="" coords="276,152,684,124,684,129,276,157"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="941,65,1076,85,1126,95,1125,100,1076,90,940,70"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="219,5,258,31"/>
+<area shape="poly" id="edge9_Node000006_Node000007" title=" " alt="" coords="273,18,685,43,684,48,273,23"/>
+<area shape="poly" id="edge10_Node000001_Node000008" title=" " alt="" coords="676,208,798,205,925,193,1046,167,1151,136,1153,142,1047,172,925,198,798,210,676,214"/>
 </map>
