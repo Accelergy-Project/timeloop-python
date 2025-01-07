@@ -72,7 +72,7 @@ class TensorStorage:
     backer_id: str
     above_loop_index: int
     tile_size: int
-    n_repititions: int = 1
+    # n_repititions: int = 1
 
     def __lt__(self, other: "TensorStorage"):
         return self.__tuple__() < other.__tuple__()
@@ -85,14 +85,14 @@ class TensorStorage:
         return self.tile_size
 
     def __str__(self):
-        return f"({self.backer_id}) {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index} x{expfmt(self.n_repititions)}"
+        return f"({self.backer_id}) {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"# x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
-        return f"TensorStorage({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size}, {self.n_repititions})"
+        return f"TensorStorage({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"#, {self.n_repititions})"
     
     def pydot_str(self):
         return f"({self.backer_id}) {self.tensor_id} size " \
-            f"{expfmt(self.tile_size)}*{expfmt(self.n_repititions)}={expfmt(self.tile_size * self.n_repititions)}"
+            f"{expfmt(self.tile_size)}"#*{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
     
     def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "TensorStorage":
         return TensorStorage(
@@ -100,7 +100,7 @@ class TensorStorage:
             self.backer_id, 
             self.above_loop_index, 
             self.tile_size, 
-            self.n_repititions
+            # self.n_repititions
         )
     
     def to_yaml(self):
@@ -259,6 +259,15 @@ class SIM:
     @staticmethod
     def combine_combineable(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
         return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
+    
+    @staticmethod
+    def filter_by_tensor_storages(sims: list["SIM"] | dict[Tiling, Any], tensors: set[str]) -> list["SIM"]:
+        tensors = set(tensors)
+        if isinstance(sims, list):
+            return [s for s in sims if all(t in tensors for t in s.tiling.tensors)]
+        if isinstance(sims, dict):
+            return {k: v for k, v in sims.items() if not k.tensors - tensors}
+        raise ValueError(f"Invalid type {type(sims)}")
 
     def group_by_right(
         sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False

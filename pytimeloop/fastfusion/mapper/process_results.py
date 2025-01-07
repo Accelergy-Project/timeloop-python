@@ -3,7 +3,7 @@ from enum import auto, Flag
 from functools import reduce
 from operator import or_
 
-from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, nameloop2col, DICT_COLUMNS, RESERVED_COLUMNS, TENSORS, IN_PROGRESS_STATS
+from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, MAPPING_HASH, STATS, nameloop2col, DICT_COLUMNS, RESERVED_COLUMNS, TENSORS, IN_PROGRESS_STATS
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
 from pytimeloop.fastfusion.util import fzs
@@ -76,7 +76,7 @@ def process_result(
                 dspace, node["target"], 
                 len(full_tiling), 
                 result.occupancy[(node["target"], dspace)],
-                n_repititions=n_repititions,
+                # n_repititions=n_repititions,
             )
             all_storages.append(storage)
             t = storage.tensor_id
@@ -173,27 +173,16 @@ def process_result(
     if Metrics.ENERGY in metrics:
         logstring.append(f"E={results['Energy']:.2e}")
     
+    if Metrics.OP_INTENSITY in metrics:
+        results["Op_Intensity"] = result.op_intensity[1]
+    
     logstring.append(f"Results: {results}")
     results[LOGSTRING] = {einsum_id: str(logstring)}
     results[MAPPING] = {einsum_id: tiling_full}
     results[TENSORS] = {einsum_id: all_backing_storages}
     results[STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
     results[IN_PROGRESS_STATS] = {einsum_id: {}}
-    
-    # keep = {
-    #     0: Tiling((Loop(4, 1, False),), frozenset({TensorStorage(0, 0, 0, 8, 1), TensorStorage(1, 1, 1, 4, 2), TensorStorage(0, 1, 1, 4, 2), TensorStorage(1, 0, 0, 8, 1), TensorStorage(2, 1, 0, 16, 1)})),
-    #     1: Tiling((Loop(5, 1, False),), fzs({TensorStorage(4, 0, 0, 16, 1), TensorStorage(0, 0, 0, 8, 1), TensorStorage(3, 0, 0, 8, 1), TensorStorage(0, 1, 1, 4, 2), TensorStorage(4, 1, 1, 8, 2), TensorStorage(3, 1, 0, 8, 1)})),
-    #     2: Tiling((Loop(6, 1, False), Loop(5, 1, False), Loop(7, 1, False), Loop(1, 1, False)), frozenset({TensorStorage(5, 0, 0, 16, 1), TensorStorage(4, 0, 0, 16, 1), TensorStorage(5, 1, 4, 1, 16), TensorStorage(4, 1, 3, 2, 8), TensorStorage(2, 1, 0, 16, 1)})),
-    #     3: Tiling((Loop(11, 1, False), Loop(10, 1, False), Loop(14, 1, False)), fzs({TensorStorage(6, 1, 0, 8, 1), TensorStorage(0, 0, 0, 8, 1), TensorStorage(7, 1, 2, 4, 4), TensorStorage(0, 1, 3, 1, 8), TensorStorage(6, 0, 0, 8, 1)})),
-    #     4: Tiling((Loop(11, 1, False), Loop(10, 1, False), Loop(1, 1, False), Loop(12, 1, False)), fzs({TensorStorage(5, 1, 4, 1, 16), TensorStorage(5, 0, 0, 16, 1), TensorStorage(8, 1, 0, 16, 1), TensorStorage(7, 1, 2, 4, 4)})),
-    #     5: Tiling((Loop(15, 1, False),), frozenset({TensorStorage(9, 1, 1, 4, 2), TensorStorage(8, 1, 0, 16, 1), TensorStorage(10, 1, 1, 4, 2), TensorStorage(9, 0, 0, 8, 1), TensorStorage(10, 0, 0, 8, 1)})),
-    # }
-
-    # if einsum_id in keep and tiling_full != keep[einsum_id]:
-    #     return False, results, logstring
-
-    if Metrics.OP_INTENSITY in metrics:
-        results["Op_Intensity"] = result.op_intensity[1]
+    results[MAPPING_HASH] = {einsum_id: hash((einsum_id, tiling_compatibility))}
     
     is_pareto = True
     for prev_stats in compatibility_to_df[tiling_compatibility]:
