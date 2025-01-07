@@ -27,7 +27,8 @@ def load_configs(input_fnames):
         with open(fname, 'r') as f:
             yaml_str += f.read()
         yaml_str += '\n'
-    config = Config.load_yaml(yaml_str)
+    config = Config(yaml_str, "yaml")
+    config.in_files = input_files
     return config
 
 
@@ -58,7 +59,7 @@ if __name__ == '__main__':
     out_stats_fname = os.path.join(out_dir, 'timeloop-mapper.stats.txt')
     out_mapping_fname = os.path.join(out_dir, 'timeloop-mapper.map.txt')
 
-    app = MapperApp(config, out_dir, log_level=log_level)
-    eval_stats, _ = app.run()
-    logger.info(f'Evaluation status: {eval_stats.eval_status}')
-    logger.info(f'Pre-evaluation status: {eval_stats.pre_eval_status}')
+    name = "timeloop-mapper"
+    app = MapperApp(config, out_dir, name)
+    eval_stats = app.run()
+    logger.info('Evaluation status: {}'.format(eval_stats.stats_string))
