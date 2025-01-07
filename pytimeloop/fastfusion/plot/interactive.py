@@ -11,7 +11,7 @@ import plotly.express as px
 from pytimeloop.fastfusion.sim import Loop, Tiling
 from pytimeloop.fastfusion.util import expfmt
 from pytimeloop.fastfusion.plot.looptree import tilings2svg
-from pytimeloop.fastfusion.pareto import MAPPING, STATS, TENSORS, IN_PROGRESS_STATS
+from pytimeloop.fastfusion.pareto import MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH
 
 import pandas as pd
 
@@ -29,13 +29,25 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: pd.DataFra
     def display_mapping(trace, points, selector):
         index = points.point_inds[0]
         display(mapping2svg(data.iloc[index]))
+        all_tensors = set(
+            t for tn in data.iloc[index][TENSORS].values() for t in tn
+        )
+        for t in sorted(all_tensors):
+            print(f"{t.__repr__()},")
+        for k, v in data.iloc[index][MAPPING_HASH].items():
+            print(f"{k}: {v},")
     out2 = Output()
     @out2.capture(clear_output=True)
     def display_mapping_2(trace, points, selector):
         index = points.point_inds[0]
         display(mapping2svg(data.iloc[index]))
-        for k, v in data.loc[index][MAPPING].items():
-            print(f"{k}: {v.__repr__()}")
+        all_tensors = set(
+            t for tn in data.iloc[index][TENSORS].values() for t in tn
+        )
+        for t in sorted(all_tensors):
+            print(f"{t.__repr__()},")
+        for k, v in data.iloc[index][MAPPING_HASH].items():
+            print(f"{k}: {v},")
     fig.data[0].on_hover(display_mapping)
     fig.data[0].on_click(display_mapping_2)
     if not DUAL_OUT:

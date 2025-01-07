@@ -105,7 +105,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
 
 def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any]):
     root = tilings2looptree(mappings, stats, tensors, partial_stats)
-    graph = pydot.Dot(graph_type="digraph")
+    graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
     root.to_pydot(graph)
     return graph.create_svg()
 
