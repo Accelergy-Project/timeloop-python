@@ -25,9 +25,10 @@ STATS = "__STATS"
 OCCUPANCY = "__Occupancy"
 TENSORS = "__TENSORS"
 IN_PROGRESS_STATS = "__IN_PROGRESS_STATS"
+MAPPING_HASH = "__MAPPING_HASH"
 
-RESERVED_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS])
-DICT_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS])
+RESERVED_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH])
+DICT_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH])
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
@@ -177,7 +178,12 @@ def merge_cross(
     next_live_tensors: set[int],
     as_pareto: bool = False,
 ) -> pd.DataFrame:
-    # left = free_to_loop_index(left, shared_loop_index + 1)
+    left = free_to_loop_index(left, shared_loop_index + 1)
+    for c in left.columns:
+        if (name_nloops := col2nameloop(c)) is not None:
+            if c not in right.columns:
+                right[c] = 0
+
     df = pd.merge(left, right, how="cross", suffixes=MERGE_SUFFIXES)
     shared_columns = set(left.columns) & set(right.columns) - RESERVED_COLUMNS
 
@@ -291,6 +297,8 @@ class Pareto:
 
     def merge(self, other: "Pareto", shared_loop_index: int, next_shared_loop_index: int, resource2capacity: dict[str, int], next_live_tensors: set[int], delay: bool=False) -> "Pareto":
         d = delayed(merge_cross)(self.data, other.data, shared_loop_index, next_shared_loop_index, resource2capacity, next_live_tensors=next_live_tensors, as_pareto=True)
+        if not delay:
+            print("AHH")
         return d if delay else d[0](*d[1], **d[2])
 
     @staticmethod
@@ -331,6 +339,10 @@ class Pareto:
 
     def squish_left_right(self):
         self.data = squish_left_right(self.data)
+        
+    def filter_by_mapping_hashes(self, hashes: set[int]):
+        self.data = self.data[self.data[MAPPING_HASH].apply(lambda x: all(i in hashes for i in x.values()))]
+        return self
 
 import unittest
 

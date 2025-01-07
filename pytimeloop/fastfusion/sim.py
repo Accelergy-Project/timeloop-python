@@ -268,6 +268,13 @@ class SIM:
         if isinstance(sims, dict):
             return {k: v for k, v in sims.items() if not k.tensors - tensors}
         raise ValueError(f"Invalid type {type(sims)}")
+    
+    def filter_by_mapping_hashes(self, hashes: set[str]) -> Optional["SIM"]:
+        self = SIM(
+            self.tiling, 
+            self.mapping.filter_by_mapping_hashes(hashes)
+        )
+        return self if len(self.mapping.data) > 0 else None
 
     def group_by_right(
         sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False
