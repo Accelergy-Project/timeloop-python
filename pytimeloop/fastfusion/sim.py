@@ -53,8 +53,10 @@ class Loop:
         return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
     
     def pydot_str(self):
-        return f"{self.rank_id} sz {expfmt(self.bound)} {'S' if self.is_spatial else ''} * {expfmt(self.n_repititions)}"
-
+        if self.is_spatial:
+            return f"S-for R{self.rank_id} size {expfmt(self.bound)}"
+        return f"for {self.rank_id} size {expfmt(self.bound)}"
+            
     def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "Loop":
         return Loop(rank_renaming[self.rank_id], self.bound, self.is_spatial)
     
@@ -85,14 +87,14 @@ class TensorStorage:
         return self.tile_size
 
     def __str__(self):
-        return f"({self.backer_id}) {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"# x{expfmt(self.n_repititions)}"
+        return f"[{self.backer_id}] {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"# x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
         return f"TensorStorage({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"#, {self.n_repititions})"
     
     def pydot_str(self):
-        return f"({self.backer_id}) {self.tensor_id} size " \
-            f"{expfmt(self.tile_size)}"#*{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
+        return f"[{self.backer_id}] T{self.tensor_id} size {expfmt(self.tile_size)}"
+            #*{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
     
     def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "TensorStorage":
         return TensorStorage(
@@ -111,6 +113,10 @@ class TensorStorage:
             "above_loop_index": self.above_loop_index,
             "tile_size": self.tile_size,
         }
+        
+class TensorStorage2(TensorStorage):
+    def __repr__(self):
+        return f"TensorStorage2({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"
 
 
 @dataclass(frozen=True)
@@ -209,6 +215,8 @@ class SIM:
         shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
         tiling = n.tiling.absorb_tensors(self.tiling, next_live_tensors)
         next_shared_loop_index = tiling.shared_loop_index(next_live_tensors)
+        # assert all(t.tensor_id in next_live_tensors for t in tiling.tensors), f"Did not free all dead tensors {tiling.tensors} {next_live_tensors}"
+        # assert all
         mapping = self.mapping.merge(n.mapping, shared_loop_index, next_shared_loop_index, resource2capacity, next_live_tensors, delay=delay)
         s = SIM(tiling, mapping)
         assert len(tiling.loops) == next_shared_loop_index + 1, f"{self.tiling} {n.tiling} {next_shared_loop_index + 1} -> {tiling} {len(tiling.loops)}"
@@ -220,8 +228,10 @@ class SIM:
         live_tensors = list(self.tiling.tensor_names) + [next_live_tensors]
         return self.tiling.shared_loop_index(live_tensors)
 
-    def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None):
+    def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None, shared_tensors: set[str] = None):
         dead_tensors = set(self.tensors) - (next_live_tensors or set())
+        shared_tensors = shared_tensors or set()
+        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | next_live_tensors)
         for t in dead_tensors:
             self._free_tensor(t)
         if next_live_tensors is None:
@@ -231,9 +241,8 @@ class SIM:
             # Can free the deepest of:
             # - The shared loop with the next SIM
             # - My deepest loop that hasn't yet been freed
-            shared_loop_index = self.tiling.shared_loop_index(next_live_tensors)
-            if self.tensors:
-                shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
+            # if self.tensors:
+            #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
             self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
 
     def __eq__(self, other):

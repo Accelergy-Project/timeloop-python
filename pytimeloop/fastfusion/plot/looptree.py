@@ -1,6 +1,6 @@
 from collections import defaultdict
 import pydot
-from typing import Any
+from typing import Any, Iterable
 from pytimeloop.fastfusion.sim import Tiling, TensorStorage, Loop
 from pytimeloop.fastfusion.util import expfmt
 from pytimeloop.fastfusion.pareto import IN_PROGRESS_STATS
@@ -38,7 +38,7 @@ class Node:
     def to_yaml(self):
         return {"mapping": "fused", "nodes": self._to_yaml()}
 
-    def to_pydot(self, graph, parent=None, invisible_root: bool = True):
+    def to_pydot(self, graph, parent=None, invisible_root: bool = False):
         label_lines = []
         for t in self.this_level:
             label_lines.append(t.pydot_str() if hasattr(t, "pydot_str") else str(t))
@@ -49,7 +49,8 @@ class Node:
             node = pydot.Node(id(self), label=node_label, **PYDOT_NODE_DEFAULTS)
             graph.add_node(node)
         if parent:
-            graph.add_edge(pydot.Edge(parent, node))
+            reservations = "\n".join(sorted(f"[{k}] {expfmt(v)}" for k, v in self.get_reservations().items()))
+            graph.add_edge(pydot.Edge(parent, node, label=reservations))
         for child in self.children:
             child.to_pydot(graph, node, invisible_root=False)
 
@@ -59,9 +60,18 @@ class Node:
         else:
             for k, v in stats.items():
                 self.this_level.append(f"{k}: {expfmt(v)}")
+                
+    def get_reservations(self) -> dict[str, int]:
+        reservations = defaultdict(lambda: 0)
+        for c in self.children:
+            for k, v in c.get_reservations().items():
+                reservations[k] = max(reservations[k], v)
+        for t in self.this_level:
+            if isinstance(t, TensorStorage):
+                reservations[t.backer_id] += t.tile_size
+        return reservations
 
-
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any]):
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any], skip_backing_tensors: Iterable[str] = ()):
     prev_tiling = None
     root = Node()
     einsum_ids = list(mappings.keys())
@@ -79,27 +89,36 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
             n.children.append(Node())
             n = n.children[-1]
         n.children.append(Node()) # Leaf node
-        for tensor in tiling.tensors:
-            root.access_level(tensor.above_loop_index).this_level.append(tensor)
+        id2tensor = defaultdict(lambda: [])
+        for t in tiling.tensors:
+            id2tensor[t.tensor_id].append(t)
+        id2tensor = {k: sorted(v, key=lambda x: (x.above_loop_index, x.backer_id)) for k, v in id2tensor.items()}
+        for tensor_id, storages in id2tensor.items():
+            if tensor_id in skip_backing_tensors:
+                storages = storages[1:]
+            for tensor in storages:
+                if tensor not in n.this_level:
+                    root.access_level(tensor.above_loop_index).this_level.append(tensor)
         for i, l in enumerate(loops):
             root.access_level(index + i + 1).this_level.append(l)
-        root.add_stats(stats[einsum_id])
         last_level = root.access_level(None).this_level
-        for tensor in tiling.tensors:
-            if tensor not in last_level:
-                last_level.append(tensor)
-                total_resources[tensor.backer_id] += tensor.tile_size
+        first_level = root.access_level(0).this_level
         for tensor in tensors[einsum_id]:
-            if tensor not in last_level:
-                last_level.append(tensor.pydot_str() + "**")
-                total_resources[tensor.backer_id] += tensor.tile_size
+            if tensor.tensor_id not in skip_backing_tensors:
+                if tensor not in mappings[einsum_id].tensors:
+                    # tensor = TensorStorage(
+                    #     f"*{tensor.tensor_id}", 
+                    #     tensor.backer_id, 
+                    #     tensor.above_loop_index, 
+                    #     tensor.tile_size
+                    # )
+                    first_level.append(tensor)
+                    total_resources[tensor.backer_id] += tensor.tile_size
         for k, v in total_resources.items():
             last_level.append(f"({k}) TOTAL: {expfmt(v)}")
-            
+        root.add_stats(stats[einsum_id])
         for k, v in partial_stats[einsum_id].items():
             last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
-
-
         prev_tiling = tiling
     return root
 

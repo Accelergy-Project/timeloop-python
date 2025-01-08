@@ -59,7 +59,7 @@ def nameloop2col(name, nloops, left: bool=False):
 def is_left_col(x):
     return "_LEFT_LEVEL_" in x
 
-MERGE_SUFFIXES = ["_RIGHT_MERGE", "_LEFT_MERGE"]
+MERGE_SUFFIXES = ["_LEFT_MERGE", "_RIGHT_MERGE"]
 
 def is_merge_col(c):
     return any(c.endswith(s) for s in MERGE_SUFFIXES)
@@ -109,21 +109,23 @@ def makepareto(data: pd.DataFrame) -> pd.DataFrame:
         return data
     return data[paretoset(data[columns])].reset_index(drop=True)
 
-def squish_left_right(data: pd.DataFrame):
+def squish_left_right(data: pd.DataFrame, shared_loop_index: int=None):
     nloops2left = defaultdict(set)
+    dropcols = []
     for c in data.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             if is_left_col(c):
                 name, nloops = name_nloops
-                nloops2left[nloops].add((c, name))
+                if shared_loop_index is None or nloops == shared_loop_index:
+                    nloops2left[nloops].add((c, name))
+                    dropcols.append(c)
             
     for n in nloops2left.keys():
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
             max_to_col(data, target, c)
             
-    keepcols = [c for c in data.columns if not is_left_col(c)]
-    return data[keepcols]
+    return data[[c for c in data.columns if c not in dropcols]]
 
 def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: bool=False) -> pd.DataFrame:
     nloops2left = defaultdict(set)
@@ -179,6 +181,7 @@ def merge_cross(
     as_pareto: bool = False,
 ) -> pd.DataFrame:
     left = free_to_loop_index(left, shared_loop_index + 1)
+    left = squish_left_right(left, shared_loop_index + 1)
     for c in left.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             if c not in right.columns:
@@ -220,7 +223,6 @@ def merge_cross(
     #     
     #  *  Can't bake into compatiblity unless we have a notion of left vs.
     #     right pipelined.
-    
     
     # PIPELINE CHANGES REQUIRED:
     # - Latency above above loop index (first tile), below (all subsequent tiles)
@@ -277,6 +279,31 @@ def merge_cross(
     # Update the IN_PROGRESS_STATS
     for i, r in df[cols].iterrows():
         df.at[i, IN_PROGRESS_STATS][last] = r.to_dict()
+        
+    CHECK_CORRECTNESS = False
+    if CHECK_CORRECTNESS:
+        from pytimeloop.fastfusion.plot.looptree import tilings2looptree
+        df_check = free_to_loop_index(df.copy(), -1, skip_pareto=True)
+        for i, r in df_check.iterrows():
+            looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors=next_live_tensors)
+            reservations = dict(looptree.get_reservations())
+            for k, v in reservations.items():
+                col = nameloop2col(k, -1)
+                if col not in df_check.columns:
+                    got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
+                    raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
+                if r[col] != v:
+                    got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
+                    raise ValueError(f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}")
+                # import pydot
+                # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+                # looptree.to_pydot(graph)
+                # with open(f"test.png", "wb") as f:
+                #     f.write(graph.create_png())
+                # all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
+                # for t in sorted(all_tensors):
+                #     print(f"{t.__repr__()},")
+
 
     # Assert no NaNs
     assert not df.isnull().values.any()
@@ -297,8 +324,6 @@ class Pareto:
 
     def merge(self, other: "Pareto", shared_loop_index: int, next_shared_loop_index: int, resource2capacity: dict[str, int], next_live_tensors: set[int], delay: bool=False) -> "Pareto":
         d = delayed(merge_cross)(self.data, other.data, shared_loop_index, next_shared_loop_index, resource2capacity, next_live_tensors=next_live_tensors, as_pareto=True)
-        if not delay:
-            print("AHH")
         return d if delay else d[0](*d[1], **d[2])
 
     @staticmethod

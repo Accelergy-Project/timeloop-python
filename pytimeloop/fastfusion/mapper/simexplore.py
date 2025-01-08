@@ -33,21 +33,32 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
         nbuckets.append(len(s))
         nmappings.append(sum(len(s2.mapping.data) for s2 in s))
         next_and_prev_live_tensors = next_live_tensors | s[0].tensor_names
+        shared_tensors = set(s[0].tensor_names) & set(ns[0].tensor_names)
 
         first_ns = ns[0]
         ns = SIM.group_by_left(ns, s[0].tensor_names)
         s = SIM.group_by_right(s, first_ns.tensor_names, keep_loops=True)
-
+            
         for k, ns2 in ns.items():
             for ns3 in ns2:
-                ns3.consolidate(next_live_tensors, resource2capacity)
+                ns3.consolidate(next_live_tensors, resource2capacity, shared_tensors)
             ns[k] = SIM.combine_combineable(ns2, live_tensors)
+
         for k, s2 in s.items():
             for s3 in s2:
-                s3.consolidate(next_live_tensors, resource2capacity)
+                s3.consolidate(next_live_tensors, resource2capacity, shared_tensors)
             s[k] = SIM.combine_combineable(s2, next_and_prev_live_tensors)
+            
+        # We freed these in the consolidation step
+        for ns2 in [s, ns]:
+            for ns3 in ns2.values():
+                for ns4 in ns3:
+                    for t in list(ns4.tensors):
+                        if t not in next_live_tensors:
+                            del ns4.tensors[t]
 
         DO_PRINT = True
+        DELAY_MERGE = True
 
         combined: list[SIM] = []
         for k in s:
@@ -57,12 +68,19 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
                     ns: SIM
                     if DO_PRINT:
                         print(f"\t{a.tiling_str()} {a.get_shared_loop_index(live_tensors)} <--> {b.tiling_str()}{b.get_shared_loop_index(next_and_prev_live_tensors)}. ({len(a.mapping.data)})x({len(b.mapping.data)})")
-                    combined.append(a.merge_next(b, next_live_tensors, resource2capacity, delay=True))
+                    if not sims:
+                        print(a.merge_next(b, next_live_tensors, resource2capacity, delay=False))
+                    combined.append(a.merge_next(b, next_live_tensors, resource2capacity, delay=DELAY_MERGE))
             elif DO_PRINT:
                 print(f"\tNo match for {k} ||||||||| {s[k][0].tiling_str()}")
 
-        for c, mapping in zip(combined, Parallel(n_jobs=128)(c.mapping for c in combined)):
-            c.mapping = mapping
+        if DELAY_MERGE:
+            for c, mapping in zip(combined, Parallel(n_jobs=128)(c.mapping for c in combined)):
+                c.mapping = mapping
+        else:
+            for c, mapping in zip(combined, (c.mapping for c in combined)):
+                c.mapping = mapping
+            
         print(f"\tCombining {sum(len(s2) for s2 in s)}({len(s)}) x {sum(len(s2) for s2 in ns)}({len(ns)}) -> {len(combined)}")
         if DO_PRINT:
             for k in ns:
