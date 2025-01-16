@@ -171,6 +171,34 @@ def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: 
 def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return data[paretoset(data[columns])].reset_index(drop=True)
 
+def check_correctness(data: pd.DataFrame, next_live_tensors: set[int]):
+    from pytimeloop.fastfusion.plot.looptree import tilings2looptree
+
+    df_check = free_to_loop_index(data.copy(), -1, skip_pareto=True)
+    for i, r in df_check.iterrows():
+        looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors_in_right_branch=next_live_tensors)
+        reservations = dict(looptree.get_reservations())
+        for k, v in reservations.items():
+            col = nameloop2col(k, -1)
+            if col not in df_check.columns:
+                got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
+                looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors_in_right_branch=next_live_tensors)
+                raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
+            if r[col] != v:
+                got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
+                reservations = dict(looptree.get_reservations())
+                looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors_in_right_branch=next_live_tensors)
+                raise ValueError(f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}")
+                # import pydot
+                # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+                # looptree.to_pydot(graph)
+                # with open(f"test.png", "wb") as f:
+                #     f.write(graph.create_png())
+                # all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
+                # for t in sorted(all_tensors):
+                #     print(f"{t.__repr__()},")
+
+
 def merge_cross(
     left: pd.DataFrame,
     right: pd.DataFrame,
@@ -282,28 +310,8 @@ def merge_cross(
         
     CHECK_CORRECTNESS = False
     if CHECK_CORRECTNESS:
-        from pytimeloop.fastfusion.plot.looptree import tilings2looptree
-        df_check = free_to_loop_index(df.copy(), -1, skip_pareto=True)
-        for i, r in df_check.iterrows():
-            looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors=next_live_tensors)
-            reservations = dict(looptree.get_reservations())
-            for k, v in reservations.items():
-                col = nameloop2col(k, -1)
-                if col not in df_check.columns:
-                    got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
-                    raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
-                if r[col] != v:
-                    got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
-                    raise ValueError(f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}")
-                # import pydot
-                # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
-                # looptree.to_pydot(graph)
-                # with open(f"test.png", "wb") as f:
-                #     f.write(graph.create_png())
-                # all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
-                # for t in sorted(all_tensors):
-                #     print(f"{t.__repr__()},")
-
+        # check_correctness(left, next_live_tensors)
+        check_correctness(df, next_live_tensors)
 
     # Assert no NaNs
     assert not df.isnull().values.any()
@@ -346,6 +354,15 @@ class Pareto:
             self.data[n] += size
         else:
             self.data[n] = size
+            
+    def add_tensor(self, tensor):
+        if len(self.data) == 0:
+            return
+        last_einsum = list(self.data.iloc[0][TENSORS].keys())[-1]
+        if tensor in self.data[TENSORS].iloc[0][last_einsum]:
+            return
+        for t in self.data[TENSORS]:
+            t[last_einsum].append(tensor)
 
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())

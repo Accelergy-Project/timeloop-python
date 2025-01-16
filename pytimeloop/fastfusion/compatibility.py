@@ -13,6 +13,8 @@ class Loop:
         self.is_spatial = is_spatial
 
     def __eq__(self, other):
+        if not isinstance(other, Loop):
+            return False
         return (
             self.rank_id == other.rank_id
             and self.bound == other.bound

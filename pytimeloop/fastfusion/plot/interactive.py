@@ -63,9 +63,10 @@ def plotly_show(
     y: str,
     category: Optional[str] = None,
     title: Optional[str] = None,
-    show_mapping: Optional[bool] = True
+    show_mapping: Optional[bool] = True,
+    logscales: bool = False
 ):
-    fig = px.scatter(data, x=x, y=y, color=category, title=title)
+    fig = px.scatter(data, x=x, y=y, color=category, title=title, log_x=logscales, log_y=logscales)
     if show_mapping:
         return diplay_mappings_on_fig(fig, data)
     return fig

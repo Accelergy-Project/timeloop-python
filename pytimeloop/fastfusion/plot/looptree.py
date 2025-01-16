@@ -71,13 +71,14 @@ class Node:
                 reservations[t.backer_id] += t.tile_size
         return reservations
 
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any], skip_backing_tensors: Iterable[str] = ()):
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = ()):
     prev_tiling = None
     root = Node()
     einsum_ids = list(mappings.keys())
     assert set(einsum_ids) == set(stats.keys())
     assert set(einsum_ids) == set(tensors.keys())
-    for einsum_id in einsum_ids:
+    for i, einsum_id in enumerate(einsum_ids):
+        skip_backing_tensors = () if i < len(einsum_ids) - 1 else skip_backing_tensors_in_right_branch
         tiling = mappings[einsum_id]
         index = (
             prev_tiling.shared_loop_index(tiling.tensor_names) if prev_tiling else -1
@@ -97,8 +98,9 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
             if tensor_id in skip_backing_tensors:
                 storages = storages[1:]
             for tensor in storages:
+                n = root.access_level(tensor.above_loop_index)
                 if tensor not in n.this_level:
-                    root.access_level(tensor.above_loop_index).this_level.append(tensor)
+                    n.this_level.append(tensor)
         for i, l in enumerate(loops):
             root.access_level(index + i + 1).this_level.append(l)
         last_level = root.access_level(None).this_level
@@ -114,11 +116,11 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
                     # )
                     first_level.append(tensor)
                     total_resources[tensor.backer_id] += tensor.tile_size
-        for k, v in total_resources.items():
-            last_level.append(f"({k}) TOTAL: {expfmt(v)}")
+        # for k, v in total_resources.items():
+        #     last_level.append(f"({k}) TOTAL: {expfmt(v)}")
         root.add_stats(stats[einsum_id])
-        for k, v in partial_stats[einsum_id].items():
-            last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
+        # for k, v in partial_stats[einsum_id].items():
+        #     last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
         prev_tiling = tiling
     return root
 

@@ -24,6 +24,8 @@ class Loop:
     n_repititions: int = 1
 
     def __eq__(self, other):
+        if not isinstance(other, Loop):
+            return False
         return (
             self.rank_id == other.rank_id
             and self.bound == other.bound
@@ -234,6 +236,24 @@ class SIM:
         shared_loop_index = self.tiling.shared_loop_index(shared_tensors | next_live_tensors)
         for t in dead_tensors:
             self._free_tensor(t)
+        if next_live_tensors is None:
+            self.mapping.free_to_loop_index(0)
+            self.mapping.squish_left_right()
+        else:
+            # Can free the deepest of:
+            # - The shared loop with the next SIM
+            # - My deepest loop that hasn't yet been freed
+            # if self.tensors:
+            #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
+            self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
+
+    def left_consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None, shared_tensors: set[str] = None):
+        shared_tensors = shared_tensors or set()
+        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | next_live_tensors)
+        for t in self.tensors.values():
+            if t.above_loop_index > shared_loop_index:
+                self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
+                self.mapping.add_tensor(t)
         if next_live_tensors is None:
             self.mapping.free_to_loop_index(0)
             self.mapping.squish_left_right()

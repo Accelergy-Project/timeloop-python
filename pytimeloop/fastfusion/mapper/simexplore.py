@@ -7,7 +7,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 from pytimeloop.fastfusion.sim import SIM
-from pytimeloop.fastfusion.pareto import Pareto
+from pytimeloop.fastfusion.pareto import Pareto, check_correctness
 
 
 def explore_fusion(einsum_to_result: Mapping, resource2capacity: dict=None, return_nmappings_nbuckets: bool=False):
@@ -38,7 +38,6 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
         first_ns = ns[0]
         ns = SIM.group_by_left(ns, s[0].tensor_names)
         s = SIM.group_by_right(s, first_ns.tensor_names, keep_loops=True)
-            
         for k, ns2 in ns.items():
             for ns3 in ns2:
                 ns3.consolidate(next_live_tensors, resource2capacity, shared_tensors)
@@ -46,9 +45,8 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
 
         for k, s2 in s.items():
             for s3 in s2:
-                s3.consolidate(next_live_tensors, resource2capacity, shared_tensors)
-            s[k] = SIM.combine_combineable(s2, next_and_prev_live_tensors)
-            
+                s3.left_consolidate(next_live_tensors, resource2capacity, shared_tensors)
+            s[k] = SIM.combine_combineable(s2, next_live_tensors)
         # We freed these in the consolidation step
         for ns2 in [s, ns]:
             for ns3 in ns2.values():
@@ -68,8 +66,9 @@ def fuse_sims(sims: list[SIM], resource2capacity: dict=None, return_nmappings_nb
                     ns: SIM
                     if DO_PRINT:
                         print(f"\t{a.tiling_str()} {a.get_shared_loop_index(live_tensors)} <--> {b.tiling_str()}{b.get_shared_loop_index(next_and_prev_live_tensors)}. ({len(a.mapping.data)})x({len(b.mapping.data)})")
-                    if not sims:
-                        print(a.merge_next(b, next_live_tensors, resource2capacity, delay=False))
+                    # if not sims:
+                    #     check_correctness(a.mapping.data, next_live_tensors)
+                    #     print(a.merge_next(b, next_live_tensors, resource2capacity, delay=False))
                     combined.append(a.merge_next(b, next_live_tensors, resource2capacity, delay=DELAY_MERGE))
             elif DO_PRINT:
                 print(f"\tNo match for {k} ||||||||| {s[k][0].tiling_str()}")
