@@ -3,10 +3,12 @@ from copy import deepcopy
 import logging.handlers
 from pathlib import Path
 import logging
+
+from pytimeloop.fastfusion.util import parallel
 logger = logging.getLogger(__name__)
 
 from ruamel.yaml import YAML
-from joblib import Parallel, delayed
+from joblib import delayed
 
 yaml = YAML(typ="safe")
 
@@ -85,7 +87,7 @@ def mapper(
     # for a in args:
     #     mapper_place_fusion_level(**a)
     
-    result = Parallel(n_jobs=n_workers)(
+    result = parallel(
         delayed(mapper_place_fusion_level)(**a) for a in args
     )
     data = {einsum_id: defaultdict(list) for einsum_id in grouped_similar_einsums}

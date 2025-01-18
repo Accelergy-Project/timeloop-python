@@ -1,8 +1,19 @@
 from numbers import Number
 
+from joblib import Parallel
+
+import sys
+
+N_PARALLEL_THREADS = 128
+
 
 class fzs(frozenset):
     pass
+
+
+def debugger_active():
+    return sys.gettrace() is not None
+
 
 def expfmt(x):
     if isinstance(x, Number):
@@ -16,3 +27,19 @@ def expfmt(x):
         x = x.replace("e+00", "")
     x = x.replace("e+", "e")
     return x
+
+
+def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True):
+    if n_jobs is None:
+        n_jobs = N_PARALLEL_THREADS
+
+    if one_job_if_debugging and debugger_active():
+        n_jobs = 1
+
+    if isinstance(jobs, dict):
+        return {k: v for k, v in zip(jobs.keys(), parallel(jobs.values()))}
+
+    if n_jobs == 1:
+        return [j[0](*j[1], **j[2]) for j in jobs]
+
+    return Parallel(n_jobs=n_jobs)(jobs)

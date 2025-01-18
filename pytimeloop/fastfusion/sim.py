@@ -21,7 +21,6 @@ class Loop:
     rank_id: str
     bound: int
     is_spatial: bool
-    n_repititions: int = 1
 
     def __eq__(self, other):
         if not isinstance(other, Loop):
@@ -53,15 +52,17 @@ class Loop:
 
     def __str__(self):
         return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
-    
+
     def pydot_str(self):
         if self.is_spatial:
             return f"S-for R{self.rank_id} size {expfmt(self.bound)}"
         return f"for {self.rank_id} size {expfmt(self.bound)}"
-            
-    def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "Loop":
+
+    def rename(
+        self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
+    ) -> "Loop":
         return Loop(rank_renaming[self.rank_id], self.bound, self.is_spatial)
-    
+
     def to_yaml(self):
         return {
             "type": "loop",
@@ -69,6 +70,7 @@ class Loop:
             "bound": self.bound,
             "is_spatial": self.is_spatial,
         }
+
 
 @dataclass(frozen=True)
 class TensorStorage:
@@ -89,24 +91,26 @@ class TensorStorage:
         return self.tile_size
 
     def __str__(self):
-        return f"[{self.backer_id}] {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"# x{expfmt(self.n_repititions)}"
+        return f"[{self.backer_id}] {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"  # x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
-        return f"TensorStorage({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"#, {self.n_repititions})"
-    
+        return f"TensorStorage({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"  # , {self.n_repititions})"
+
     def pydot_str(self):
         return f"[{self.backer_id}] T{self.tensor_id} size {expfmt(self.tile_size)}"
-            #*{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
-    
-    def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "TensorStorage":
+        # *{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
+
+    def rename(
+        self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
+    ) -> "TensorStorage":
         return TensorStorage(
-            tensor_renaming[self.tensor_id], 
-            self.backer_id, 
-            self.above_loop_index, 
-            self.tile_size, 
+            tensor_renaming[self.tensor_id],
+            self.backer_id,
+            self.above_loop_index,
+            self.tile_size,
             # self.n_repititions
         )
-    
+
     def to_yaml(self):
         return {
             "type": "storage",
@@ -115,7 +119,8 @@ class TensorStorage:
             "above_loop_index": self.above_loop_index,
             "tile_size": self.tile_size,
         }
-        
+
+
 class TensorStorage2(TensorStorage):
     def __repr__(self):
         return f"TensorStorage2({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"
@@ -129,7 +134,7 @@ class Tiling:
     @cached_property
     def tensor_names(self) -> set[str]:
         return {t.tensor_id for t in self.tensors}
-    
+
     def get_backing_levels(self) -> dict[str, int]:
         backings = {}
         for t in self.tensors:
@@ -157,34 +162,46 @@ class Tiling:
         return hash((self.loops, self.tensors))
 
     def clear_dead_tensors(
-        self, 
-        live_tensors: set[str],
-        keep_loops: bool = False
+        self, live_tensors: set[str], keep_loops: bool = False
     ) -> "Tiling":
-        loops = self.loops if keep_loops else self.loops[: self.shared_loop_index(live_tensors) + 1]
+        loops = (
+            self.loops
+            if keep_loops
+            else self.loops[: self.shared_loop_index(live_tensors) + 1]
+        )
         tensors = tuple(t for t in self.tensors if t.tensor_id in live_tensors)
         return Tiling(loops, tensors)
 
     def __lt__(self, other):
         return self.loops < other.loops
-    
+
     def __str__(self):
-        return "Tiling(loops=" + ", ".join(str(l) for l in self.loops) + \
-            ", tensors=" + ", ".join(str(t) for t in sorted(self.tensors)) + ")"
-    
+        return (
+            "Tiling(loops="
+            + ", ".join(str(l) for l in self.loops)
+            + ", tensors="
+            + ", ".join(str(t) for t in sorted(self.tensors))
+            + ")"
+        )
+
     def __repr__(self):
         return f"Tiling({self.loops}, {self.tensors})"
-    
+
     def absorb_tensors(self, prev: "Tiling", live_tensors: set[str]) -> "Tiling":
-        tensors = fzs(t for t in (prev.tensors | self.tensors) if t.tensor_id in live_tensors)
-        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, prev])
-        return Tiling(self.loops[:shared_loop_index+1], tensors)
-    
-    def rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]) -> "Tiling":
-        return Tiling(
-            tuple(l.rename(rank_renaming, tensor_renaming) for l in self.loops), 
-            fzs(t.rename(rank_renaming, tensor_renaming) for t in self.tensors)
+        tensors = fzs(
+            t for t in (prev.tensors | self.tensors) if t.tensor_id in live_tensors
         )
+        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, prev])
+        return Tiling(self.loops[: shared_loop_index + 1], tensors)
+
+    def rename(
+        self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
+    ) -> "Tiling":
+        return Tiling(
+            tuple(l.rename(rank_renaming, tensor_renaming) for l in self.loops),
+            fzs(t.rename(rank_renaming, tensor_renaming) for t in self.tensors),
+        )
+
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -206,37 +223,43 @@ class SIM:
     def tensor_names(self) -> set[str]:
         return set(self.tensors)
 
-    def _free_tensor(self, tensor_id: str):
-        t = self.tensors.pop(tensor_id)
-        self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
-
     def copy(self) -> "SIM":
         return SIM(self.tiling, self.mapping.copy())
 
-    def merge_next(self, n: "SIM", next_live_tensors: set[str], resource2capacity: dict[str, int], delay: bool=False) -> "SIM":
+    def merge_next(
+        self, n: "SIM", live_tensors: set[str], delay: bool = False
+    ) -> "SIM":
         shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
-        tiling = n.tiling.absorb_tensors(self.tiling, next_live_tensors)
-        next_shared_loop_index = tiling.shared_loop_index(next_live_tensors)
-        # assert all(t.tensor_id in next_live_tensors for t in tiling.tensors), f"Did not free all dead tensors {tiling.tensors} {next_live_tensors}"
-        # assert all
-        mapping = self.mapping.merge(n.mapping, shared_loop_index, next_shared_loop_index, resource2capacity, next_live_tensors, delay=delay)
+        tiling = n.tiling.absorb_tensors(self.tiling, live_tensors)
+        next_shared_loop_index = tiling.shared_loop_index(live_tensors)
+        mapping = self.mapping.merge(
+            n.mapping, shared_loop_index, live_tensors, delay=delay
+        )
         s = SIM(tiling, mapping)
-        assert len(tiling.loops) == next_shared_loop_index + 1, f"{self.tiling} {n.tiling} {next_shared_loop_index + 1} -> {tiling} {len(tiling.loops)}"
+        assert (
+            len(tiling.loops) == next_shared_loop_index + 1
+        ), f"{self.tiling} {n.tiling} {next_shared_loop_index + 1} -> {tiling} {len(tiling.loops)}"
         s.tensors.update(n.tensors)
         s.tensors.update(self.tensors)
         return s
 
-    def get_shared_loop_index(self, next_live_tensors: set[str]) -> int:
-        live_tensors = list(self.tiling.tensor_names) + [next_live_tensors]
+    def get_shared_loop_index(self, live_tensors: set[str]) -> int:
+        live_tensors = list(self.tiling.tensor_names) + [live_tensors]
         return self.tiling.shared_loop_index(live_tensors)
 
-    def consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None, shared_tensors: set[str] = None):
-        dead_tensors = set(self.tensors) - (next_live_tensors or set())
+    def consolidate(
+        self,
+        live_tensors: set[str] = None,
+        resource2capacity: dict[str, int] = None,
+        shared_tensors: set[str] = None,
+    ):
+        dead_tensors = set(self.tensors) - (live_tensors or set())
         shared_tensors = shared_tensors or set()
-        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | next_live_tensors)
+        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | live_tensors)
         for t in dead_tensors:
-            self._free_tensor(t)
-        if next_live_tensors is None:
+            t = self.tensors.pop(t)
+            self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
+        if live_tensors is None:
             self.mapping.free_to_loop_index(0)
             self.mapping.squish_left_right()
         else:
@@ -245,25 +268,35 @@ class SIM:
             # - My deepest loop that hasn't yet been freed
             # if self.tensors:
             #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
-            self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
+            self.mapping.free_to_loop_index(shared_loop_index + 1, resource2capacity)
 
-    def left_consolidate(self, next_live_tensors: set[str] = None, resource2capacity: dict[str, int] = None, shared_tensors: set[str] = None):
+    def left_consolidate(
+        self,
+        live_tensors: set[str] = None,
+        resource2capacity: dict[str, int] = None,
+        shared_tensors: set[str] = None,
+    ):
         shared_tensors = shared_tensors or set()
-        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | next_live_tensors)
+        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | live_tensors)
         for t in self.tensors.values():
-            if t.above_loop_index > shared_loop_index:
+            if (
+                t.above_loop_index > shared_loop_index
+                or t.tensor_id not in shared_tensors
+            ):
                 self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
                 self.mapping.add_tensor(t)
-        if next_live_tensors is None:
+        if live_tensors is None:
             self.mapping.free_to_loop_index(0)
-            self.mapping.squish_left_right()
+            self.mapping.squish_left_right(0)
         else:
             # Can free the deepest of:
             # - The shared loop with the next SIM
             # - My deepest loop that hasn't yet been freed
             # if self.tensors:
             #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
-            self.mapping.free_to_loop_index(shared_loop_index+1, resource2capacity)
+            self.mapping.free_to_loop_index(shared_loop_index + 1, resource2capacity)
+            self.mapping.squish_left_right(shared_loop_index + 1)
+        self.mapping.make_pareto()
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
@@ -275,34 +308,47 @@ class SIM:
     def concat(sims: Iterable["SIM"]) -> "SIM":
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
-        assert len(set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims)) == 1, "Cannot concat SIMs with different tensors"
+        assert (
+            len(set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims))
+            == 1
+        ), "Cannot concat SIMs with different tensors"
         return SIM(sims[0].tiling, Pareto.concat([s.mapping for s in sims]))
 
     @staticmethod
-    def _group(sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False) -> dict[tuple[Tiling, ...], list["SIM"]]:
+    def _group(
+        sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False
+    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
-            grouped[s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops)].append(s)
+            grouped[
+                s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops)
+            ].append(s)
         return grouped
 
     @staticmethod
     def combine_combineable(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
         return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
-    
+
     @staticmethod
-    def filter_by_tensor_storages(sims: list["SIM"] | dict[Tiling, Any], tensors: set[str]) -> list["SIM"]:
+    def filter_by_tensor_storages(
+        sims: list["SIM"] | dict[Tiling, Any], tensors: set[str]
+    ) -> list["SIM"]:
+        def check(tensors_to_check):
+            for t in tensors_to_check:
+                for t2 in tensors:
+                    if t.tensor_id == t2.tensor_id and t != t2:
+                        return False
+            return True
+
         tensors = set(tensors)
         if isinstance(sims, list):
-            return [s for s in sims if all(t in tensors for t in s.tiling.tensors)]
+            return [s for s in sims if check(s.tiling.tensors)]
         if isinstance(sims, dict):
-            return {k: v for k, v in sims.items() if not k.tensors - tensors}
+            return {k: v for k, v in sims.items() if check(k.tensors)}
         raise ValueError(f"Invalid type {type(sims)}")
-    
+
     def filter_by_mapping_hashes(self, hashes: set[str]) -> Optional["SIM"]:
-        self = SIM(
-            self.tiling, 
-            self.mapping.filter_by_mapping_hashes(hashes)
-        )
+        self = SIM(self.tiling, self.mapping.filter_by_mapping_hashes(hashes))
         return self if len(self.mapping.data) > 0 else None
 
     def group_by_right(
@@ -315,124 +361,6 @@ class SIM:
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors)
 
-    # def to_pydot_acc_util(self, title: str, info_text: pd.DataFrame):
-    #     import pydot
-        
-    #     title = f"{title}\n" + pretty_sci_notation(
-    #         f"{info_text[paretos.UTIL_COL]:.2e} utilization (LEFT), "
-    #         f"{info_text[paretos.ACCESSES_COL]:.2e} accesses (RIGHT)"
-    #     )
-
-    #     def getstat(s):
-    #         return info_text.get(s, 0)
-
-    #     max_op_util = max(getstat(f"{op.name} {paretos.UTIL_COL}") for op in self)
-    #     max_op_acc = max(getstat(f"{op.name} {paretos.ACCESSES_COL}") for op in self)
-    #     max_t_util = max(getstat(f"{t.name} {paretos.UTIL_COL}") for t in self.tensors)
-    #     max_t_acc = max(
-    #         getstat(f"{t.name} {paretos.ACCESSES_COL}") for t in self.tensors
-    #     )
-
-    #     def get_tensor_node(tensor, acc_info: bool):
-    #         acc = getstat(f"{tensor.name} {paretos.ACCESSES_COL}")
-    #         util = getstat(f"{tensor.name} {paretos.UTIL_COL}")
-    #         tsize = tensor.size()
-
-    #         if acc_info:
-    #             s, t = acc / max(max_t_acc, 1), f"{acc:.1e}A (x{acc//tsize})"
-    #         else:
-    #             s, t = (
-    #                 util / max(max_t_util, 1),
-    #                 f"{util:.1e}U (/{tsize//max(util, 1)})",
-    #             )
-
-    #         t = pretty_sci_notation(t)
-
-    #         importance = 0.3 + 0.7 * s
-    #         basecolor = struct.unpack("BBB", bytes.fromhex("f9f9f9"))
-    #         scaled = (int(i * importance) for i in basecolor)
-
-    #         text = f"{tensor.name}\n{t}"
-    #         node = pydot.Node(
-    #             name=f"Tensor {tensor.name} {acc_info}".replace(":", "_").replace(
-    #                 "/", "_"
-    #             ),
-    #             shape="box",
-    #             style="filled",
-    #             fillcolor="#" + bytes.hex(struct.pack("BBB", *scaled)),
-    #             label=text,
-    #             fontsize="10",
-    #             width=0,
-    #             penwidth=1,
-    #             margin="0",
-    #             height=0,
-    #         )
-    #         graph.add_node(node)
-    #         tensor._graph_node = node
-    #         return node
-
-    #     def get_op_node(op, acc_info: bool):
-    #         acc = getstat(f"{op.name} {paretos.ACCESSES_COL}")
-    #         util = getstat(f"{op.name} {paretos.UTIL_COL}")
-
-    #         if acc_info:
-    #             s, t = acc / max(max_op_acc, 1), f"{acc:.1e}A"
-    #         else:
-    #             s, t = util / max(max_op_util, 1), f"{util:.1e}U"
-    #         t = pretty_sci_notation(t)
-
-    #         importance = 0.3 + 0.7 * s
-    #         basecolor = struct.unpack("BBB", bytes.fromhex("ffcccc"))
-    #         scaled = (int(i * importance) for i in basecolor)
-
-    #         text = f"{op.name} (x{op.scale_accesses_by})\n{t}"
-    #         node = pydot.Node(
-    #             f"{op.name} {acc_info}".replace(":", "_").replace("/", "_"),
-    #             shape="box",
-    #             style="filled",
-    #             fillcolor="#" + bytes.hex(struct.pack("BBB", *scaled)),
-    #             label=text,
-    #             fontsize="10",
-    #             width=0,
-    #             margin="0",
-    #             height=0,
-    #         )
-    #         graph.add_node(node)
-    #         op._graph_node = node
-    #         return node
-
-    #     graph = pydot.Dot(
-    #         graph_type="digraph",
-    #         label=title,
-    #         ranksep="0.1",
-    #         nodesep="0.1",
-    #         labelloc="t",
-    #     )
-
-    #     # Create nodes for each tensor and add them to the graph
-    #     for tensor in self.tensors:
-    #         get_tensor_node(tensor, False)
-    #     for op in self:
-    #         get_op_node(op, False)
-    #         for t in op.input_tensors:
-    #             edge = pydot.Edge(t._graph_node, op._graph_node, color="blue")
-    #             graph.add_edge(edge)
-    #         for t in op.output_tensors:
-    #             edge = pydot.Edge(op._graph_node, t._graph_node, color="red")
-    #             graph.add_edge(edge)
-
-    #     for tensor in self.tensors:
-    #         get_tensor_node(tensor, True)
-    #     for op in self:
-    #         get_op_node(op, True)
-    #         for t in op.input_tensors:
-    #             edge = pydot.Edge(t._graph_node, op._graph_node, color="blue")
-    #             graph.add_edge(edge)
-    #         for t in op.output_tensors:
-    #             edge = pydot.Edge(op._graph_node, t._graph_node, color="red")
-    #             graph.add_edge(edge)
-
-    #     return graph
 
 import unittest
 
@@ -484,17 +412,17 @@ class TestSIM(unittest.TestCase):
         a1 = TensorStorage("A1", "GLB", 1, 2)
         a2 = TensorStorage("A2", "GLB", 2, 3)
         a1b1 = TensorStorage("A1B1", "GLB", 2, 2)  # Above loop 2 --> share 0, 1
-        b0 = TensorStorage("B0", "GLB", 0, 4) # 
-        b1 = TensorStorage("B1", "GLB", 1, 5) # 
-        b2 = TensorStorage("B2", "GLB", 2, 6) # 
-        b0c0 = TensorStorage("B0C0", "GLB", 1, 4) #  # Above loop 1 --> share 0
-        c0 = TensorStorage("C0", "GLB", 0, 7) # 7
-        c1 = TensorStorage("C1", "GLB", 1, 8) # 8
-        c2 = TensorStorage("C2", "GLB", 2, 9) # 9
-        c1d1 = TensorStorage("C1D1", "GLB", 2, 8) # 8 # Above loop 2 --> share 0, 1
-        d0 = TensorStorage("D0", "GLB", 0, 10) # 
-        d1 = TensorStorage("D1", "GLB", 1, 11) # 
-        d2 = TensorStorage("D2", "GLB", 2, 12) # 
+        b0 = TensorStorage("B0", "GLB", 0, 4)  #
+        b1 = TensorStorage("B1", "GLB", 1, 5)  #
+        b2 = TensorStorage("B2", "GLB", 2, 6)  #
+        b0c0 = TensorStorage("B0C0", "GLB", 1, 4)  #  # Above loop 1 --> share 0
+        c0 = TensorStorage("C0", "GLB", 0, 7)  # 7
+        c1 = TensorStorage("C1", "GLB", 1, 8)  # 8
+        c2 = TensorStorage("C2", "GLB", 2, 9)  # 9
+        c1d1 = TensorStorage("C1D1", "GLB", 2, 8)  # 8 # Above loop 2 --> share 0, 1
+        d0 = TensorStorage("D0", "GLB", 0, 10)  #
+        d1 = TensorStorage("D1", "GLB", 1, 11)  #
+        d2 = TensorStorage("D2", "GLB", 2, 12)  #
 
         tensors0 = [a0, a1, a2, a1b1]
         tensors1 = [b0, b1, b2, a1b1, b0c0]

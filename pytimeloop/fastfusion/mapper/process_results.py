@@ -59,16 +59,11 @@ def process_result(
     )
 
     cur_idx = 0
-    cur_loops = []
     all_backing_storages = []
-    intermediate_backing_storages = []
-    non_intermediate_or_non_backing_storages = []
     all_storages = []
     intermediates_to_find = set(intermediate_tensors)
     found_tensors = set()
-    n_steps = 1
     ranks_remaining = {k: v for k, v in einsum_shape.items()}
-    n_repititions = 1
 
     def record_storage(node):
         for dspace in node["dspace"]:
@@ -76,42 +71,31 @@ def process_result(
                 dspace, node["target"], 
                 len(full_tiling), 
                 result.occupancy[(node["target"], dspace)],
-                # n_repititions=n_repititions,
             )
             all_storages.append(storage)
-            t = storage.tensor_id
-            if t in intermediates_to_find:
-                intermediates_to_find.remove(t)
-                intermediate_backing_storages.append(storage)
-            else:
-                non_intermediate_or_non_backing_storages.append(storage)
-            if t not in found_tensors:
-                found_tensors.add(t)
+            if storage.tensor_id in intermediates_to_find:
+                intermediates_to_find.remove(storage.tensor_id)
+            if storage.tensor_id not in found_tensors:
+                found_tensors.add(storage.tensor_id)
                 all_backing_storages.append(storage)
                 
         logstring.append(f"Strg({node['dspace']} in {node['target']})")
 
     def record_loop(node):
-        nonlocal cur_idx, n_repititions
+        nonlocal cur_idx
         if "tile_shape" in node:
             tile_shape = node["tile_shape"]
         else:
             tile_shape = shape[cur_idx]
             cur_idx += 1
-        r = ranks_remaining[node["rank"]] // tile_shape
         loop = Loop(
             str(equiv_groups.rank_to_group_id[node["rank"]]),
             tile_shape,
             node["type"] == "spatial",
-            n_repititions=r,
         )
-        n_repititions *= r
         ranks_remaining[node["rank"]] = tile_shape
-        if intermediates_to_find:
-            cur_loops.append(loop)
         full_tiling.append(loop)
         logstring.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
-
 
     logstring = []
     full_tiling = []
@@ -121,9 +105,10 @@ def process_result(
         elif node["type"] == "spatial" or node["type"] == "temporal":
             record_loop(node)
 
+    n_fused_loops = max(t.above_loop_index for t in all_backing_storages)
     tiling_compatibility = Tiling(
-        loops=tuple(cur_loops),
-        tensors=frozenset(t for t in intermediate_backing_storages if t.tensor_id in intermediate_tensors),
+        loops=tuple(full_tiling[:n_fused_loops]),
+        tensors=frozenset(all_backing_storages),
     )
     tiling_full = Tiling(
         loops=tuple(full_tiling),
@@ -148,23 +133,16 @@ def process_result(
         results["Offchip_Ac"] = offchip_accesses
 
     logstring.append(f"{result.fanout}")
-    
-    # Handled below. All occupancies are needed to ensure occupancies
-    # < capacity when we fuse
-    # if Metrics.OCCUPANCY in metrics:
-    #     for (storage_id, n_loops), size in non_intermediate_or_non_backing_storages.items():
-    #         key = nameloop2col(storage_id, n_loops)
-    #         results.setdefault(key, 0)
-    #         results[key] += size
 
     # Only record non-backing reservations. We'll reserve backing storage later
     # when we free the tensors & we know all operations for which the tensor must
     # be backed
-    for r in non_intermediate_or_non_backing_storages:
+    for r in all_storages:
         r: TensorStorage
-        key = nameloop2col(r.backer_id, r.above_loop_index)
-        results.setdefault(key, 0)
-        results[key] += r.tile_size
+        if r not in all_backing_storages:
+            key = nameloop2col(r.backer_id, r.above_loop_index)
+            results.setdefault(key, 0)
+            results[key] += r.tile_size
         # logstring.append(f"{r}")
 
     if Metrics.LATENCY in metrics:

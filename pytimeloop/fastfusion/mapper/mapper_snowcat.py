@@ -6,7 +6,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 from ruamel.yaml import YAML
-from joblib import Parallel, delayed
 
 yaml = YAML(typ="safe")
 
@@ -37,7 +36,7 @@ def mapper(
 ):
     logger.info(f"Calling mapper for {spec}")
 
-    log_queue, log_queue_listener = make_queue_and_listener()
+    # log_queue, log_queue_listener = make_queue_and_listener()
 
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)

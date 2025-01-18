@@ -1,7 +1,7 @@
 from copy import deepcopy
 from collections import defaultdict
 
-from joblib import Parallel, delayed
+from joblib import delayed
 
 from combinatorics.dependent_product import dependent_product
 from combinatorics.splitter import split_dependent_product
@@ -11,6 +11,7 @@ from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import explore_tile_shape, process_result, get_hardware_levels
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat import make_subspaces
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
+from pytimeloop.fastfusion.util import parallel
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
 from pytimeloop.fastfusion.mapper.process_results import Metrics, process_result
@@ -146,8 +147,7 @@ def per_einsum_mapper_snowcat(
 
         # for pm in partial_mappings:
         #     per_worker_exploration(*pm)
-        results = Parallel(n_jobs=n_jobs)(delayed(per_worker_exploration)(*pm)
-                                          for pm in partial_mappings)
+        results = parallel(delayed(per_worker_exploration)(*pm) for pm in partial_mappings)
 
         data[einsum_id] = defaultdict(list)
         for res in results:

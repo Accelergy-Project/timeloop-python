@@ -5,7 +5,7 @@ import re
 
 # Disable numba. We need user_has_package("numba") to be False
 import sys
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 from joblib import delayed
 
@@ -27,39 +27,52 @@ TENSORS = "__TENSORS"
 IN_PROGRESS_STATS = "__IN_PROGRESS_STATS"
 MAPPING_HASH = "__MAPPING_HASH"
 
-RESERVED_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH])
-DICT_COLUMNS = set([LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH])
+RESERVED_COLUMNS = set(
+    [LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH]
+)
+DICT_COLUMNS = set(
+    [LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH]
+)
 
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
+
 def dict_cached(func):
     cache = {}
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         key = (args, frozenset(kwargs.items()))
         if key not in cache:
             cache[key] = func(*args, **kwargs)
         return cache[key]
+
     return wrapper
 
+
 # TODO: Make these tuples?
+
 
 @dict_cached
 def col2nameloop(x):
     m = _resource_name_nloops_reg.match(x)
     return (m.group(1), int(m.group(2))) if m is not None else None
 
+
 @dict_cached
-def nameloop2col(name, nloops, left: bool=False):
+def nameloop2col(name, nloops, left: bool = False):
     if left:
         return f"RESOURCE_{name}_LEFT_LEVEL_{nloops}"
     return f"RESOURCE_{name}_LEVEL_{nloops}"
+
 
 @dict_cached
 def is_left_col(x):
     return "_LEFT_LEVEL_" in x
 
+
 MERGE_SUFFIXES = ["_LEFT_MERGE", "_RIGHT_MERGE"]
+
 
 def is_merge_col(c):
     return any(c.endswith(s) for s in MERGE_SUFFIXES)
@@ -78,6 +91,7 @@ def max_to_col(df, c, c2):
     else:
         df.loc[:, c] = df[c2]
 
+
 # Above index 0: Freed when Einsum fully terminates
 # Above index 1: Freed after each iteration of the outermost loop
 
@@ -89,7 +103,9 @@ def max_to_col(df, c, c2):
 
 
 def makepareto(data: pd.DataFrame) -> pd.DataFrame:
-    columns = [c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)]
+    columns = [
+        c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)
+    ]
     # Drop any columns that are all zeros
     for c in list(columns):
         if not data[c].any():
@@ -109,7 +125,8 @@ def makepareto(data: pd.DataFrame) -> pd.DataFrame:
         return data
     return data[paretoset(data[columns])].reset_index(drop=True)
 
-def squish_left_right(data: pd.DataFrame, shared_loop_index: int=None):
+
+def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None):
     nloops2left = defaultdict(set)
     dropcols = []
     for c in data.columns:
@@ -119,15 +136,21 @@ def squish_left_right(data: pd.DataFrame, shared_loop_index: int=None):
                 if shared_loop_index is None or nloops == shared_loop_index:
                     nloops2left[nloops].add((c, name))
                     dropcols.append(c)
-            
+
     for n in nloops2left.keys():
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
             max_to_col(data, target, c)
-            
+
     return data[[c for c in data.columns if c not in dropcols]]
 
-def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: bool=False) -> pd.DataFrame:
+
+def _free_to_loop_index(
+    data: pd.DataFrame,
+    shared_loop_index: int,
+    skip_pareto: bool = False,
+    return_changed: bool = False,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
     nloops2left = defaultdict(set)
     nloops2right = defaultdict(set)
     for c in data.columns:
@@ -136,7 +159,9 @@ def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: 
             target = nloops2left if is_left_col(c) else nloops2right
             target[nloops].add((c, name))
 
-    max_nloops = max(max(nloops2left.keys(), default=-1), max(nloops2right.keys(), default=-1))
+    max_nloops = max(
+        max(nloops2left.keys(), default=-1), max(nloops2right.keys(), default=-1)
+    )
     for n in range(max_nloops, shared_loop_index, -1):
         # LEFT data: Max to the same level on the right
         for c, name in nloops2left[n]:
@@ -163,53 +188,70 @@ def free_to_loop_index(data: pd.DataFrame, shared_loop_index: int, skip_pareto: 
                 keepcols.append(c)
         else:
             keepcols.append(c)
-            
-    if not skip_pareto:
-        return makepareto(data[keepcols])
-    return data[keepcols]
+
+    data = data[keepcols] if skip_pareto else makepareto(data[keepcols])
+    changed = bool(nloops2left.keys()) or bool(nloops2right.keys())
+    return (data, changed) if return_changed else data
+
 
 def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return data[paretoset(data[columns])].reset_index(drop=True)
 
-def check_correctness(data: pd.DataFrame, next_live_tensors: set[int]):
+
+def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
     from pytimeloop.fastfusion.plot.looptree import tilings2looptree
 
-    df_check = free_to_loop_index(data.copy(), -1, skip_pareto=True)
+    def fail(looptree):
+        import pydot
+
+        graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+        looptree.to_pydot(graph)
+        with open(f"test.png", "wb") as f:
+            f.write(graph.create_png())
+        all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
+        for t in sorted(all_tensors):
+            print(f"{t.__repr__()},")
+
+    df_check = _free_to_loop_index(data.copy(), -1, skip_pareto=True)
     for i, r in df_check.iterrows():
-        looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors_in_right_branch=next_live_tensors)
+        looptree = tilings2looptree(
+            r[MAPPING],
+            r[STATS],
+            r[TENSORS],
+            r[IN_PROGRESS_STATS],
+            skip_backing_tensors_in_right_branch=live_tensors,
+            still_live_tensors=live_tensors,
+        )
         reservations = dict(looptree.get_reservations())
         for k, v in reservations.items():
             col = nameloop2col(k, -1)
             if col not in df_check.columns:
                 got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
-                looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors_in_right_branch=next_live_tensors)
+                fail(looptree)
                 raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
             if r[col] != v:
                 got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
-                reservations = dict(looptree.get_reservations())
-                looptree = tilings2looptree(r[MAPPING], r[STATS], r[TENSORS], r[IN_PROGRESS_STATS], skip_backing_tensors_in_right_branch=next_live_tensors)
-                raise ValueError(f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}")
-                # import pydot
-                # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
-                # looptree.to_pydot(graph)
-                # with open(f"test.png", "wb") as f:
-                #     f.write(graph.create_png())
-                # all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
-                # for t in sorted(all_tensors):
-                #     print(f"{t.__repr__()},")
+                fail(looptree)
+                looptree = tilings2looptree(
+                    r[MAPPING],
+                    r[STATS],
+                    r[TENSORS],
+                    r[IN_PROGRESS_STATS],
+                    skip_backing_tensors_in_right_branch=live_tensors,
+                    still_live_tensors=live_tensors,
+                )
+                raise ValueError(
+                    f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}"
+                )
 
 
 def merge_cross(
     left: pd.DataFrame,
     right: pd.DataFrame,
-    shared_loop_index: int,  
-    next_shared_loop_index: int, # -1 -> no shared loops, 0 -> outermost...
-    resource2capacity: dict[str, int],
-    next_live_tensors: set[int],
+    shared_loop_index: int,
+    live_tensors: set[int],
     as_pareto: bool = False,
 ) -> pd.DataFrame:
-    left = free_to_loop_index(left, shared_loop_index + 1)
-    left = squish_left_right(left, shared_loop_index + 1)
     for c in left.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             if c not in right.columns:
@@ -233,7 +275,9 @@ def merge_cross(
                     callfunc(df, c, c + suffix)
             # > shared_loop_index -> create new left column
             else:
-                max_to_col(df, nameloop2col(name, nloops, left=True), c + MERGE_SUFFIXES[0])
+                max_to_col(
+                    df, nameloop2col(name, nloops, left=True), c + MERGE_SUFFIXES[0]
+                )
                 max_to_col(df, nameloop2col(name, nloops), c + MERGE_SUFFIXES[1])
 
     # Pipeline:
@@ -248,17 +292,17 @@ def merge_cross(
     #   - Non-pipelined: Sum resources above shared loops, max below.
     #   - Pipelined: Sum resources above shared loops, max below. Sum
     #     PE utilization. Latency is pipeline latency summed.
-    #     
+    #
     #  *  Can't bake into compatiblity unless we have a notion of left vs.
     #     right pipelined.
-    
+
     # PIPELINE CHANGES REQUIRED:
     # - Latency above above loop index (first tile), below (all subsequent tiles)
     # - Tiling includes information for how may be fused:
-    #   - Pipelined: Max below latencies, 
+    #   - Pipelined: Max below latencies,
     #   - Non-pipelined:
     # Shared resources:
-    # - 
+    # -
     # SEQUENTIAL:
     # - In parallel: Fetch all above-shared-loop resources for all operations
     # - Sequentially: Fetch any below-shared-loop resources for all operations
@@ -274,53 +318,39 @@ def merge_cross(
     #         if capacity is not None:
     #             df = df[df[colname] <= capacity]
     #         del df[colname]
-  
+
     df2 = makepareto(df)
     df = df2
-    
+
     for k in DICT_COLUMNS:
         c0, c1 = k + MERGE_SUFFIXES[0], k + MERGE_SUFFIXES[1]
-        df[k] = df.apply(lambda row: {**row[c0], **row[c1]}, axis=1) if len(df) > 0 else []
+        df[k] = (
+            df.apply(lambda row: {**row[c0], **row[c1]}, axis=1) if len(df) > 0 else []
+        )
     df = df[[c for c in df.columns if not is_merge_col(c)]]
-    
-    if len(df) > 0:
+
+    cols = [c for c in df.columns if c not in DICT_COLUMNS]
+
+    if True:
         first_row = df.iloc[0]
         tensors = first_row[TENSORS]
         einsums = list(tensors.keys())
-        prev_to_last = einsums[-2]
         last = einsums[-1]
-        still_live = [t for t in tensors[prev_to_last] if t.tensor_id in next_live_tensors]
-        must_reserve = [t for t in still_live if not any(t.tensor_id == t2.tensor_id for t2 in tensors[last])]
-        if must_reserve:
-            for r, r2 in zip(df[TENSORS], df[MAPPING]):
-                for t in r[last]:
-                    if t not in r2[last].tensors:
-                        raise ValueError(f"Missing tensor: {t}. Tiling tensors: {r2[last].tensors}. Tensors: {r[last]}")
-            for r in df[TENSORS]:
-                r[last] = r[last] + must_reserve
-                for i, t0 in enumerate(r[last]):
-                    for t1 in r[last][i+1:]:
-                        if t0.tensor_id == t1.tensor_id and t0.backer_id == t1.backer_id:
-                            raise ValueError(f"Duplicate storage: {t0} {t1}")
-                        
-    cols = [c for c in df.columns if c not in DICT_COLUMNS]
-    # Update the IN_PROGRESS_STATS
-    for i, r in df[cols].iterrows():
-        df.at[i, IN_PROGRESS_STATS][last] = r.to_dict()
-        
-    CHECK_CORRECTNESS = False
+        for i, r in df[cols].iterrows():
+            df.at[i, IN_PROGRESS_STATS][last] = r.to_dict()
+
+    CHECK_CORRECTNESS = True
     if CHECK_CORRECTNESS:
-        # check_correctness(left, next_live_tensors)
-        check_correctness(df, next_live_tensors)
+        check_correctness(df, live_tensors)
 
     # Assert no NaNs
     assert not df.isnull().values.any()
-    
+
     return Pareto(df, skip_pareto=True) if as_pareto else df
 
 
 class Pareto:
-    def __init__(self, data: pd.DataFrame, skip_pareto: bool=False):
+    def __init__(self, data: pd.DataFrame, skip_pareto: bool = False):
         self.data: pd.DataFrame = data if skip_pareto else makepareto(data)
 
     def einsum_ids(self):
@@ -328,10 +358,25 @@ class Pareto:
 
     @staticmethod
     def concat(paretos: list["Pareto"]) -> "Pareto":
-        return Pareto(pd.concat([p.data for p in paretos]).fillna(0))
+        return Pareto(
+            pd.concat([p.data for p in paretos]).fillna(0),
+            skip_pareto=len(paretos) == 1,
+        )
 
-    def merge(self, other: "Pareto", shared_loop_index: int, next_shared_loop_index: int, resource2capacity: dict[str, int], next_live_tensors: set[int], delay: bool=False) -> "Pareto":
-        d = delayed(merge_cross)(self.data, other.data, shared_loop_index, next_shared_loop_index, resource2capacity, next_live_tensors=next_live_tensors, as_pareto=True)
+    def merge(
+        self,
+        other: "Pareto",
+        shared_loop_index: int,
+        live_tensors: set[int],
+        delay: bool = False,
+    ) -> "Pareto":
+        d = delayed(merge_cross)(
+            self.data,
+            other.data,
+            shared_loop_index,
+            live_tensors=live_tensors,
+            as_pareto=True,
+        )
         return d if delay else d[0](*d[1], **d[2])
 
     @staticmethod
@@ -339,22 +384,27 @@ class Pareto:
         df = pd.DataFrame({OCCUPANCY: [1, 2], LOGSTRING: [{"A": "A"}] * 2})
         return Pareto(df)
 
-    def free_to_loop_index(self, n: int, resource2capacity: Optional[dict[str, Optional[int]]]=None) -> "Pareto":
-        self.data = free_to_loop_index(self.data, n, skip_pareto=True)
+    def free_to_loop_index(
+        self, n: int, resource2capacity: Optional[dict[str, Optional[int]]] = None
+    ) -> "Pareto":
+        self.data, changed = _free_to_loop_index(
+            self.data, n, skip_pareto=True, return_changed=True
+        )
         if resource2capacity is not None:
-            self.limit_capacity(n, resource2capacity, skip_pareto=True)
-        self.data = makepareto(self.data)
-        
+            changed = changed or self.limit_capacity(
+                n, resource2capacity, skip_pareto=True
+            )
+
+        if changed:
+            self.data = makepareto(self.data)
 
     def alloc(self, resource_name: str, size: int, above_loop_index: int):
         n = nameloop2col(resource_name, above_loop_index)
-        # if resource_name == 1 and size >= 64:
-        #     print("AHHH")
         if n in self.data:
             self.data[n] += size
         else:
             self.data[n] = size
-            
+
     def add_tensor(self, tensor):
         if len(self.data) == 0:
             return
@@ -366,8 +416,13 @@ class Pareto:
 
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())
-    
-    def limit_capacity(self, n: int, resource2capacity: dict[str, Optional[int]], skip_pareto: bool=False):
+
+    def limit_capacity(
+        self,
+        n: int,
+        resource2capacity: dict[str, Optional[int]],
+        skip_pareto: bool = False,
+    ) -> bool:
         found = False
         for resource, capacity in resource2capacity.items():
             colname = nameloop2col(resource, n)
@@ -378,13 +433,22 @@ class Pareto:
                 found = True
         if found and not skip_pareto:
             self.data = makepareto(self.data)
+        return found
 
-    def squish_left_right(self):
-        self.data = squish_left_right(self.data)
-        
+    def squish_left_right(self, shared_loop_index: int = None):
+        self.data = squish_left_right(self.data, shared_loop_index)
+
     def filter_by_mapping_hashes(self, hashes: set[int]):
-        self.data = self.data[self.data[MAPPING_HASH].apply(lambda x: all(i in hashes for i in x.values()))]
+        self.data = self.data[
+            self.data[MAPPING_HASH].apply(
+                lambda x: all(i in hashes for i in x.values())
+            )
+        ]
         return self
+
+    def make_pareto(self):
+        self.data = makepareto(self.data)
+
 
 import unittest
 
@@ -527,7 +591,9 @@ class ParetoTest(unittest.TestCase):
         p = Pareto(data1)
         d = p.data
         p.free_to_loop_index(2)
-        self.assertEqual(d.columns.tolist(), ["A", "B", LOGSTRING, occ_key_1, occ_key_2])
+        self.assertEqual(
+            d.columns.tolist(), ["A", "B", LOGSTRING, occ_key_1, occ_key_2]
+        )
 
         p.free_to_loop_index(0)
         d = p.data
