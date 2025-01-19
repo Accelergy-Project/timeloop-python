@@ -281,7 +281,7 @@ class SIM:
         for t in self.tensors.values():
             if (
                 t.above_loop_index > shared_loop_index
-                or t.tensor_id not in shared_tensors
+                or t.tensor_id not in shared_tensors | live_tensors
             ):
                 self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
                 self.mapping.add_tensor(t)

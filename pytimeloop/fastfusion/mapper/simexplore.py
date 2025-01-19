@@ -84,6 +84,10 @@ def fuse_sims(
     nbuckets = []
     resource2capacity = resource2capacity or {}
     sims = copy.deepcopy(sims)
+    
+    for i, s in enumerate(sims):
+        print(f'SIM {i} tensors: {s[0].tensor_names}')
+
     left = sims.pop(0)
 
     init_print_time()
@@ -93,7 +97,7 @@ def fuse_sims(
         nmappings.append(sum(len(s.mapping.data) for s in left))
 
         right = sims.pop(0)
-        live_tensors = set.union(set(), *[sim[0].tensor_names for sim in sims])
+        live_tensors = set.union(set(), *[s[0].tensor_names for s in sims if s])
         shared_tensors = set(left[0].tensor_names) & set(right[0].tensor_names)
 
         first_right = right[0]

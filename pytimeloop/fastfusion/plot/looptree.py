@@ -98,7 +98,6 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
         for i, l in enumerate(tensors_lifetimes.values()):
             if first_appearance <= i <= last_appearance and t not in l:
                 l.append(t)
-    tensors = tensors_lifetimes
     
     # Add each Einsum to the tree
     for i, einsum_id in enumerate(einsum_ids):
@@ -115,9 +114,9 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
 
         # Add the tensors
         n.children.append(Node()) # Leaf node
-        id2tensor = defaultdict(lambda: [])
-        for t in tiling.tensors:
-            id2tensor[t.tensor_id].append(t)
+        id2tensor = defaultdict(set)
+        for t in sorted(tiling.tensors) + tensors_lifetimes[einsum_id]:
+            id2tensor[t.tensor_id].add(t)
         id2tensor = {k: sorted(v, key=lambda x: (x.above_loop_index, x.backer_id)) for k, v in id2tensor.items()}
         for tensor_id, storages in id2tensor.items():
             if tensor_id in skip_backing_tensors:
