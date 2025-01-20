@@ -105,8 +105,6 @@ def fuse_sims(
         # Group left and right into buckets
         right = SIM.group_by_left(right, left[0].tensor_names)
         left = SIM.group_by_right(left, first_right.tensor_names, keep_loops=True)
-        right = {k: v for k, v in right.items() if k in left}
-        left = {k: v for k, v in left.items() if k in right}
         print_time("Grouping")
 
         args = dict(
@@ -122,7 +120,7 @@ def fuse_sims(
 
         print_time("Consolidating")
 
-        DO_PRINT = False
+        DO_PRINT = True
         DELAY_MERGE = not debugger_active()
 
         # right_tensors = first_right.tensor_names | live_tensors
@@ -131,15 +129,19 @@ def fuse_sims(
         for k in left:
             if k in right:
                 for a, b in itertools.product(left[k], right[k]):
-                    left: SIM
-                    right: SIM
-                    if DO_PRINT:
-                        print(
-                            f"\t{a.tiling_str()} {a.get_shared_loop_index(live_tensors)} <--> {b.tiling_str()}{b.get_shared_loop_index(live_tensors)}. ({len(a.mapping.data)})x({len(b.mapping.data)})"
-                        )
+                    a: SIM
+                    b: SIM
                     combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
+                    if DO_PRINT:
+                        s = f"\t{a.tiling_str()} <--> {b.tiling_str()}"
+                        if DELAY_MERGE:
+                            s += f" --> {combined[-1].tiling_str()}"
+                        s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
+                        print(s)
             elif DO_PRINT:
-                print(f"\tNo match for {k} ||||||||| {left[k][0].tiling_str()}")
+                for a in left[k]:
+                    print(f"\tNo match for {k} |||| {a.tiling_str()}")
+
         print_time("Bucket merging")
 
         f = parallel if DELAY_MERGE else lambda x: x
@@ -153,9 +155,9 @@ def fuse_sims(
         if DO_PRINT:
             for k in right:
                 if k not in left:
-                    print(
-                        f"\tREVERSE: No match for {k} ||||||||| {right[k][0].tiling_str()}"
-                    )
+                    for b in right[k]:
+                        print(f"\tREVERSE: No match for {k} |||| {b.tiling_str()}")
+
         left = combined
         print(f"Number of buckets: {len(left)}")
         n_mappings = sum(len(s.mapping.data) for s in left)
