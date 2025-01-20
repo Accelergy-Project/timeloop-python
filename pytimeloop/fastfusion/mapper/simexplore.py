@@ -108,7 +108,7 @@ def fuse_sims(
         print_time("Grouping")
 
         args = dict(
-            left=False,
+            left=False,#len(sims) > 0,
             live_tensors=live_tensors,
             resource2capacity=resource2capacity,
             shared_tensors=shared_tensors,
@@ -124,6 +124,8 @@ def fuse_sims(
         DELAY_MERGE = not debugger_active()
 
         # right_tensors = first_right.tensor_names | live_tensors
+        if not sims:
+            print(f'Final SIM tensors: {first_right.tensor_names}') 
 
         combined: list[SIM] = []
         for k in left:
@@ -164,10 +166,11 @@ def fuse_sims(
         print(f"Number of mappings: {n_mappings}")
         print(f"Mappings per bucket: {n_mappings / len(left)}")
 
-    for s in left:
-        s.consolidate(set(), resource2capacity)
+    # for s in left:
+    #     s.left_consolidate(set(), resource2capacity)
     s_final = SIM.combine_combineable(left, set())[0]
     data = s_final.mapping.data
+    check_correctness(data, set())
 
     print_total_time()
 

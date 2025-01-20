@@ -94,10 +94,10 @@ class TensorStorage:
         return f"[{self.backer_id}] {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"  # x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
-        return f"TensorStorage({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"  # , {self.n_repititions})"
+        return f"TensorStorage({repr(self.tensor_id)}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"  # , {self.n_repititions})"
 
     def pydot_str(self):
-        return f"[{self.backer_id}] T{self.tensor_id} size {expfmt(self.tile_size)}"
+        return f"[{self.backer_id}] {self.tensor_id} size {expfmt(self.tile_size)}"
         # *{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
 
     def rename(
