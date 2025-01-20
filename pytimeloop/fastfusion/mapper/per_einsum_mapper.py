@@ -45,7 +45,7 @@ def mapper_place_fusion_level(
     equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
     einsum_id_to_name = workload.einsum_id_to_name()
-    rank_name_to_id = workload.dimension_name_to_id()
+    rank_name_to_id   = workload.dimension_name_to_id()
     tensor_name_to_id = workload.data_space_name_to_id()
 
     mac_parallel_shape = mac_array_constraint.array_shape_in_parallel_dimension
@@ -160,6 +160,9 @@ def mapper_place_fusion_level(
                         explore_fusion_uneven=explore_glb_uneven,
                         einsum_shape=einsum_shape,
                         metrics=metrics,
+                        einsum_id_to_name=einsum_id_to_name,
+                        rank_id_to_name={v: k for k, v in rank_name_to_id.items()},
+                        tensor_id_to_name={v: k for k, v in tensor_name_to_id.items()},
                     )
                     if count % 1e4 == 0:
                         print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")

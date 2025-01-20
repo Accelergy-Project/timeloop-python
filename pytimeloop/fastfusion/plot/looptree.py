@@ -114,6 +114,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
 
         # Add the tensors
         n.children.append(Node()) # Leaf node
+        n.children[-1].this_level.append(f"Einsum {einsum_id}")
         id2tensor = defaultdict(set)
         for t in sorted(tiling.tensors) + tensors_lifetimes[einsum_id]:
             id2tensor[t.tensor_id].add(t)

@@ -36,6 +36,10 @@ def per_einsum_mapper_snowcat(
         analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
         equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
+        einsum_id_to_name = workload.einsum_id_to_name()
+        rank_name_to_id   = workload.dimension_name_to_id()
+        tensor_name_to_id = workload.data_space_name_to_id()
+
         tensors = workload.tensors_read_by_einsum(einsum_id) \
                 | workload.tensors_written_by_einsum(einsum_id)
         intermediate_tensors = tensors & get_intermediate_tensors(workload)
@@ -140,8 +144,11 @@ def per_einsum_mapper_snowcat(
                         energy_dict,
                         equivalent_groups,
                         explore_fusion_uneven=explore_glb_uneven,
-                        metrics=metrics,
                         einsum_shape=einsum_shape,
+                        metrics=metrics,
+                        einsum_id_to_name=einsum_id_to_name,
+                        rank_id_to_name={v: k for k, v in rank_name_to_id.items()},
+                        tensor_id_to_name={v: k for k, v in tensor_name_to_id.items()},
                     )
             return result
 

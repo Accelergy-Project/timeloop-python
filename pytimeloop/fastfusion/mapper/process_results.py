@@ -39,6 +39,9 @@ def process_result(
     equiv_groups: EquivalentGroups,
     explore_fusion_uneven,
     einsum_shape,
+    einsum_id_to_name,
+    rank_id_to_name,
+    tensor_id_to_name,
     logfunc=None,
     metrics=Metrics.all_metrics(),
 ):
@@ -68,7 +71,8 @@ def process_result(
     def record_storage(node):
         for dspace in node["dspace"]:
             storage = TensorStorage(
-                dspace, node["target"], 
+                tensor_id_to_name[dspace],
+                node["target"], 
                 len(full_tiling), 
                 result.occupancy[(node["target"], dspace)],
             )
@@ -88,8 +92,9 @@ def process_result(
         else:
             tile_shape = shape[cur_idx]
             cur_idx += 1
+        rank_id = equiv_groups.rank_to_group_id[node["rank"]]
         loop = Loop(
-            str(equiv_groups.rank_to_group_id[node["rank"]]),
+            rank_id_to_name[rank_id],
             tile_shape,
             node["type"] == "spatial",
         )
@@ -155,6 +160,7 @@ def process_result(
         results["Op_Intensity"] = result.op_intensity[1]
     
     logstring.append(f"Results: {results}")
+    einsum_id = einsum_id_to_name[einsum_id]
     results[LOGSTRING] = {einsum_id: str(logstring)}
     results[MAPPING] = {einsum_id: tiling_full}
     results[TENSORS] = {einsum_id: all_backing_storages}

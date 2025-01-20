@@ -103,13 +103,23 @@ def mapper(
 
     generated_data = {}
     logger.info(f"Generating data for non-unique Einsums")
+    einsum_id_to_name = workload.einsum_id_to_name()
+    dimension_name_to_id = workload.dimension_name_to_id()
+    data_space_name_to_id = workload.data_space_name_to_id()
+    dimension_id_to_name = {v: k for k, v in dimension_name_to_id.items()}
+    data_space_id_to_name = {v: k for k, v in data_space_name_to_id.items()}
     for from_einsum, others in grouped_similar_einsums.items():
         for to_einsum, (rank_renaming, tensor_renaming) in others.items():
             logger.info(f"Generating data for {to_einsum}. "
                         + f"Rank renaming={rank_renaming}. "
                         + f"Tensor renaming={tensor_renaming}")
-            generated_data[to_einsum] = generate_data(from_einsum,
-                                                      to_einsum,
+            rank_renaming = {dimension_id_to_name[int(k)]: dimension_id_to_name[int(v)] for k, v in rank_renaming.items()}
+            tensor_renaming = {data_space_id_to_name[int(k)]: data_space_id_to_name[int(v)] for k, v in tensor_renaming.items()}
+            logger.info(f"Generating data for {to_einsum}. "
+                        + f"Rank renaming={rank_renaming}. "
+                        + f"Tensor renaming={tensor_renaming}")
+            generated_data[to_einsum] = generate_data(einsum_id_to_name[from_einsum],
+                                                      einsum_id_to_name[to_einsum],
                                                       data[from_einsum],
                                                       rank_renaming,
                                                       tensor_renaming)
@@ -121,6 +131,7 @@ def mapper(
 
     # data has to come out in sorted Einsum-id order
     data = {k: v for k, v in sorted(data.items(), key=lambda item: item[0])}
+    data = {einsum_id_to_name[k]: v for k, v in data.items()}
 
     return data
 
