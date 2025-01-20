@@ -16,7 +16,8 @@ def make_storage(
     add_split_at_tensors: Set=None,
     must_have_terminal_storage: bool=False,
     logfunc: Callable=None,
-    return_retained_tensors: bool=False
+    return_retained_tensors: bool=False,
+    automatically_lower_below_relevant_ranks: bool = False
 ):
     if logfunc is None:
         logfunc = lambda msg: None  # do nothing
@@ -59,17 +60,19 @@ def make_storage(
         last_is_relevant = True
 
         min_i = get_last_storage_node(mapping, tensor_id)
-        for i, node in enumerate(mapping[min_i+1:]):
-            i += min_i+1
-            if node["type"] == "temporal":
-                rank_id = node["rank"]
-                is_relevant = rank_id in relevant_ranks
-                if last_is_relevant and not is_relevant:
-                    # Choice 1: fused
-                    tensor_choices.append(i)
-                    if tensor_must_be_fully_reused:
-                        break
-                last_is_relevant = is_relevant
+        if automatically_lower_below_relevant_ranks:
+            for i, node in enumerate(mapping[min_i+1:]):
+                i += min_i+1
+                if node["type"] == "temporal":
+                    rank_id = node["rank"]
+                    is_relevant = rank_id in relevant_ranks
+                    if ((last_is_relevant and not is_relevant)
+                        or not automatically_lower_below_relevant_ranks):
+                        # Choice 1: fused
+                        tensor_choices.append(i)
+                        if tensor_must_be_fully_reused:
+                            break
+                    last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
         if last_is_relevant and (not tensor_must_be_fully_reused

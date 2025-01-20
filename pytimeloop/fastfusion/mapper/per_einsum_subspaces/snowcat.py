@@ -50,6 +50,7 @@ def make_subspaces(tensors,
             explore_uneven=True,
             add_split_at_tensors=glb_fused_tensors,
             must_have_terminal_storage=True,
+            automatically_lower_below_relevant_ranks=False,
         )
 
     def tile_shape_optimization(mapping):
