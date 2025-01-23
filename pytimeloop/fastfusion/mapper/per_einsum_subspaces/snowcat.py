@@ -24,6 +24,7 @@ def make_subspaces(tensors,
             explore_uneven=False,
             add_split_at_tensors=intermediate_tensors,
             return_retained_tensors=True,
+            automatically_lower_below_relevant_ranks=False,
         )
 
     all_ranks = list(sorted(workload.einsum_ospace_dimensions(einsum_id)))

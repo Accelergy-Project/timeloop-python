@@ -318,9 +318,10 @@ def merge_cross(
     #         if capacity is not None:
     #             df = df[df[colname] <= capacity]
     #         del df[colname]
+    CHECK_CORRECTNESS = 0
 
-    df2 = makepareto(df)
-    df = df2
+    if not CHECK_CORRECTNESS:
+        df = makepareto(df)
 
     for k in DICT_COLUMNS:
         c0, c1 = k + MERGE_SUFFIXES[0], k + MERGE_SUFFIXES[1]
@@ -339,9 +340,9 @@ def merge_cross(
         for i, r in df[cols].iterrows():
             df.at[i, IN_PROGRESS_STATS][last] = r.to_dict()
 
-    CHECK_CORRECTNESS = True
     if CHECK_CORRECTNESS:
         check_correctness(df, live_tensors)
+        df = makepareto(df)
 
     # Assert no NaNs
     assert not df.isnull().values.any()
@@ -363,7 +364,7 @@ class Pareto:
             skip_pareto=len(paretos) == 1,
         )
 
-    def merge(
+    def merge_next(
         self,
         other: "Pareto",
         shared_loop_index: int,
@@ -492,7 +493,7 @@ class ParetoTest(unittest.TestCase):
         data2 = pd.DataFrame(
             {"A": [3, 3, 3], "B": [3, 3, 3], LOGSTRING: [{"A": "A"}] * 3}
         )
-        p = Pareto(data1).merge(Pareto(data2), 0)
+        p = Pareto(data1).merge_next(Pareto(data2), 0)
         d = p.data
         self.assertEqual(d["A"].tolist(), [4, 6])
         self.assertEqual(d["B"].tolist(), [6, 4])
@@ -515,13 +516,13 @@ class ParetoTest(unittest.TestCase):
                 occ_key: [2, 2, 2],
             }
         )
-        p = Pareto(data1).merge(Pareto(data2), 5)
+        p = Pareto(data1).merge_next(Pareto(data2), 5)
         d = p.data
         self.assertEqual(d["A"].tolist(), [4, 6])
         self.assertEqual(d["B"].tolist(), [6, 4])
         self.assertEqual(d[occ_key].tolist(), [5, 5])
 
-        p2 = Pareto(data1).merge(Pareto(data2), 3)
+        p2 = Pareto(data1).merge_next(Pareto(data2), 3)
         d = squish_left_right(p2.data)
         self.assertEqual(d["A"].tolist(), [4, 6])
         self.assertEqual(d["B"].tolist(), [6, 4])
@@ -558,18 +559,18 @@ class ParetoTest(unittest.TestCase):
         # for             for          Co-tiled with nloops 2 merge
 
         # Untiled fused --> Max everything
-        d = Pareto(data1).merge(Pareto(data2), -1).data
+        d = Pareto(data1).merge_next(Pareto(data2), -1).data
         d = squish_left_right(d)
         self.assertEqual(d[occ_key_1].tolist(), [11, 11])
 
         # Tiled at nloops 1 --> Sum everything stored at 0
-        d = Pareto(data1).merge(Pareto(data2), 0).data
+        d = Pareto(data1).merge_next(Pareto(data2), 0).data
         d = squish_left_right(d)
         self.assertEqual(d[occ_key_1].tolist(), [7, 7])
         self.assertEqual(d[occ_key_2].tolist(), [8, 8])
 
         # Tiled at nloops 2 --> Sum everything stored at 0 and 1
-        d = Pareto(data1).merge(Pareto(data2), 1).data
+        d = Pareto(data1).merge_next(Pareto(data2), 1).data
         d = squish_left_right(d)
         self.assertEqual(d[occ_key_1].tolist(), [7, 7])
         self.assertEqual(d[occ_key_2].tolist(), [14, 14])

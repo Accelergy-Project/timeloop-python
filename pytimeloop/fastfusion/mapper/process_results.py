@@ -3,7 +3,17 @@ from enum import auto, Flag
 from functools import reduce
 from operator import or_
 
-from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, MAPPING_HASH, STATS, nameloop2col, DICT_COLUMNS, RESERVED_COLUMNS, TENSORS, IN_PROGRESS_STATS
+from pytimeloop.fastfusion.pareto import (
+    LOGSTRING,
+    MAPPING,
+    MAPPING_HASH,
+    STATS,
+    nameloop2col,
+    DICT_COLUMNS,
+    RESERVED_COLUMNS,
+    TENSORS,
+    IN_PROGRESS_STATS,
+)
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
 from pytimeloop.fastfusion.util import fzs
@@ -24,7 +34,9 @@ class Metrics(Flag):
     def all_metrics(cls):
         return reduce(or_, iter(cls), cls.LATENCY) ^ Metrics.OP_INTENSITY
 
-# DEBUG_VISUALIZATION = Metrics.ALL_TENSORS | METRICS.PARTIAL_STATS 
+
+# DEBUG_VISUALIZATION = Metrics.ALL_TENSORS | METRICS.PARTIAL_STATS
+
 
 def process_result(
     result,
@@ -44,6 +56,7 @@ def process_result(
     tensor_id_to_name,
     logfunc=None,
     metrics=Metrics.all_metrics(),
+    tag_with: tuple[callable] = (),
 ):
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
@@ -67,13 +80,14 @@ def process_result(
     intermediates_to_find = set(intermediate_tensors)
     found_tensors = set()
     ranks_remaining = {k: v for k, v in einsum_shape.items()}
+    einsum_id = einsum_id_to_name[einsum_id]
 
     def record_storage(node):
         for dspace in node["dspace"]:
             storage = TensorStorage(
                 tensor_id_to_name[dspace],
-                node["target"], 
-                len(full_tiling), 
+                len(full_tiling),
+                node["target"],
                 result.occupancy[(node["target"], dspace)],
             )
             all_storages.append(storage)
@@ -82,7 +96,7 @@ def process_result(
             if storage.tensor_id not in found_tensors:
                 found_tensors.add(storage.tensor_id)
                 all_backing_storages.append(storage)
-                
+
         logstring.append(f"Strg({node['dspace']} in {node['target']})")
 
     def record_loop(node):
@@ -111,14 +125,22 @@ def process_result(
             record_loop(node)
 
     n_fused_loops = max(t.above_loop_index for t in all_backing_storages)
-    tiling_compatibility = Tiling(
-        loops=tuple(full_tiling[:n_fused_loops]),
-        tensors=frozenset(all_backing_storages),
-    )
     tiling_full = Tiling(
         loops=tuple(full_tiling),
         tensors=frozenset(all_storages),
     )
+
+    tiling_compatibility = Tiling(
+        loops=tuple(full_tiling[:n_fused_loops]),
+        tensors=frozenset(all_backing_storages),
+        # tags=fzs().union(*([set()] + [set(t(einsum_id, tiling_full)) for t in tag_with]))
+    )
+
+    # assert max(t.above_loop_index for t in all_backing_storages) == len(tiling_compatibility.loops), (
+    #     f"\n\ttiling_compatibility: {tiling_compatibility} "
+    #     f"\n\tall_backing_storages: {all_backing_storages} "
+    #     f"\n\ttiling_full: {tiling_full}"
+    # )
 
     results = {}
 
@@ -155,30 +177,33 @@ def process_result(
 
     if Metrics.ENERGY in metrics:
         logstring.append(f"E={results['Energy']:.2e}")
-    
+
     if Metrics.OP_INTENSITY in metrics:
         results["Op_Intensity"] = result.op_intensity[1]
-    
+
     logstring.append(f"Results: {results}")
-    einsum_id = einsum_id_to_name[einsum_id]
     results[LOGSTRING] = {einsum_id: str(logstring)}
     results[MAPPING] = {einsum_id: tiling_full}
     results[TENSORS] = {einsum_id: all_backing_storages}
-    results[STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+    results[STATS] = {
+        einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}
+    }
     results[IN_PROGRESS_STATS] = {einsum_id: {}}
     results[MAPPING_HASH] = {einsum_id: hash((einsum_id, tiling_compatibility))}
-    
+
     is_pareto = True
     for prev_stats in compatibility_to_df[tiling_compatibility]:
         keys = [k for k in results if k not in DICT_COLUMNS]
-        if all(prev_stats.get(k, 0) <= results[k] for k in keys) and \
-                any(prev_stats.get(k, 0) < results[k] for k in keys):
+        if (
+            fzs(prev_stats.keys()) == fzs(results.keys())
+            and all(prev_stats[k] <= results[k] for k in keys)
+            and any(prev_stats[k] < results[k] for k in keys)
+        ):
             is_pareto = False
             break
+    # TO DO: Index into the DF with both tiling compatibility and
+    # the result keys
     if is_pareto:
         compatibility_to_df[tiling_compatibility].append(results)
-    results_return = {
-        k: v for k, v in results.items() if k != LOGSTRING
-    }
+    results_return = {k: v for k, v in results.items() if k != LOGSTRING}
     return is_pareto, results_return, logstring
-

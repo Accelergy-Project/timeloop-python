@@ -71,31 +71,30 @@ class Node:
                 reservations[t.backer_id] += t.tile_size
         return reservations
     
-def get_backing_stores(all_tensors: set[TensorStorage]):
-    tensor2backer = defaultdict(lambda: [])
-    tensor2backing = defaultdict(lambda: [])
-    for t in all_tensors:
-        tensor2backer[t.tensor_id].append(t.backer_id)
-        tensor2backing[t.tensor_id] = t
-    for k, v in tensor2backer.items():
-        assert len(set(v)) == 1, f"Tensor {k} has multiple backing stores: {v}"
-    return list(tensor2backing.values())
+    def get_all_storages(self, _entry: bool = True) -> list[TensorStorage]:
+        storages = set(t for t in self.this_level if isinstance(t, TensorStorage))
+        for c in self.children:
+            storages.update(c.get_all_storages(_entry=False))
+        return sorted(storages) if _entry else storages
+    
+    def get_backing_stores(self):
+        return TensorStorage.get_backing_stores(self.get_all_storages())
 
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = (), shared_loop_index: int = -1):
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], backing_tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = (), shared_loop_index: int = -1):
     prev_tiling = None
     root = Node()
     einsum_ids = list(mappings.keys())
     assert set(einsum_ids) == set(stats.keys())
-    assert set(einsum_ids) == set(tensors.keys())
+    assert set(einsum_ids) == set(backing_tensors.keys())
 
     # If a tensor appears in non-back-to-back Einsums, then we need to store it for
     # all Einsums in between
-    tensors_lifetimes = {e: [] for e in tensors}
-    all_tensors = set().union(*[set(t) for t in tensors.values()])
-    backers = get_backing_stores(all_tensors)
+    tensors_lifetimes = {e: [] for e in backing_tensors}
+    all_tensors = set().union(*[set(t) for t in backing_tensors.values()])
+    backers = TensorStorage.get_backing_stores(all_tensors)
     for t in all_tensors:
-        first_appearance = min(i for i, ts in enumerate(tensors.values()) if t in ts)
-        last_appearance = max(i for i, ts in enumerate(tensors.values()) if t in ts)
+        first_appearance = min(i for i, ts in enumerate(backing_tensors.values()) if t in ts)
+        last_appearance = max(i for i, ts in enumerate(backing_tensors.values()) if t in ts)
         if t.tensor_id in still_live_tensors:
             last_appearance = len(einsum_ids) - 1
         for i, l in enumerate(tensors_lifetimes.values()):
@@ -114,6 +113,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
         for l in loops:
             n.children.append(Node())
             n = n.children[-1]
+            n.this_level.append(l)
 
         # Add the tensors
         n.children.append(Node()) # Leaf node
@@ -121,26 +121,24 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
         id2tensor = defaultdict(set)
         for t in sorted(tiling.tensors) + tensors_lifetimes[einsum_id]:
             id2tensor[t.tensor_id].add(t)
-        id2tensor = {k: sorted(v, key=lambda x: (x.above_loop_index, x.backer_id)) for k, v in id2tensor.items()}
+        id2tensor = {k: sorted(v) for k, v in id2tensor.items()}
         for tensor_id, storages in id2tensor.items():
             if tensor_id in skip_backing_tensors:
                 storages = storages[1:]
             for tensor in storages:
                 n = root.access_level(tensor.above_loop_index)
-                if tensor not in n.this_level:# or tensor not in backers:
+                # TODO if tensor not in n.this_level or tensor not in backers:
+                if tensor not in n.this_level:
                     n.this_level.append(tensor)
-                    
-        # Add the loops
-        for i, l in enumerate(loops):
-            root.access_level(index + i + 1).this_level.append(l)
+
         root.add_stats(stats[einsum_id])
         # for k, v in partial_stats[einsum_id].items():
         #     last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
         prev_tiling = tiling
-        
+
     n = root
     skip_backing_tensors_in_right_branch= set(skip_backing_tensors_in_right_branch)
-    while True:#shared_loop_index >= -1:
+    while n is not None:
         i = 0
         while i < len(n.this_level):
             t = n.this_level[i]
@@ -148,11 +146,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], tensors
                 n.this_level.pop(i)
             else:
                 i += 1
-        shared_loop_index -= 1
-        if n.children:
-            n = n.children[-1]
-        else:
-            break
+        n = n.children[-1] if n.children else None
         
     return root
 

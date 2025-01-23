@@ -64,9 +64,9 @@ class TestMapper(LoadConfigMixin, unittest.TestCase):
                 s2.consolidate(live_tensors)
 
             ns = SIM.combine_combineable(ns, next_live_tensors | s[0].tensor_names)
-            ns = SIM.group_by_left(ns, s[0].tensor_names)
+            ns = SIM.group_right(ns, s[0].tensor_names)
             s = SIM.combine_combineable(s, live_tensors)
-            s = SIM.group_by_right(s, live_tensors)
+            s = SIM.group_left(s, live_tensors)
 
             print("\n\n")
             print("\n\n" + "=" * 100 + f"\n{len(sims) + 1} Remaining\n" + "=" * 100)
@@ -151,9 +151,9 @@ class TestSnowcatMapper(LoadConfigMixin, unittest.TestCase):
                 s2.consolidate(live_tensors)
 
             ns = SIM.combine_combineable(ns, next_live_tensors | s[0].tensor_names)
-            ns = SIM.group_by_left(ns, s[0].tensor_names)
+            ns = SIM.group_right(ns, s[0].tensor_names)
             s = SIM.combine_combineable(s, live_tensors)
-            s = SIM.group_by_right(s, live_tensors)
+            s = SIM.group_left(s, live_tensors)
 
             print("\n\n")
             print("\n\n" + "=" * 100 + f"\n{len(sims) + 1} Remaining\n" + "=" * 100)

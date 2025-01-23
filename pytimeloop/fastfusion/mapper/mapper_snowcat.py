@@ -33,6 +33,7 @@ def mapper(
     ffmt: bool=False,
     ffmt_refetch_weights: bool=True,
     metrics=Metrics.all_metrics(),
+    tag_with: tuple[callable] = (),
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -79,6 +80,7 @@ def mapper(
         ffmt_refetch_weights=ffmt_refetch_weights,
         dataflow_constraint=dataflow_constraint,
         metrics=metrics,
+        tag_with=tag_with,
     )
 
     generated_data = {}
@@ -130,8 +132,8 @@ def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
         loops=tuple(Loop(rank_renaming[l.rank_id], l.bound, l.is_spatial)
                     for l in tiling.loops),
         tensors=frozenset(TensorStorage(tensor_renaming[ts.tensor_id],
-                                        ts.backer_id,
                                         ts.above_loop_index,
+                                        ts.backer_id,
                                         ts.tile_size)
                           for ts in tiling.tensors)
     )

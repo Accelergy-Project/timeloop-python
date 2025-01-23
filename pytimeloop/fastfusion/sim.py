@@ -48,7 +48,7 @@ class Loop:
 
     def __repr__(self):
         # return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
-        return f"Loop({self.rank_id}, {self.bound}, {self.is_spatial})"
+        return f"Loop({self.rank_id.__repr__()}, {self.bound}, {self.is_spatial})"
 
     def __str__(self):
         return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
@@ -71,17 +71,14 @@ class Loop:
             "is_spatial": self.is_spatial,
         }
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class TensorStorage:
+    # This order is important. Make sure backing storages are the lowest.
     tensor_id: str
-    backer_id: str
     above_loop_index: int
+    backer_id: str
     tile_size: int
     # n_repititions: int = 1
-
-    def __lt__(self, other: "TensorStorage"):
-        return self.__tuple__() < other.__tuple__()
 
     def __tuple__(self):
         return (self.tensor_id, self.backer_id, self.above_loop_index, self.tile_size)
@@ -94,7 +91,7 @@ class TensorStorage:
         return f"[{self.backer_id}] {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"  # x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
-        return f"TensorStorage({repr(self.tensor_id)}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"  # , {self.n_repititions})"
+        return f"TensorStorage({repr(self.tensor_id)}, {self.above_loop_index}, {repr(self.backer_id)}, {self.tile_size})"
 
     def pydot_str(self):
         return f"[{self.backer_id}] {self.tensor_id} size {expfmt(self.tile_size)}"
@@ -105,8 +102,8 @@ class TensorStorage:
     ) -> "TensorStorage":
         return TensorStorage(
             tensor_renaming[self.tensor_id],
-            self.backer_id,
             self.above_loop_index,
+            self.backer_id,
             self.tile_size,
             # self.n_repititions
         )
@@ -120,16 +117,41 @@ class TensorStorage:
             "tile_size": self.tile_size,
         }
 
+    def get_backing_stores(all_tensors: set["TensorStorage"]) -> list["TensorStorage"]:
+        id2tensor = defaultdict(lambda: [])
+        for t in all_tensors:
+            id2tensor[t.tensor_id].append(t)
+        return sorted(sorted(v)[0] for v in id2tensor.values())
+    
+    def __eq__(self, value):
+        if not isinstance(value, TensorStorage):
+            return False
+        for to_check in ["tensor_id", "backer_id", "above_loop_index", "tile_size"]:
+            a, b = getattr(self, to_check), getattr(value, to_check)
+            if a != "*" and b != "*" and a != b:
+                return False
+        return True
 
-class TensorStorage2(TensorStorage):
-    def __repr__(self):
-        return f"TensorStorage2({self.tensor_id}, {self.backer_id}, {self.above_loop_index}, {self.tile_size})"
-
+class Tag():
+    def __eq__(self, value: "Tag") -> bool:
+        # Match base Tag
+        if type(value) == Tag:
+            return True
+        # If other is a non-base Tag or anything else, let
+        # the other object handle the comparison
+        return value.__eq__(self)
+    
+    def __hash__(self) -> int:
+        return hash("Tag")
+    
+    def merge_next(self, n: "Tag") -> "Tag":
+        return n
 
 @dataclass(frozen=True)
 class Tiling:
     loops: tuple[Loop, ...]
     tensors: fzs[TensorStorage]
+    tags: fzs[Tag] = fzs()
 
     @cached_property
     def tensor_names(self) -> set[str]:
@@ -147,13 +169,9 @@ class Tiling:
         return max(n) - 1 if n else -1
 
     def __eq__(self, other):
-        return self.loops == other.loops
-
-    def get_relevant(self, ranks: set[str]) -> "Tiling":
-        for i in range(len(self.loops) - 1, -1, -1):
-            if self.loops[i].rank_id in ranks:
-                return Tiling(self.loops[: i + 1])
-        return Tiling(())
+        no_tags = (not self.tags and not other.tags)
+        tags_match = any(s == o for s in self.tags for o in other.tags)
+        return self.loops == other.loops and (no_tags or tags_match) and self.tensors == other.tensors
 
     def __len__(self) -> int:
         return len(self.loops)
@@ -170,29 +188,23 @@ class Tiling:
             else self.loops[: self.shared_loop_index(live_tensors) + 1]
         )
         tensors = tuple(t for t in self.tensors if t.tensor_id in live_tensors)
-        return Tiling(loops, tensors)
+        return Tiling(loops, tensors, self.tags)
 
     def __lt__(self, other):
-        return self.loops < other.loops
+        return self.loops < other.loops or self.tensors < other.tensors
 
     def __str__(self):
-        return (
-            "Tiling(loops="
-            + ", ".join(str(l) for l in self.loops)
-            + ", tensors="
-            + ", ".join(str(t) for t in sorted(self.tensors))
-            + ")"
-        )
+        return self.__repr__()
 
     def __repr__(self):
-        return f"Tiling({self.loops}, {self.tensors})"
-
-    def absorb_tensors(self, prev: "Tiling", live_tensors: set[str]) -> "Tiling":
-        tensors = fzs(
-            t for t in (prev.tensors | self.tensors) if t.tensor_id in live_tensors
-        )
-        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, prev])
-        return Tiling(self.loops[: shared_loop_index + 1], tensors)
+        if type(self.tags) == Tag:
+            return f"Tiling({self.loops}, {self.tensors})"
+        return f"Tiling({self.loops}, {self.tensors}, {self.tags})"
+    
+    def merge_next(self, n: "Tiling", live_tensors: set[str]) -> "Tiling":
+        tensors = fzs(t for t in (n.tensors | self.tensors) if t.tensor_id in live_tensors)
+        shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, n])
+        return Tiling(n.loops[: shared_loop_index + 1], tensors, n.tags)
 
     def rename(
         self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
@@ -200,8 +212,29 @@ class Tiling:
         return Tiling(
             tuple(l.rename(rank_renaming, tensor_renaming) for l in self.loops),
             fzs(t.rename(rank_renaming, tensor_renaming) for t in self.tensors),
+            self.tags,
         )
+        
+    def matches_permutation(self, permutation: list[str]) -> bool:
+        i, j = 0, 0
+        while True:
+            if i == len(self.loops) and j == len(permutation):
+                return True
+            if j == len(permutation):
+                return False
 
+            # Mismatch!
+            if i == len(self.loops) or self.loops[i].rank_id != permutation[j]:
+                if permutation[j] != "*":
+                    return False
+                j += 1
+                while i < len(self.loops) and (j == len(permutation) or self.loops[i].rank_id != permutation[j]):
+                    i += 1
+            else:
+                i, j = i + 1, j + 1
+                
+    def has_tensor(self, *tensors: TensorStorage) -> bool:
+        return all(any(t == tensor for t in self.tensors) for tensor in tensors)
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -230,9 +263,9 @@ class SIM:
         self, n: "SIM", live_tensors: set[str], delay: bool = False
     ) -> "SIM":
         shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
-        tiling = n.tiling.absorb_tensors(self.tiling, live_tensors)
+        tiling = self.tiling.merge_next(n.tiling, live_tensors)
         next_shared_loop_index = tiling.shared_loop_index(live_tensors)
-        mapping = self.mapping.merge(
+        mapping = self.mapping.merge_next(
             n.mapping, shared_loop_index, live_tensors, delay=delay
         )
         s = SIM(tiling, mapping)
@@ -308,10 +341,11 @@ class SIM:
     def concat(sims: Iterable["SIM"]) -> "SIM":
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
-        assert (
-            len(set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims))
-            == 1
-        ), "Cannot concat SIMs with different tensors"
+        s = set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims)
+        assert len(s) == 1, (
+            f"Cannot concat SIMs with different tensors:\n\t" +
+            "\n\t".join(str(s2) for s2 in s)
+        )
         return SIM(sims[0].tiling, Pareto.concat([s.mapping for s in sims]))
 
     @staticmethod
@@ -351,12 +385,12 @@ class SIM:
         self = SIM(self.tiling, self.mapping.filter_by_mapping_hashes(hashes))
         return self if len(self.mapping.data) > 0 else None
 
-    def group_by_right(
+    def group_left(
         sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors, keep_loops)
 
-    def group_by_left(
+    def group_right(
         sims: list["SIM"], live_tensors: set[str]
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors)
@@ -367,21 +401,21 @@ import unittest
 
 class TestSIM(unittest.TestCase):
     def test_reservations(self):
-        a0 = TensorStorage("A0", "GLB", 0, 1)
-        a1 = TensorStorage("A1", "GLB", 1, 2)
-        a2 = TensorStorage("A2", "GLB", 2, 3)
-        a1b1 = TensorStorage("A1B1", "GLB", 2, 2)  # Above loop 2 --> share 0, 1
-        b0 = TensorStorage("B0", "GLB", 0, 4)
-        b1 = TensorStorage("B1", "GLB", 1, 5)
-        b2 = TensorStorage("B2", "GLB", 2, 6)
-        b0c0 = TensorStorage("B0C0", "GLB", 1, 4)  # Above loop 1 --> share 0
-        c0 = TensorStorage("C0", "GLB", 0, 7)
-        c1 = TensorStorage("C1", "GLB", 1, 8)
-        c2 = TensorStorage("C2", "GLB", 2, 9)
-        c1d1 = TensorStorage("C1D1", "GLB", 2, 8)  # Above loop 2 --> share 0, 1
-        d0 = TensorStorage("D0", "GLB", 0, 10)
-        d1 = TensorStorage("D1", "GLB", 1, 11)
-        d2 = TensorStorage("D2", "GLB", 2, 12)
+        a0 = TensorStorage("A0", 0, "GLB", 1)
+        a1 = TensorStorage("A1", 1, "GLB", 2)
+        a2 = TensorStorage("A2", 2, "GLB", 3)
+        a1b1 = TensorStorage("A1B1", 2, "GLB", 2)  # Above loop 2 --> share 0, 1
+        b0 = TensorStorage("B0", 0, "GLB", 4)
+        b1 = TensorStorage("B1", 1, "GLB", 5)
+        b2 = TensorStorage("B2", 2, "GLB", 6)
+        b0c0 = TensorStorage("B0C0", 1, "GLB", 4)  # Above loop 1 --> share 0
+        c0 = TensorStorage("C0", 0, "GLB", 7)
+        c1 = TensorStorage("C1", 1, "GLB", 8)
+        c2 = TensorStorage("C2", 2, "GLB", 9)
+        c1d1 = TensorStorage("C1D1", 2, "GLB", 8)  # Above loop 2 --> share 0, 1
+        d0 = TensorStorage("D0", 0, "GLB", 10)
+        d1 = TensorStorage("D1", 1, "GLB", 11)
+        d2 = TensorStorage("D2", 2, "GLB", 12)
         tensors0 = [a0, a1, a2, a1b1]
         tensors1 = [b0, b1, b2, a1b1, b0c0]
         tensors2 = [c0, c1, c2, b0c0, c1d1]
@@ -408,21 +442,21 @@ class TestSIM(unittest.TestCase):
                 self.assertEqual(s.mapping.data[nameloop2col("GLB", i)].sum(), e)
 
     def test_all(self):
-        a0 = TensorStorage("A0", "GLB", 0, 1)
-        a1 = TensorStorage("A1", "GLB", 1, 2)
-        a2 = TensorStorage("A2", "GLB", 2, 3)
-        a1b1 = TensorStorage("A1B1", "GLB", 2, 2)  # Above loop 2 --> share 0, 1
-        b0 = TensorStorage("B0", "GLB", 0, 4)  #
-        b1 = TensorStorage("B1", "GLB", 1, 5)  #
-        b2 = TensorStorage("B2", "GLB", 2, 6)  #
-        b0c0 = TensorStorage("B0C0", "GLB", 1, 4)  #  # Above loop 1 --> share 0
-        c0 = TensorStorage("C0", "GLB", 0, 7)  # 7
-        c1 = TensorStorage("C1", "GLB", 1, 8)  # 8
-        c2 = TensorStorage("C2", "GLB", 2, 9)  # 9
-        c1d1 = TensorStorage("C1D1", "GLB", 2, 8)  # 8 # Above loop 2 --> share 0, 1
-        d0 = TensorStorage("D0", "GLB", 0, 10)  #
-        d1 = TensorStorage("D1", "GLB", 1, 11)  #
-        d2 = TensorStorage("D2", "GLB", 2, 12)  #
+        a0 = TensorStorage("A0", 0, "GLB", 1)
+        a1 = TensorStorage("A1", 1, "GLB", 2)
+        a2 = TensorStorage("A2", 2, "GLB", 3)
+        a1b1 = TensorStorage("A1B1", 2, "GLB", 2)  # Above loop 2 --> share 0, 1
+        b0 = TensorStorage("B0", 0, "GLB", 4)  #
+        b1 = TensorStorage("B1", 1, "GLB", 5)  #
+        b2 = TensorStorage("B2", 2, "GLB", 6)  #
+        b0c0 = TensorStorage("B0C0", 1, "GLB", 4)  #  # Above loop 1 --> share 0
+        c0 = TensorStorage("C0", 0, "GLB", 7)  # 7
+        c1 = TensorStorage("C1", 1, "GLB", 8)  # 8
+        c2 = TensorStorage("C2", 2, "GLB", 9)  # 9
+        c1d1 = TensorStorage("C1D1", 2, "GLB", 8)  # 8 # Above loop 2 --> share 0, 1
+        d0 = TensorStorage("D0", 0, "GLB", 10)  #
+        d1 = TensorStorage("D1", 1, "GLB", 11)  #
+        d2 = TensorStorage("D2", 2, "GLB", 12)  #
 
         tensors0 = [a0, a1, a2, a1b1]
         tensors1 = [b0, b1, b2, a1b1, b0c0]

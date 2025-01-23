@@ -29,6 +29,7 @@ def per_einsum_mapper_snowcat(
     ffmt_refetch_weights=True,
     dataflow_constraint=None,
     metrics=Metrics.all_metrics(),
+    tag_with: tuple[callable] = (),
 ):
     data = {}
     for einsum_id in einsums_to_explore:
@@ -149,6 +150,7 @@ def per_einsum_mapper_snowcat(
                         einsum_id_to_name=einsum_id_to_name,
                         rank_id_to_name={v: k for k, v in rank_name_to_id.items()},
                         tensor_id_to_name={v: k for k, v in tensor_name_to_id.items()},
+                        tag_with=tag_with,
                     )
             return result
 

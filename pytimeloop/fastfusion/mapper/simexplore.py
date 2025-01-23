@@ -91,6 +91,15 @@ def fuse_sims(
     left = sims.pop(0)
 
     init_print_time()
+    
+    if not sims:
+        left = consolidate(
+            x=left,
+            left=True,
+            live_tensors=set(),
+            resource2capacity=resource2capacity,
+            shared_tensors=set(),
+        )
 
     while sims:
         nbuckets.append(len(left))
@@ -103,8 +112,8 @@ def fuse_sims(
         first_right = right[0]
 
         # Group left and right into buckets
-        right = SIM.group_by_left(right, left[0].tensor_names)
-        left = SIM.group_by_right(left, first_right.tensor_names, keep_loops=True)
+        right = SIM.group_right(right, left[0].tensor_names)
+        left = SIM.group_left(left, first_right.tensor_names, keep_loops=True)
         print_time("Grouping")
 
         args = dict(
@@ -135,9 +144,9 @@ def fuse_sims(
                     b: SIM
                     combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
                     if DO_PRINT:
-                        s = f"\t{a.tiling_str()} <--> {b.tiling_str()}"
+                        s = f"\t{a.tiling} <--> {b.tiling}"
                         if DELAY_MERGE:
-                            s += f" --> {combined[-1].tiling_str()}"
+                            s += f" --> {combined[-1].tiling}"
                         s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
                         print(s)
             elif DO_PRINT:

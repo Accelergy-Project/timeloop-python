@@ -17,7 +17,7 @@ def make_storage(
     must_have_terminal_storage: bool=False,
     logfunc: Callable=None,
     return_retained_tensors: bool=False,
-    automatically_lower_below_relevant_ranks: bool = False
+    automatically_lower_below_relevant_ranks: bool = False,
 ):
     if logfunc is None:
         logfunc = lambda msg: None  # do nothing
@@ -65,8 +65,9 @@ def make_storage(
             if node["type"] == "temporal":
                 rank_id = node["rank"]
                 is_relevant = rank_id in relevant_ranks
-                if ((last_is_relevant and not is_relevant)
-                    or not automatically_lower_below_relevant_ranks):
+                if not automatically_lower_below_relevant_ranks:
+                    tensor_choices.append(i)
+                elif last_is_relevant and not is_relevant:
                     # Choice 1: fused
                     tensor_choices.append(i)
                     if tensor_must_be_fully_reused:
@@ -74,8 +75,9 @@ def make_storage(
                 last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
-        if last_is_relevant and (not tensor_must_be_fully_reused
-                                 or len(tensor_choices) == 1):
+        if not automatically_lower_below_relevant_ranks:
+            tensor_choices.append(len(mapping))
+        elif last_is_relevant and (not tensor_must_be_fully_reused or len(tensor_choices) == 1):
             tensor_choices.append(len(mapping))
 
         if tensor_id in can_retain_tensors:
@@ -98,12 +100,14 @@ def make_storage(
 
         mapping = original.copy()
         success = True
+        
         for idx, tensors_at_idx in sorted(idx_to_tensors.items(),
                                           key=lambda pair: pair[0],
                                           reverse=True):
             if any(t in add_split_at_tensors for t in tensors_at_idx):
                 mapping.add_sequential(idx)
             mapping.add_storage(level, tensors_at_idx, idx)
+            # Check for any irrelevant loops above the backing storage for a tensor
             for t in tensors_at_idx:
                 for node in mapping[:idx]:
                     if node["type"] == "storage" and t in node["dspace"]:

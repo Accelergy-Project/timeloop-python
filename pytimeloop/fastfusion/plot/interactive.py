@@ -36,6 +36,10 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: pd.DataFra
             print(f"{t.__repr__()},")
         for k, v in data.iloc[index][MAPPING_HASH].items():
             print(f"{k}: {v},")
+        for t in sorted(list(data.iloc[index][MAPPING].values())[-1].tensors):
+            print(f"{t.__repr__()},")
+        for v in data.iloc[index][MAPPING].values():
+            print(v)
     out2 = Output()
     @out2.capture(clear_output=True)
     def display_mapping_2(trace, points, selector):
@@ -48,6 +52,10 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: pd.DataFra
             print(f"{t.__repr__()},")
         for k, v in data.iloc[index][MAPPING_HASH].items():
             print(f"{k}: {v},")
+        for t in sorted(list(data.iloc[index][MAPPING].values())[-1].tensors):
+            print(f"{t.__repr__()},")
+        for v in data.iloc[index][MAPPING].values():
+            print(v)
     fig.data[0].on_hover(display_mapping)
     fig.data[0].on_click(display_mapping_2)
     if not DUAL_OUT:
