@@ -58,6 +58,16 @@ def make_storage(
         relevant_ranks = tensor_to_relevant_ranks[tensor_id]
         tensor_choices = []
         last_is_relevant = True
+        
+        has_storage = False
+        for node in mapping:
+            if node["type"] == "storage" and tensor_id in node["dspace"]:
+                has_storage = True
+                break
+        
+        # ?????????????
+        # auto_lower = automatically_lower_below_relevant_ranks or has_storage
+        auto_lower = automatically_lower_below_relevant_ranks
 
         min_i = get_last_storage_node(mapping, tensor_id)
         for i, node in enumerate(mapping[min_i+1:]):
@@ -65,7 +75,7 @@ def make_storage(
             if node["type"] == "temporal":
                 rank_id = node["rank"]
                 is_relevant = rank_id in relevant_ranks
-                if not automatically_lower_below_relevant_ranks:
+                if not auto_lower:
                     tensor_choices.append(i)
                 elif last_is_relevant and not is_relevant:
                     # Choice 1: fused
@@ -75,7 +85,7 @@ def make_storage(
                 last_is_relevant = is_relevant
 
         # There has not been a single irrelevant loop
-        if not automatically_lower_below_relevant_ranks:
+        if not auto_lower:
             tensor_choices.append(len(mapping))
         elif last_is_relevant and (not tensor_must_be_fully_reused or len(tensor_choices) == 1):
             tensor_choices.append(len(mapping))
