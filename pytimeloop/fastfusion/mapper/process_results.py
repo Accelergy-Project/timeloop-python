@@ -13,6 +13,7 @@ from pytimeloop.fastfusion.pareto import (
     RESERVED_COLUMNS,
     TENSORS,
     IN_PROGRESS_STATS,
+    TAGS,
 )
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
 
@@ -37,7 +38,6 @@ class Metrics(Flag):
 
 # DEBUG_VISUALIZATION = Metrics.ALL_TENSORS | METRICS.PARTIAL_STATS
 
-
 def process_result(
     result,
     shape,
@@ -54,6 +54,9 @@ def process_result(
     einsum_id_to_name,
     rank_id_to_name,
     tensor_id_to_name,
+    rank_name_to_shared_name,
+    input_tensors: set[str],
+    output_tensors: set[str],
     logfunc=None,
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
@@ -75,7 +78,7 @@ def process_result(
     )
 
     cur_idx = 0
-    all_backing_storages = []
+    backing_storages = []
     all_storages = []
     intermediates_to_find = set(intermediate_tensors)
     found_tensors = set()
@@ -95,7 +98,7 @@ def process_result(
                 intermediates_to_find.remove(storage.tensor_id)
             if storage.tensor_id not in found_tensors:
                 found_tensors.add(storage.tensor_id)
-                all_backing_storages.append(storage)
+                backing_storages.append(storage)
 
         logstring.append(f"Strg({node['dspace']} in {node['target']})")
 
@@ -107,6 +110,7 @@ def process_result(
             tile_shape = shape[cur_idx]
             cur_idx += 1
         rank_id = equiv_groups.rank_to_group_id[node["rank"]]
+        # rank_id = node["rank"]
         loop = Loop(
             rank_id_to_name[rank_id],
             tile_shape,
@@ -124,21 +128,33 @@ def process_result(
         elif node["type"] == "spatial" or node["type"] == "temporal":
             record_loop(node)
 
-    n_fused_loops = max(t.above_loop_index for t in all_backing_storages)
+    n_fused_loops = max(t.above_loop_index for t in backing_storages)
     tiling_full = Tiling(
         loops=tuple(full_tiling),
         tensors=frozenset(all_storages),
     )
+    
+    tagger_args = dict(
+        einsum_id=einsum_id,
+        backing_storages=backing_storages,
+        input_tensors=input_tensors,
+        output_tensors=output_tensors,
+        tiling=tiling_full,
+        rank_name_to_shared_name=rank_name_to_shared_name,
+    )
+    # print(tiling_full)
 
     tiling_compatibility = Tiling(
         loops=tuple(full_tiling[:n_fused_loops]),
-        tensors=frozenset(all_backing_storages),
-        # tags=fzs().union(*([set()] + [set(t(einsum_id, tiling_full)) for t in tag_with]))
+        tensors=frozenset(backing_storages),
+        tags=fzs().union(*([set()] + [set(t(**tagger_args)) for t in tag_with]))
     )
-
-    # assert max(t.above_loop_index for t in all_backing_storages) == len(tiling_compatibility.loops), (
+    
+    if "FFMT_VALID" in tiling_compatibility.tags:
+        print(tiling_compatibility)
+    # assert max(t.above_loop_index for t in backing_storages) == len(tiling_compatibility.loops), (
     #     f"\n\ttiling_compatibility: {tiling_compatibility} "
-    #     f"\n\tall_backing_storages: {all_backing_storages} "
+    #     f"\n\tbacking_storages: {backing_storages} "
     #     f"\n\ttiling_full: {tiling_full}"
     # )
 
@@ -150,14 +166,14 @@ def process_result(
     if Metrics.ENERGY in metrics:
         results["Energy"] = energy
 
-    offchip_accesses = 0
+    offchip_ac = 0
     for (level, tensor, einsum), count in accesses.items():
         if level == 0:
-            offchip_accesses += count
+            offchip_ac += count
         logstring.append(f"Ac_{level}_{tensor}={count:.2e}")
 
     if Metrics.OFF_CHIP_ACCESSES in metrics:
-        results["Offchip_Ac"] = offchip_accesses
+        results["Offchip Accesses"] = offchip_ac
 
     logstring.append(f"{result.fanout}")
 
@@ -166,7 +182,7 @@ def process_result(
     # be backed
     for r in all_storages:
         r: TensorStorage
-        if r not in all_backing_storages:
+        if r not in backing_storages:
             key = nameloop2col(r.backer_id, r.above_loop_index)
             results.setdefault(key, 0)
             results[key] += r.tile_size
@@ -184,15 +200,18 @@ def process_result(
     logstring.append(f"Results: {results}")
     results[LOGSTRING] = {einsum_id: str(logstring)}
     results[MAPPING] = {einsum_id: tiling_full}
-    results[TENSORS] = {einsum_id: all_backing_storages}
+    results[TENSORS] = {einsum_id: backing_storages}
     results[STATS] = {
         einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}
     }
     results[IN_PROGRESS_STATS] = {einsum_id: {}}
     results[MAPPING_HASH] = {einsum_id: hash((einsum_id, tiling_compatibility))}
+    results[TAGS] = {einsum_id: tiling_compatibility.tags}
+
+    key = (tiling_compatibility, fzs(results.keys()))
 
     is_pareto = True
-    for prev_stats in compatibility_to_df[tiling_compatibility]:
+    for prev_stats in compatibility_to_df[key]:
         keys = [k for k in results if k not in DICT_COLUMNS]
         if (
             fzs(prev_stats.keys()) == fzs(results.keys())
@@ -204,6 +223,6 @@ def process_result(
     # TO DO: Index into the DF with both tiling compatibility and
     # the result keys
     if is_pareto:
-        compatibility_to_df[tiling_compatibility].append(results)
+        compatibility_to_df[key].append(results)
     results_return = {k: v for k, v in results.items() if k != LOGSTRING}
     return is_pareto, results_return, logstring

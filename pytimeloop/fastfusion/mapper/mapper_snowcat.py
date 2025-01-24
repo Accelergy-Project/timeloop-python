@@ -63,10 +63,13 @@ def mapper(
         separated_einsums = None
     else:
         separated_einsums = get_ffmt_separated_einsums(workload)
-    grouped_similar_einsums = convert_rank_to_group_renaming(
-        detect_similar_einsums(workload, analyzer, separated_einsums),
-        equivalent_groups
-    )
+    if not tag_with:
+        grouped_similar_einsums = convert_rank_to_group_renaming(
+            detect_similar_einsums(workload, analyzer, separated_einsums),
+            equivalent_groups
+        )
+    else:
+        grouped_similar_einsums = {einsum: {} for einsum in workload.einsum_id_to_name()}
     logger.info(f"Found {len(grouped_similar_einsums)} unique Einsums\n"
                 + f"\tConverter: {grouped_similar_einsums}")
 
@@ -128,15 +131,7 @@ def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_
 
 
 def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
-    return Tiling(
-        loops=tuple(Loop(rank_renaming[l.rank_id], l.bound, l.is_spatial)
-                    for l in tiling.loops),
-        tensors=frozenset(TensorStorage(tensor_renaming[ts.tensor_id],
-                                        ts.above_loop_index,
-                                        ts.backer_id,
-                                        ts.tile_size)
-                          for ts in tiling.tensors)
-    )
+    return tiling.rename(rank_renaming, tensor_renaming)
 
 
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):

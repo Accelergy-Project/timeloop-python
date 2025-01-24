@@ -86,6 +86,13 @@ def per_einsum_mapper_snowcat(
 
         partial_mappings = list(dependent_product(parallelized_spaces))
         partial_mappings = [x if isinstance(x, tuple) else (x,) for x in partial_mappings]
+        rank_id_to_name = {v: k for k, v in rank_name_to_id.items()}
+        tensor_id_to_name = {v: k for k, v in tensor_name_to_id.items()}
+        input_tensors = set(tensor_id_to_name[t] for t in workload.tensors_read_by_einsum(einsum_id))
+        output_tensors = set(tensor_id_to_name[t] for t in workload.tensors_written_by_einsum(einsum_id))
+        rank_name_to_shared_name = {
+            rank_id_to_name[k]: rank_id_to_name[v] for k, v in equivalent_groups.rank_to_group_id.items()
+        }
 
         # successful_partial_mappings = []
         # for p in partial_mappings:
@@ -148,8 +155,11 @@ def per_einsum_mapper_snowcat(
                         einsum_shape=einsum_shape,
                         metrics=metrics,
                         einsum_id_to_name=einsum_id_to_name,
-                        rank_id_to_name={v: k for k, v in rank_name_to_id.items()},
-                        tensor_id_to_name={v: k for k, v in tensor_name_to_id.items()},
+                        rank_id_to_name=rank_id_to_name,
+                        tensor_id_to_name=tensor_id_to_name,
+                        rank_name_to_shared_name=rank_name_to_shared_name,
+                        input_tensors=input_tensors,
+                        output_tensors=output_tensors,
                         tag_with=tag_with,
                     )
             return result
@@ -161,7 +171,7 @@ def per_einsum_mapper_snowcat(
         data[einsum_id] = defaultdict(list)
         for res in results:
             for k, v in res.items():
-                data[einsum_id][k] += v
+                data[einsum_id][k[0]] += v
 
     return data
 

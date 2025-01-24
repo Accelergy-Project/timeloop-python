@@ -37,7 +37,7 @@ def plot_ski_slope(data: pd.DataFrame,
 
     for label, sub_df in zip(labels, separated_datas):
         ax.plot(*_make_staircase(sub_df["Occupancy"].to_numpy(),
-                                 sub_df["Offchip_Ac"].to_numpy()),
+                                 sub_df["Offchip Accesses"].to_numpy()),
                 label=label,
                 **kwargs)
 

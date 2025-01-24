@@ -146,10 +146,7 @@ def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_
 
 
 def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
-    return Tiling(
-        loops=tuple(l.rename(rank_renaming, tensor_renaming) for l in tiling.loops),
-        tensors=frozenset(ts.rename(rank_renaming, tensor_renaming) for ts in tiling.tensors),
-    )
+    return tiling.rename(rank_renaming, tensor_renaming)
 
 
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):

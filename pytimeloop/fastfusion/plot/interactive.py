@@ -1,5 +1,5 @@
 from numbers import Number
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Union
 import plotly
 import pydot
 from IPython.display import SVG, display
@@ -21,43 +21,52 @@ def mapping2svg(mapping: pd.Series):
 def mapping2svg(mapping: pd.Series):
     return SVG(tilings2svg(mapping[MAPPING], mapping[STATS], mapping[TENSORS], mapping[IN_PROGRESS_STATS]))
 
-def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: pd.DataFrame):
-    fig = go.FigureWidget(fig)
+def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, pd.DataFrame]):
+    # fig = go.FigureWidget(fig)
     out = Output()
     DUAL_OUT = False
-    @out.capture(clear_output=True)
+    @out.capture()
     def display_mapping(trace, points, selector):
+        if not points.point_inds:
+            return
+        out.clear_output()
+        d = data[trace.name]
         index = points.point_inds[0]
-        display(mapping2svg(data.iloc[index]))
+        display(mapping2svg(d.iloc[index]))
         all_tensors = set(
-            t for tn in data.iloc[index][TENSORS].values() for t in tn
+            t for tn in d.iloc[index][TENSORS].values() for t in tn
         )
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
-        for k, v in data.iloc[index][MAPPING_HASH].items():
+        for k, v in d.iloc[index][MAPPING_HASH].items():
             print(f"{k}: {v},")
-        for t in sorted(list(data.iloc[index][MAPPING].values())[-1].tensors):
+        for t in sorted(list(d.iloc[index][MAPPING].values())[-1].tensors):
             print(f"{t.__repr__()},")
-        for v in data.iloc[index][MAPPING].values():
+        for v in d.iloc[index][MAPPING].values():
             print(v)
     out2 = Output()
-    @out2.capture(clear_output=True)
+    @out2.capture()
     def display_mapping_2(trace, points, selector):
+        if not points.point_inds:
+            return
+        out2.clear_output()
+        d = data[trace.name]
         index = points.point_inds[0]
-        display(mapping2svg(data.iloc[index]))
+        display(mapping2svg(d.iloc[index]))
         all_tensors = set(
-            t for tn in data.iloc[index][TENSORS].values() for t in tn
+            t for tn in d.iloc[index][TENSORS].values() for t in tn
         )
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
-        for k, v in data.iloc[index][MAPPING_HASH].items():
+        for k, v in d.iloc[index][MAPPING_HASH].items():
             print(f"{k}: {v},")
-        for t in sorted(list(data.iloc[index][MAPPING].values())[-1].tensors):
+        for t in sorted(list(d.iloc[index][MAPPING].values())[-1].tensors):
             print(f"{t.__repr__()},")
-        for v in data.iloc[index][MAPPING].values():
+        for v in d.iloc[index][MAPPING].values():
             print(v)
-    fig.data[0].on_hover(display_mapping)
-    fig.data[0].on_click(display_mapping_2)
+    for i in fig.data:
+        i.on_hover(display_mapping)
+        i.on_click(display_mapping_2)
     if not DUAL_OUT:
         return VBox([fig, out])
     out.layout.width = '50%'
@@ -66,7 +75,7 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: pd.DataFra
 
 
 def plotly_show(
-    data: pd.DataFrame,
+    data: Union[pd.DataFrame, dict[str, pd.DataFrame]],
     x: str,
     y: str,
     category: Optional[str] = None,
@@ -74,7 +83,21 @@ def plotly_show(
     show_mapping: Optional[bool] = True,
     logscales: bool = False
 ):
-    fig = px.scatter(data, x=x, y=y, color=category, title=title, log_x=logscales, log_y=logscales)
+    fig = go.FigureWidget()
+    if isinstance(data, dict):
+        for k, v in data.items():
+            v.sort_values(by=[x, y], inplace=True)
+            fig.add_scatter(x=v[x], y=v[y], name=k, line={"shape": 'hv'})
+    else:
+        data.sort_values(by=[x, y], inplace=True)
+        fig.add_scatter(x=data[x], y=data[y], line={"shape": 'hv'})
+        data = {"" : data}
+    if title is not None:
+        fig.update_layout(title=title)
+    fig.update_xaxes(title_text=x)
+    fig.update_yaxes(title_text=y)
+    fig.update_layout(showlegend=True)
+    # fig = px.scatter(data, x=x, y=y, color=category, title=title, log_x=logscales, log_y=logscales)
     if show_mapping:
         return diplay_mappings_on_fig(fig, data)
     return fig

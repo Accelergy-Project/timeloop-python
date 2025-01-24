@@ -100,6 +100,9 @@ def fuse_sims(
             resource2capacity=resource2capacity,
             shared_tensors=set(),
         )
+        
+    # TODO: Lookahead by one SIM. If we're going to create a tiling that has loops
+    # that are not in the ranks of the next SIM, we should drop that tiling.
 
     while sims:
         nbuckets.append(len(left))

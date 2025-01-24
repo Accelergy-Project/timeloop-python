@@ -132,7 +132,7 @@ class TensorStorage:
                 return False
         return True
 
-class Tag():
+class Tag:
     def __eq__(self, value: "Tag") -> bool:
         # Match base Tag
         if type(value) == Tag:
@@ -146,6 +146,18 @@ class Tag():
     
     def merge_next(self, n: "Tag") -> "Tag":
         return n
+    
+    @staticmethod
+    def get_wildcard():
+        return Wildcard()
+
+class Wildcard(Tag):
+    def __eq__(self, value: "Tag") -> bool:
+        return True
+    
+    def __hash__(self) -> int:
+        return hash("Wildcard")
+
 
 @dataclass(frozen=True)
 class Tiling:
@@ -177,7 +189,7 @@ class Tiling:
         return len(self.loops)
 
     def __hash__(self):
-        return hash((self.loops, self.tensors))
+        return hash((self.loops, self.tensors, self.tags))
 
     def clear_dead_tensors(
         self, live_tensors: set[str], keep_loops: bool = False
@@ -191,7 +203,7 @@ class Tiling:
         return Tiling(loops, tensors, self.tags)
 
     def __lt__(self, other):
-        return self.loops < other.loops or self.tensors < other.tensors
+        return (self.loops, self.tensors) < (other.loops, other.tensors)
 
     def __str__(self):
         return self.__repr__()
@@ -235,6 +247,9 @@ class Tiling:
                 
     def has_tensor(self, *tensors: TensorStorage) -> bool:
         return all(any(t == tensor for t in self.tensors) for tensor in tensors)
+    
+    def set_tags(self, *new_tags: Tag) -> "Tiling":
+        return Tiling(self.loops, self.tensors, fzs(new_tags))
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -394,6 +409,21 @@ class SIM:
         sims: list["SIM"], live_tensors: set[str]
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors)
+    
+    def set_tags(self, *tags: Tag) -> "SIM":
+        self.tiling = self.tiling.set_tags(*tags)
+        
+    @attribute
+    def tags(self) -> fzs[Tag]:
+        return self.tiling.tags
+    
+    @attribute
+    def tensors(self) -> fzs[TensorStorage]:
+        return self.tiling.tensors
+    
+    @attribute
+    def loops(self) -> tuple[Loop, ...]:
+        return self.tiling.loops
 
 
 import unittest
