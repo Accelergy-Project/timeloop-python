@@ -58,4 +58,13 @@ def get_last_storage_node(mapping, tensor):
     for i, node in enumerate(mapping):
         if node['type'] == 'storage' and tensor in node['dspace']:
             return i
-    return 0
+    return None
+
+
+def get_last_fused_loop_idx(mapping, intermediate_tensors):
+    last_i = 0
+    for i, node in enumerate(mapping):
+        if node['type'] == 'storage' \
+                and any(t in node['dspace'] for t in intermediate_tensors):
+            last_i = i
+    return last_i

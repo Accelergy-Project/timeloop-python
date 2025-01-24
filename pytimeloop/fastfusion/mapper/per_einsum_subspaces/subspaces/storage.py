@@ -17,13 +17,16 @@ def make_storage(
     must_have_terminal_storage: bool=False,
     logfunc: Callable=None,
     return_retained_tensors: bool=False,
-    automatically_lower_below_relevant_ranks: bool = False,
+    apply_lrp_after_loop_idx: int=None,
 ):
     if logfunc is None:
         logfunc = lambda msg: None  # do nothing
 
     if add_split_at_tensors is None:
         add_split_at_tensors = set()
+
+    if apply_lrp_after_loop_idx is None:
+        apply_lrp_after_loop_idx = float('inf')
 
     tensors = must_retain_tensors | can_retain_tensors
 
@@ -59,35 +62,34 @@ def make_storage(
         tensor_choices = []
         last_is_relevant = True
         
-        has_storage = False
-        for node in mapping:
-            if node["type"] == "storage" and tensor_id in node["dspace"]:
-                has_storage = True
-                break
-        
-        # ?????????????
-        # auto_lower = automatically_lower_below_relevant_ranks or has_storage
-        auto_lower = automatically_lower_below_relevant_ranks
+        last_storage_idx = get_last_storage_node(mapping, tensor_id)
+        has_storage = last_storage_idx is not None
+        if not has_storage:
+            min_i = 0
+        else:
+            min_i = last_storage_idx + 1
 
-        min_i = get_last_storage_node(mapping, tensor_id)
-        for i, node in enumerate(mapping[min_i+1:]):
-            i += min_i+1
+        no_irrelevant_loop = True
+        for i in range(min_i, len(mapping)):
+            node = mapping[i]
             if node["type"] == "temporal":
-                rank_id = node["rank"]
-                is_relevant = rank_id in relevant_ranks
-                if not auto_lower:
+                is_relevant = node["rank"] in relevant_ranks
+
+                no_irrelevant_loop = no_irrelevant_loop and not is_relevant
+
+                auto_lower = has_storage and i > apply_lrp_after_loop_idx
+
+                if not auto_lower or (last_is_relevant and not is_relevant):
                     tensor_choices.append(i)
-                elif last_is_relevant and not is_relevant:
-                    # Choice 1: fused
-                    tensor_choices.append(i)
-                    if tensor_must_be_fully_reused:
-                        break
+
                 last_is_relevant = is_relevant
 
-        # There has not been a single irrelevant loop
-        if not auto_lower:
-            tensor_choices.append(len(mapping))
-        elif last_is_relevant and (not tensor_must_be_fully_reused or len(tensor_choices) == 1):
+                if not is_relevant and tensor_must_be_fully_reused:
+                    break
+
+        # Lowest possible storage node
+        if last_is_relevant and (not tensor_must_be_fully_reused
+                                 or no_irrelevant_loop):
             tensor_choices.append(len(mapping))
 
         if tensor_id in can_retain_tensors:
@@ -96,10 +98,6 @@ def make_storage(
         all_tensor_choices.append(tensor_choices)
 
     for choices in product(*all_tensor_choices):
-        if must_have_terminal_storage:
-            if not any(c == len(original) for c in choices):
-                continue
-
         # Collect tensors with the same idx
         retained_tensors = set()
         idx_to_tensors = defaultdict(list)
@@ -110,7 +108,7 @@ def make_storage(
 
         mapping = original.copy()
         success = True
-        
+
         for idx, tensors_at_idx in sorted(idx_to_tensors.items(),
                                           key=lambda pair: pair[0],
                                           reverse=True):
@@ -119,13 +117,17 @@ def make_storage(
             mapping.add_storage(level, tensors_at_idx, idx)
             # Check for any irrelevant loops above the backing storage for a tensor
             for t in tensors_at_idx:
+                relevant_ranks = tensor_to_relevant_ranks[t]
                 for node in mapping[:idx]:
                     if node["type"] == "storage" and t in node["dspace"]:
                         break
-                    if node["type"] == "temporal" and node["rank"] not in tensor_to_relevant_ranks[t]:
+                    if node["type"] == "temporal" and node["rank"] not in relevant_ranks:
                         success = False
                         break
         if not success:
+            continue
+
+        if must_have_terminal_storage and mapping[-1]["type"] != "storage":
             continue
 
         assert retained_tensors & must_retain_tensors == must_retain_tensors
