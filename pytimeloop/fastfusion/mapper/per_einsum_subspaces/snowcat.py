@@ -63,7 +63,7 @@ def make_subspaces(tensors,
                                     explore_uneven=True,
                                     add_split_at_tensors=set(),
                                     must_have_terminal_storage=True,
-                                    apply_lrp_after_loop_idx=None)
+                                    apply_lrp_after_loop_idx=last_fused_loop_idx+1)
 
     def tile_shape_optimization(mapping):
         for partial_mapping in infer_smallest_tile_shape(mapping,
