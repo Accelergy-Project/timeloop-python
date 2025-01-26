@@ -9,10 +9,7 @@ N_PARALLEL_THREADS = 128
 
 class fzs(frozenset):
     def __repr__(self):
-        try:
-            return f"fzs({', '.join(x.__repr__() for x in sorted(self))}"
-        except:
-            return f"fzs({', '.join(x.__repr() for x in self)})"
+        return f"fzs({', '.join(sorted(x.__repr__() for x in self))})"
     
     def __str__(self):
         return self.__repr__()

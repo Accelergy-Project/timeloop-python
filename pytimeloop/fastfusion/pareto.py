@@ -198,17 +198,29 @@ def _free_to_loop_index(
 def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return data[paretoset(data[columns])].reset_index(drop=True)
 
+def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
+    from pytimeloop.fastfusion.plot.looptree import tilings2looptree
 
+    looptree = tilings2looptree(
+        row[MAPPING],
+        row[STATS],
+        row[TENSORS],
+        row[IN_PROGRESS_STATS],
+        skip_backing_tensors_in_right_branch=live_tensors,
+        still_live_tensors=live_tensors,
+    )
+    import pydot
+
+    graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+    looptree.to_pydot(graph)
+    with open(f"test.png", "wb") as f:
+        f.write(graph.create_png())
+        
 def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
     from pytimeloop.fastfusion.plot.looptree import tilings2looptree
 
-    def fail(looptree):
-        import pydot
-
-        graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
-        looptree.to_pydot(graph)
-        with open(f"test.png", "wb") as f:
-            f.write(graph.create_png())
+    def fail(index):
+        draw_looptree(data.iloc[index], live_tensors)
         all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")

@@ -142,21 +142,12 @@ def process_result(
         tiling=tiling_full,
         rank_name_to_shared_name=rank_name_to_shared_name,
     )
-    # print(tiling_full)
 
     tiling_compatibility = Tiling(
         loops=tuple(full_tiling[:n_fused_loops]),
         tensors=frozenset(backing_storages),
         tags=fzs().union(*([set()] + [set(t(**tagger_args)) for t in tag_with]))
     )
-    
-    if "FFMT_VALID" in tiling_compatibility.tags:
-        print(tiling_compatibility)
-    # assert max(t.above_loop_index for t in backing_storages) == len(tiling_compatibility.loops), (
-    #     f"\n\ttiling_compatibility: {tiling_compatibility} "
-    #     f"\n\tbacking_storages: {backing_storages} "
-    #     f"\n\ttiling_full: {tiling_full}"
-    # )
 
     results = {}
 

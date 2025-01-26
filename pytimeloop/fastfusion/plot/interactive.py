@@ -90,7 +90,7 @@ def plotly_show(
             fig.add_scatter(x=v[x], y=v[y], name=k, line={"shape": 'hv'})
     else:
         data.sort_values(by=[x, y], inplace=True)
-        fig.add_scatter(x=data[x], y=data[y], line={"shape": 'hv'})
+        fig.add_scatter(x=data[x], y=data[y], name="", line={"shape": 'hv'})
         data = {"" : data}
     if title is not None:
         fig.update_layout(title=title)

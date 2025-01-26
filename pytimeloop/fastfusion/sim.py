@@ -132,38 +132,11 @@ class TensorStorage:
                 return False
         return True
 
-class Tag:
-    def __eq__(self, value: "Tag") -> bool:
-        # Match base Tag
-        if type(value) == Tag:
-            return True
-        # If other is a non-base Tag or anything else, let
-        # the other object handle the comparison
-        return value.__eq__(self)
-    
-    def __hash__(self) -> int:
-        return hash("Tag")
-    
-    def merge_next(self, n: "Tag") -> "Tag":
-        return n
-    
-    @staticmethod
-    def get_wildcard():
-        return Wildcard()
-
-class Wildcard(Tag):
-    def __eq__(self, value: "Tag") -> bool:
-        return True
-    
-    def __hash__(self) -> int:
-        return hash("Wildcard")
-
-
 @dataclass(frozen=True)
 class Tiling:
     loops: tuple[Loop, ...]
     tensors: fzs[TensorStorage]
-    tags: fzs[Tag] = fzs()
+    tags: fzs[Any] = fzs()
 
     @cached_property
     def tensor_names(self) -> set[str]:
@@ -209,9 +182,7 @@ class Tiling:
         return self.__repr__()
 
     def __repr__(self):
-        if type(self.tags) == Tag:
-            return f"Tiling({self.loops}, {self.tensors})"
-        return f"Tiling({self.loops}, {self.tensors}, {self.tags})"
+        return f"Tiling({self.loops.__repr__()}, {self.tensors.__repr__()}, {self.tags.__repr__()})"
     
     def merge_next(self, n: "Tiling", live_tensors: set[str]) -> "Tiling":
         tensors = fzs(t for t in (n.tensors | self.tensors) if t.tensor_id in live_tensors)
@@ -248,7 +219,7 @@ class Tiling:
     def has_tensor(self, *tensors: TensorStorage) -> bool:
         return all(any(t == tensor for t in self.tensors) for tensor in tensors)
     
-    def set_tags(self, *new_tags: Tag) -> "Tiling":
+    def set_tags(self, *new_tags: Any) -> "Tiling":
         return Tiling(self.loops, self.tensors, fzs(new_tags))
 
 class SIM:
@@ -410,20 +381,12 @@ class SIM:
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors)
     
-    def set_tags(self, *tags: Tag) -> "SIM":
+    def set_tags(self, *tags: Any) -> "SIM":
         self.tiling = self.tiling.set_tags(*tags)
         
-    @attribute
-    def tags(self) -> fzs[Tag]:
+    @property
+    def tags(self) -> fzs[Any]:
         return self.tiling.tags
-    
-    @attribute
-    def tensors(self) -> fzs[TensorStorage]:
-        return self.tiling.tensors
-    
-    @attribute
-    def loops(self) -> tuple[Loop, ...]:
-        return self.tiling.loops
 
 
 import unittest

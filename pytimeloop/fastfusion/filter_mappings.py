@@ -1,5 +1,5 @@
 from collections import defaultdict
-from pytimeloop.fastfusion.sim import Tag, TensorStorage, Tiling
+from pytimeloop.fastfusion.sim import TensorStorage, Tiling
         
 def get_ffmt_tag_mha(
         einsum_id: str, 
@@ -19,6 +19,8 @@ def get_ffmt_tag_mha(
         "AV": ["QK_QK_to_AV", "AV_AV_to_Z"], # NOTE: AV IS MISSING
         "Z": ["AV_AV_to_Z", "Z_Z_to_n"],
     }
+    if einsum_id not in einsum_id_to_input_output:
+        return ("FFMT_VALID",)
     a, b = einsum_id_to_input_output[einsum_id]
     
     tags = []
@@ -103,7 +105,7 @@ def get_tileflow_tag_mha(
     ):
     # Valid iff it's an even mapping
     storage2level = defaultdict(set)
-    for ts in tiling.tensors:
+    for ts in backing_storages:
         storage2level[ts.backer_id].add(ts.above_loop_index)
     if all(len(s) == 1 for s in storage2level.values()):
         return ("TILEFLOW_VALID",)

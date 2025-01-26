@@ -156,6 +156,9 @@ def fuse_sims(
                 for a in left[k]:
                     print(f"\tNo match for {k} |||| {a.tiling_str()}")
 
+        if not combined:
+            print(f'No valid combinations found.')
+
         print_time("Bucket merging")
 
         f = parallel if DELAY_MERGE else lambda x: x

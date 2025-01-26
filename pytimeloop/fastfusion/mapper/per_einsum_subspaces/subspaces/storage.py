@@ -69,27 +69,30 @@ def make_storage(
         else:
             min_i = last_storage_idx + 1
 
-        no_irrelevant_loop = True
+        any_irrelevant_loop = False
         for i in range(min_i, len(mapping)):
             node = mapping[i]
             if node["type"] == "temporal":
                 is_relevant = node["rank"] in relevant_ranks
 
-                no_irrelevant_loop = no_irrelevant_loop and not is_relevant
+                any_irrelevant_loop = any_irrelevant_loop or not is_relevant
 
-                auto_lower = has_storage and i > apply_lrp_after_loop_idx
+                auto_lower = i > apply_lrp_after_loop_idx
+                auto_lower = False
 
                 if not auto_lower or (last_is_relevant and not is_relevant):
                     tensor_choices.append(i)
 
                 last_is_relevant = is_relevant
 
-                if not is_relevant and tensor_must_be_fully_reused:
+                if tensor_must_be_fully_reused and any_irrelevant_loop:
                     break
+                
+        auto_lower = len(mapping) > apply_lrp_after_loop_idx
+        auto_lower = False
 
         # Lowest possible storage node
-        if last_is_relevant and (not tensor_must_be_fully_reused
-                                 or no_irrelevant_loop):
+        if (not auto_lower or last_is_relevant) and not (tensor_must_be_fully_reused and any_irrelevant_loop):
             tensor_choices.append(len(mapping))
 
         if tensor_id in can_retain_tensors:
