@@ -78,7 +78,7 @@ def make_storage(
                 any_irrelevant_loop = any_irrelevant_loop or not is_relevant
 
                 auto_lower = i > apply_lrp_after_loop_idx
-                auto_lower = False
+                # auto_lower = False
 
                 if not auto_lower or (last_is_relevant and not is_relevant):
                     tensor_choices.append(i)
@@ -89,7 +89,7 @@ def make_storage(
                     break
                 
         auto_lower = len(mapping) > apply_lrp_after_loop_idx
-        auto_lower = False
+        # auto_lower = False
 
         # Lowest possible storage node
         if (not auto_lower or last_is_relevant) and not (tensor_must_be_fully_reused and any_irrelevant_loop):

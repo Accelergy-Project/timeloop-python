@@ -137,6 +137,11 @@ class Tiling:
     loops: tuple[Loop, ...]
     tensors: fzs[TensorStorage]
     tags: fzs[Any] = fzs()
+    
+    def __post_init__(self):
+        assert isinstance(self.tensors, frozenset)
+        assert isinstance(self.loops, tuple)
+        assert isinstance(self.tags, frozenset)
 
     @cached_property
     def tensor_names(self) -> set[str]:
@@ -172,7 +177,7 @@ class Tiling:
             if keep_loops
             else self.loops[: self.shared_loop_index(live_tensors) + 1]
         )
-        tensors = tuple(t for t in self.tensors if t.tensor_id in live_tensors)
+        tensors = frozenset(t for t in self.tensors if t.tensor_id in live_tensors)
         return Tiling(loops, tensors, self.tags)
 
     def __lt__(self, other):

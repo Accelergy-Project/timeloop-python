@@ -154,7 +154,7 @@ def fuse_sims(
                         print(s)
             elif DO_PRINT:
                 for a in left[k]:
-                    print(f"\tNo match for {k} |||| {a.tiling_str()}")
+                    print(f"\tNo match for {a.tiling}")
 
         if not combined:
             print(f'No valid combinations found.')
@@ -173,7 +173,7 @@ def fuse_sims(
             for k in right:
                 if k not in left:
                     for b in right[k]:
-                        print(f"\tREVERSE: No match for {k} |||| {b.tiling_str()}")
+                        print(f"\tREVERSE: No match for {b.tiling}")
 
         left = combined
         print(f"Number of buckets: {len(left)}")
