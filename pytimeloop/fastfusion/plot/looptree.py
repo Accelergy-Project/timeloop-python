@@ -80,21 +80,23 @@ class Node:
     def get_backing_stores(self):
         return TensorStorage.get_backing_stores(self.get_all_storages())
 
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], backing_tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = (), shared_loop_index: int = -1):
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = (), shared_loop_index: int = -1):
     prev_tilings = []
     root = Node()
     einsum_ids = list(mappings.keys())
+    
     assert set(einsum_ids) == set(stats.keys())
-    assert set(einsum_ids) == set(backing_tensors.keys())
+    
+    
 
     # If a tensor appears in non-back-to-back Einsums, then we need to store it for
     # all Einsums in between
-    tensors_lifetimes = {e: [] for e in backing_tensors}
-    all_tensors = set().union(*[set(t) for t in backing_tensors.values()])
+    tensors_lifetimes = {e: [] for e in einsum_ids}
+    all_tensors = set().union(*[set(t.tensors) for t in mappings.values()])
     backers = TensorStorage.get_backing_stores(all_tensors)
     for t in all_tensors:
-        first_appearance = min(i for i, ts in enumerate(backing_tensors.values()) if t in ts)
-        last_appearance = max(i for i, ts in enumerate(backing_tensors.values()) if t in ts)
+        first_appearance = min(i for i, ts in enumerate(mappings.values()) if t in ts.tensors)
+        last_appearance = max(i for i, ts in enumerate(mappings.values()) if t in ts.tensors)
         if t.tensor_id in still_live_tensors:
             last_appearance = len(einsum_ids) - 1
         for i, l in enumerate(tensors_lifetimes.values()):
@@ -151,13 +153,13 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], backing
         
     return root
 
-def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any]):
-    root = tilings2looptree(mappings, stats, tensors, partial_stats)
+def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], ):
+    root = tilings2looptree(mappings, stats)
     graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
     root.to_pydot(graph)
     return graph.create_svg()
 
-def tilings2yaml(mappings: dict[str, Tiling], stats: dict[str, Any], tensors: dict[str, list[TensorStorage]], partial_stats: dict[str, Any]):
-    root = tilings2looptree(mappings, stats, tensors, partial_stats)
+def tilings2yaml(mappings: dict[str, Tiling], stats: dict[str, Any]):
+    root = tilings2looptree(mappings, stats)
     return root.to_yaml()
 

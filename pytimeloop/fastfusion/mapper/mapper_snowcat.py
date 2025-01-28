@@ -138,9 +138,12 @@ def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tenso
     stats = deepcopy(stats)
     for s in stats:
         for d in DICT_COLUMNS:
-            s[d][to_einsum] = s[d].pop(from_einsum)
-        s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
-        s[TENSORS][to_einsum] = [t.rename(rank_renaming, tensor_renaming) for t in s[TENSORS][to_einsum]]
+            if d in s:
+                s[d][to_einsum] = s[d].pop(from_einsum)
+        if MAPPING in s:
+            s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
+        if TENSORS in s:
+            s[TENSORS][to_einsum] = [t.rename(rank_renaming, tensor_renaming) for t in s[TENSORS][to_einsum]]
     return stats
     
 

@@ -218,10 +218,12 @@ def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
         
 def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
     from pytimeloop.fastfusion.plot.looptree import tilings2looptree
+    from pytimeloop.fastfusion.sim import TensorStorage
 
     def fail(index):
         draw_looptree(data.iloc[index], live_tensors)
-        all_tensors = set(t for tn in r[TENSORS].values() for t in tn)
+        all_tensors = set(t for tn in r[MAPPING].values() for t in tn.tensors)
+        all_tensors = TensorStorage.get_backing_stores(all_tensors)
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
 
@@ -230,8 +232,6 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
         looptree = tilings2looptree(
             r[MAPPING],
             r[STATS],
-            r[TENSORS],
-            r[IN_PROGRESS_STATS],
             skip_backing_tensors_in_right_branch=live_tensors,
             still_live_tensors=live_tensors,
         )
@@ -248,8 +248,6 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
                 looptree = tilings2looptree(
                     r[MAPPING],
                     r[STATS],
-                    r[TENSORS],
-                    r[IN_PROGRESS_STATS],
                     skip_backing_tensors_in_right_branch=live_tensors,
                     still_live_tensors=live_tensors,
                 )
@@ -337,6 +335,8 @@ def merge_cross(
         df = makepareto(df)
 
     for k in DICT_COLUMNS:
+        if k not in left.columns:
+            continue
         c0, c1 = k + MERGE_SUFFIXES[0], k + MERGE_SUFFIXES[1]
         df[k] = (
             df.apply(lambda row: {**row[c0], **row[c1]}, axis=1) if len(df) > 0 else []
@@ -345,10 +345,9 @@ def merge_cross(
 
     cols = [c for c in df.columns if c not in DICT_COLUMNS]
 
-    if True:
+    if IN_PROGRESS_STATS in df.columns:
         first_row = df.iloc[0]
-        tensors = first_row[TENSORS]
-        einsums = list(tensors.keys())
+        einsums = list(first_row[IN_PROGRESS_STATS].keys())
         last = einsums[-1]
         for i, r in df[cols].iterrows():
             df.at[i, IN_PROGRESS_STATS][last] = r.to_dict()
@@ -422,11 +421,12 @@ class Pareto:
     def add_tensor(self, tensor):
         if len(self.data) == 0:
             return
-        last_einsum = list(self.data.iloc[0][TENSORS].keys())[-1]
-        if tensor in self.data[TENSORS].iloc[0][last_einsum]:
-            return
-        for t in self.data[TENSORS]:
-            t[last_einsum].append(tensor)
+        if TENSORS in self.data:
+            last_einsum = list(self.data.iloc[0][TENSORS].keys())[-1]
+            if tensor in self.data[TENSORS].iloc[0][last_einsum]:
+                return
+            for t in self.data[TENSORS]:
+                t[last_einsum].append(tensor)
 
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())

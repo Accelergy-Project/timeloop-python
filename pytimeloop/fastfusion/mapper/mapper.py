@@ -21,7 +21,7 @@ from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import get_top_loop_jobs, mapper_place_fusion_level
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
-from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS
+from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS, TENSORS
 from pytimeloop.fastfusion.mapper.process_results import Metrics
 
 from pytimeloop.timeloopfe.v4 import Ert
@@ -153,8 +153,12 @@ def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tenso
     stats = deepcopy(stats)
     for s in stats:
         for d in DICT_COLUMNS:
-            s[d][to_einsum] = s[d].pop(from_einsum)
-        s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
+            if d in s:
+                s[d][to_einsum] = s[d].pop(from_einsum)
+        if MAPPING in s:
+            s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
+        if TENSORS in s:
+            s[TENSORS][to_einsum] = [t.rename(rank_renaming, tensor_renaming) for t in s[TENSORS][to_einsum]]
     return stats
 
 

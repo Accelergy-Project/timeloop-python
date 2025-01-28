@@ -30,6 +30,7 @@ class Metrics(Flag):
     # OCCUPANCY = auto()
     OFF_CHIP_ACCESSES = auto()
     OP_INTENSITY = auto()
+    DEBUG = auto()
 
     @classmethod
     def all_metrics(cls):
@@ -99,8 +100,9 @@ def process_result(
             if storage.tensor_id not in found_tensors:
                 found_tensors.add(storage.tensor_id)
                 backing_storages.append(storage)
-
-        logstring.append(f"Strg({node['dspace']} in {node['target']})")
+                
+        if Metrics.DEBUG in metrics:
+            logstring.append(f"Strg({node['dspace']} in {node['target']})")
 
     def record_loop(node):
         nonlocal cur_idx
@@ -118,7 +120,8 @@ def process_result(
         )
         ranks_remaining[node["rank"]] = tile_shape
         full_tiling.append(loop)
-        logstring.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
+        if Metrics.DEBUG in metrics:
+            logstring.append(f"{node['type'][0].upper()}{node['rank']} size {tile_shape}")
 
     logstring = []
     full_tiling = []
@@ -157,16 +160,17 @@ def process_result(
     if Metrics.ENERGY in metrics:
         results["Energy"] = energy
 
-    offchip_ac = 0
-    for (level, tensor, einsum), count in accesses.items():
-        if level == 0:
-            offchip_ac += count
-        logstring.append(f"Ac_{level}_{tensor}={count:.2e}")
-
     if Metrics.OFF_CHIP_ACCESSES in metrics:
+        offchip_ac = 0
+        for (level, tensor, einsum), count in accesses.items():
+            if level == 0:
+                offchip_ac += count
         results["Offchip Accesses"] = offchip_ac
-
-    logstring.append(f"{result.fanout}")
+        if Metrics.DEBUG in metrics:
+            logstring.append(f"Ac_{level}_{tensor}={count:.2e}")
+        
+    if Metrics.DEBUG in metrics:
+        logstring.append(f"{result.fanout}")
 
     # Only record non-backing reservations. We'll reserve backing storage later
     # when we free the tensors & we know all operations for which the tensor must
@@ -179,26 +183,25 @@ def process_result(
             results[key] += r.tile_size
         # logstring.append(f"{r}")
 
-    if Metrics.LATENCY in metrics:
+    if Metrics.LATENCY in metrics and Metrics.DEBUG in metrics:
         logstring.append(f"L={results['Latency']:.2e}")
 
-    if Metrics.ENERGY in metrics:
+    if Metrics.ENERGY in metrics and Metrics.DEBUG in metrics:
         logstring.append(f"E={results['Energy']:.2e}")
 
     if Metrics.OP_INTENSITY in metrics:
         results["Op_Intensity"] = result.op_intensity[1]
 
-    logstring.append(f"Results: {results}")
-    results[LOGSTRING] = {einsum_id: str(logstring)}
-    results[MAPPING] = {einsum_id: tiling_full}
-    results[TENSORS] = {einsum_id: backing_storages}
-    results[STATS] = {
-        einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}
-    }
-    results[IN_PROGRESS_STATS] = {einsum_id: {}}
-    results[MAPPING_HASH] = {einsum_id: hash((einsum_id, tiling_compatibility))}
-    results[TAGS] = {einsum_id: tiling_compatibility.tags}
+    if metrics.DEBUG in metrics:
+        logstring.append(f"Results: {results}")
+        results[LOGSTRING] = {einsum_id: str(logstring)}
+        results[STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[TAGS] = {einsum_id: tiling_compatibility.tags}
+        results[MAPPING_HASH] = {einsum_id: hash((einsum_id, tiling_compatibility))}
+        results[IN_PROGRESS_STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[TENSORS] = {einsum_id: backing_storages}
 
+    results[MAPPING] = {einsum_id: tiling_full}
     key = (tiling_compatibility, fzs(results.keys()))
 
     is_pareto = True

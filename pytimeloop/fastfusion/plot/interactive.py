@@ -8,7 +8,7 @@ from ipywidgets import Output, VBox, HBox
 import pandas as pd
 import plotly.express as px
 
-from pytimeloop.fastfusion.sim import Loop, Tiling
+from pytimeloop.fastfusion.sim import Loop, TensorStorage, Tiling
 from pytimeloop.fastfusion.util import expfmt
 from pytimeloop.fastfusion.plot.looptree import tilings2svg
 from pytimeloop.fastfusion.pareto import MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH
@@ -16,10 +16,10 @@ from pytimeloop.fastfusion.pareto import MAPPING, STATS, TENSORS, IN_PROGRESS_ST
 import pandas as pd
 
 def mapping2svg(mapping: pd.Series):
-    return SVG(tilings2svg(mapping[MAPPING], mapping[STATS], mapping[TENSORS], mapping[IN_PROGRESS_STATS]))
+    return SVG(tilings2svg(mapping[MAPPING], mapping.get(STATS, None)))
 
 def mapping2svg(mapping: pd.Series):
-    return SVG(tilings2svg(mapping[MAPPING], mapping[STATS], mapping[TENSORS], mapping[IN_PROGRESS_STATS]))
+    return SVG(tilings2svg(mapping[MAPPING], mapping.get(STATS, None)))
 
 def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, pd.DataFrame]):
     # fig = go.FigureWidget(fig)
@@ -33,13 +33,10 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, 
         d = data[trace.name]
         index = points.point_inds[0]
         display(mapping2svg(d.iloc[index]))
-        all_tensors = set(
-            t for tn in d.iloc[index][TENSORS].values() for t in tn
-        )
-        for t in sorted(all_tensors):
+        backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.tensors)
+        backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
+        for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")
-        for k, v in d.iloc[index][MAPPING_HASH].items():
-            print(f"{k}: {v},")
         for t in sorted(list(d.iloc[index][MAPPING].values())[-1].tensors):
             print(f"{t.__repr__()},")
         for v in d.iloc[index][MAPPING].values():
@@ -53,13 +50,10 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, 
         d = data[trace.name]
         index = points.point_inds[0]
         display(mapping2svg(d.iloc[index]))
-        all_tensors = set(
-            t for tn in d.iloc[index][TENSORS].values() for t in tn
-        )
-        for t in sorted(all_tensors):
+        backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.tensors)
+        backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
+        for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")
-        for k, v in d.iloc[index][MAPPING_HASH].items():
-            print(f"{k}: {v},")
         for t in sorted(list(d.iloc[index][MAPPING].values())[-1].tensors):
             print(f"{t.__repr__()},")
         for v in d.iloc[index][MAPPING].values():
