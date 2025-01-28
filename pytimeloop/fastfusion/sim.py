@@ -5,10 +5,11 @@ from functools import cached_property
 import struct
 from typing import Any, Iterable, Optional
 
+from joblib import delayed
 import pandas as pd
 
 from .pareto import Pareto, LOGSTRING, nameloop2col
-from .util import expfmt, fzs
+from .util import expfmt, fzs, parallel
 
 # Abstractions:
 # 1. Each tensor is stored above some loop index. 0 is the outermost loop, 1 the
@@ -170,14 +171,18 @@ class Tiling:
         return hash((self.loops, self.tensors, self.tags))
 
     def clear_dead_tensors(
-        self, live_tensors: set[str], keep_loops: bool = False
+        self, 
+        live_tensors: set[str], 
+        keep_loops: bool = False, 
+        keep_tensors: set[str] = None
     ) -> "Tiling":
         loops = (
             self.loops
             if keep_loops
             else self.loops[: self.shared_loop_index(live_tensors) + 1]
         )
-        tensors = frozenset(t for t in self.tensors if t.tensor_id in live_tensors)
+        keep_tensors = keep_tensors if keep_tensors is not None else live_tensors
+        tensors = frozenset(t for t in self.tensors if t.tensor_id in keep_tensors)
         return Tiling(loops, tensors, self.tags)
 
     def __lt__(self, other):
@@ -226,6 +231,12 @@ class Tiling:
     
     def set_tags(self, *new_tags: Any) -> "Tiling":
         return Tiling(self.loops, self.tensors, fzs(new_tags))
+
+    def all_n_loops(self) -> set["Tiling"]:
+        min_loops = max(t.above_loop_index for t in self.tensors)
+        return set(Tiling(
+            self.loops[:i+1], self.tensors, self.tags
+        ) for i in range(min_loops, len(self.loops)))
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -293,6 +304,7 @@ class SIM:
             # if self.tensors:
             #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
             self.mapping.free_to_loop_index(shared_loop_index + 1, resource2capacity)
+        return self
 
     def left_consolidate(
         self,
@@ -321,6 +333,7 @@ class SIM:
             self.mapping.free_to_loop_index(shared_loop_index + 1, resource2capacity)
             self.mapping.squish_left_right(shared_loop_index + 1)
         self.mapping.make_pareto()
+        return self
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
@@ -329,30 +342,34 @@ class SIM:
         return hash((self.tiling, fzs(self.tensors.items())))
 
     @staticmethod
-    def concat(sims: Iterable["SIM"]) -> "SIM":
+    def concat(sims: Iterable["SIM"], allow_different_tilings: bool=False) -> "SIM":
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
-        s = set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims)
-        assert len(s) == 1, (
-            f"Cannot concat SIMs with different tensors:\n\t" +
-            "\n\t".join(str(s2) for s2 in s)
-        )
+        if not allow_different_tilings:
+            s = set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims)
+            assert len(s) == 1, (
+                f"Cannot concat SIMs with different tensors:\n\t" +
+                "\n\t".join(str(s2) for s2 in s)
+            )
         return SIM(sims[0].tiling, Pareto.concat([s.mapping for s in sims]))
 
     @staticmethod
     def _group(
-        sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False
+        sims: list["SIM"], 
+        live_tensors: set[str], 
+        keep_loops: bool = False,
+        keep_tensors: set[str] = None
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
             grouped[
-                s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops)
+                s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops, keep_tensors=keep_tensors)
             ].append(s)
         return grouped
 
     @staticmethod
-    def combine_combineable(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
-        return [SIM.concat(s) for s in SIM._group(sims, live_tensors).values()]
+    def combine_combineable(sims: list["SIM"], live_tensors: set[str], allow_different_tilings: bool=False) -> list["SIM"]:
+        return parallel(delayed(SIM.concat)(s, allow_different_tilings) for s in SIM._group(sims, live_tensors).values())
 
     @staticmethod
     def filter_by_tensor_storages(
@@ -376,23 +393,36 @@ class SIM:
         self = SIM(self.tiling, self.mapping.filter_by_mapping_hashes(hashes))
         return self if len(self.mapping.data) > 0 else None
 
-    def group_left(
-        sims: list["SIM"], live_tensors: set[str], keep_loops: bool = False
-    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, keep_loops)
+    def group_left(sims: list["SIM"], live_tensors: set[str]) -> dict[tuple[Tiling, ...], list["SIM"]]:
+        return SIM._group(sims, live_tensors, keep_loops=True)
 
-    def group_right(
-        sims: list["SIM"], live_tensors: set[str]
-    ) -> dict[tuple[Tiling, ...], list["SIM"]]:
+    def group_right(sims: list["SIM"], live_tensors: set[str]) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors)
     
     def set_tags(self, *tags: Any) -> "SIM":
         self.tiling = self.tiling.set_tags(*tags)
-        
+
     @property
     def tags(self) -> fzs[Any]:
         return self.tiling.tags
 
+    @staticmethod
+    def get_possibly_compatible(
+        left: list["SIM"], 
+        right: list["SIM"],
+        left_live_tensors: set[str],
+        right_live_tensors: set[str]
+    ):
+        assert left and right, "Cannot check for compatibility with empty list"
+        shared_tensors = left[0].tensor_names & right[0].tensor_names
+        left = SIM._group(left, right_live_tensors, keep_tensors=shared_tensors)
+        right = SIM._group(right, left_live_tensors, keep_tensors=shared_tensors)
+        left_keys = set().union(*(l.all_n_loops() for l in left))
+        right_keys = set(right)
+        left_list = [s for k in left for s in left[k] if k in right_keys]
+        right_list = [s for k in right for s in right[k] if k in left_keys]
+        return left_list, right_list
+        
 
 import unittest
 

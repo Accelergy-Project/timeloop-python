@@ -94,6 +94,9 @@ def plotly_show(
         data = {"" : data}
     if title is not None:
         fig.update_layout(title=title)
+    if logscales:
+        fig.update_xaxes(type="log")
+        fig.update_yaxes(type="log")
     fig.update_xaxes(title_text=x)
     fig.update_yaxes(title_text=y)
     fig.update_layout(showlegend=True)

@@ -4,7 +4,9 @@ from joblib import Parallel
 
 import sys
 
-N_PARALLEL_THREADS = 128
+from tqdm import tqdm
+
+N_PARALLEL_THREADS = 64
 
 
 class fzs(frozenset):
@@ -32,7 +34,11 @@ def expfmt(x):
     return x
 
 
-def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True):
+def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True, pbar: str = None, return_as: str = None):
+    args = {}
+    if return_as is not None:
+        args["return_as"] = return_as
+        
     if n_jobs is None:
         n_jobs = N_PARALLEL_THREADS
 
@@ -40,9 +46,14 @@ def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True):
         n_jobs = 1
 
     if isinstance(jobs, dict):
-        return {k: v for k, v in zip(jobs.keys(), parallel(jobs.values()))}
+        assert return_as == None, "return_as is not supported for dict jobs"
+        r = zip(jobs.keys(), parallel(jobs.values(), pbar=pbar, one_job_if_debugging=one_job_if_debugging))
+        return {k: v for k, v in r}
 
     if n_jobs == 1:
         return [j[0](*j[1], **j[2]) for j in jobs]
+    
+    if pbar:
+        return Parallel(n_jobs=n_jobs, **args)(tqdm(jobs, total=len(jobs), desc=pbar, leave=True))
+    return Parallel(n_jobs=n_jobs, **args)(jobs)
 
-    return Parallel(n_jobs=n_jobs)(jobs)
