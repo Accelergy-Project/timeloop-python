@@ -78,11 +78,18 @@ class TensorStorage:
     tensor_id: str
     above_loop_index: int
     backer_id: str
+    # NOTE: Tile size is not included in hash or equality functions. This is
+    # because inter-Einsum comparisons care about the loops and locations of
+    # backing storages, and the tile sizes are derived from these. We don't want
+    # rounding errors in the tile size to effect our inter-Einsum comparisons.
     tile_size: int
     # n_repititions: int = 1
 
     def __tuple__(self):
         return (self.tensor_id, self.backer_id, self.above_loop_index, self.tile_size)
+    
+    def __hash__(self):
+        return hash((self.tensor_id, self.backer_id, self.above_loop_index))
 
     @property
     def ts(self):
@@ -127,7 +134,7 @@ class TensorStorage:
     def __eq__(self, value):
         if not isinstance(value, TensorStorage):
             return False
-        for to_check in ["tensor_id", "backer_id", "above_loop_index", "tile_size"]:
+        for to_check in ["tensor_id", "backer_id", "above_loop_index"]:#$, "tile_size"]:
             a, b = getattr(self, to_check), getattr(value, to_check)
             if a != "*" and b != "*" and a != b:
                 return False
@@ -369,7 +376,13 @@ class SIM:
 
     @staticmethod
     def combine_combineable(sims: list["SIM"], live_tensors: set[str], allow_different_tilings: bool=False) -> list["SIM"]:
-        return parallel(delayed(SIM.concat)(s, allow_different_tilings) for s in SIM._group(sims, live_tensors).values())
+        groups = list(SIM._group(sims, live_tensors).values())
+        groups_with_one = [g[0] for g in groups if len(g) == 1]
+        others = parallel(
+            [delayed(SIM.concat)(g, allow_different_tilings) for g in groups if len(g) > 1],
+            pbar="Combining SIMs"
+        )
+        return groups_with_one + others
 
     @staticmethod
     def filter_by_tensor_storages(

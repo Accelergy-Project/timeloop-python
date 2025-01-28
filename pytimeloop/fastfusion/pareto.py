@@ -370,10 +370,10 @@ class Pareto:
         return fzs(self.data[LOGSTRING].iloc[0].keys())
 
     @staticmethod
-    def concat(paretos: list["Pareto"]) -> "Pareto":
+    def concat(paretos: list["Pareto"], skip_pareto: bool=False) -> "Pareto":
         return Pareto(
             pd.concat([p.data for p in paretos]).fillna(0),
-            skip_pareto=len(paretos) == 1,
+            skip_pareto=len(paretos) == 1 or skip_pareto,
         )
 
     def merge_next(

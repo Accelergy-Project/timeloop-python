@@ -84,8 +84,8 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     prev_tilings = []
     root = Node()
     einsum_ids = list(mappings.keys())
-    
-    assert set(einsum_ids) == set(stats.keys())
+    if stats is not None:
+        assert set(einsum_ids) == set(stats.keys())
     
     
 
@@ -133,8 +133,8 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
                 # TODO if tensor not in n.this_level or tensor not in backers:
                 if tensor not in n.this_level or tensor not in backers:
                     n.this_level.append(tensor)
-
-        root.add_stats(stats[einsum_id])
+        if stats is not None:
+            root.add_stats(stats[einsum_id])
         # for k, v in partial_stats[einsum_id].items():
         #     last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
         prev_tilings.append(tiling)

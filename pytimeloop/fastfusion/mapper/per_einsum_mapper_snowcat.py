@@ -215,7 +215,7 @@ def per_einsum_mapper_snowcat(
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
 
-    for einsum_id, result in parallel(jobs, return_as="generator_unordered", pbar="Generating data for Einsums"):
+    for einsum_id, result in parallel(jobs, return_as="generator_unordered", pbar="Generating Single-Einsum Mappings"):
         d = data[einsum_id]
         for k, v in result.items():
             d[k[0]] += v

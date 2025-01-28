@@ -144,11 +144,10 @@ def fuse_sims(
             shared_tensors=shared_tensors,
         )
 
-        # right = consolidate(right, left=False, **args)
-        # left = consolidate(left, left=True, **args)
-
         left = SIM.combine_combineable(left, live_tensors | right_tensors)
         right = SIM.combine_combineable(right, live_tensors | left_tensors)
+
+        print_time("Combining")
 
         left = sorted(left, key=lambda x: len(x.mapping.data), reverse=True)
         right = sorted(right, key=lambda x: len(x.mapping.data), reverse=True)
@@ -156,9 +155,12 @@ def fuse_sims(
         left = parallel([delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left], pbar="Left consolidate")
         right = parallel([delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right], pbar="Right consolidate")
 
+        print_time("Consolidating")
+
         # Group left and right into buckets
         right = SIM.group_right(right, left_tensors)
         left = SIM.group_left(left, right_tensors)
+
         print_time("Grouping")
 
         for v in list(left.values()) + list(right.values()):
@@ -166,11 +168,6 @@ def fuse_sims(
                 for t in list(s.tensors):
                     if t not in live_tensors:
                         del s.tensors[t]
-
-        # left = {k: SIM.combine_combineable(v, live_tensors | right_tensors) for k, v in left.items()}
-        # right = {k: SIM.combine_combineable(v, live_tensors | left_tensors) for k, v in right.items()}
-
-        print_time("Consolidating")
 
         DO_PRINT = False
         DELAY_MERGE = not debugger_active()
