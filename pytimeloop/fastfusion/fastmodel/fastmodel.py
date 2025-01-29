@@ -179,6 +179,8 @@ def compile_mapping(mapping,
 
                 actual_tensor_access_multiplier[tensor_id] *= \
                     fill_multicast_factor[tensor_id]
+                potential_tensor_access_multiplier[tensor_id] *= \
+                    fill_multicast_factor[tensor_id]
                 fill_multicast_factor[tensor_id] = 1
 
                 if target not in fanout:
