@@ -66,8 +66,11 @@ class LinearMapping:
     def add_pipeline(self):
         self.mapping.append({"type": "pipeline"})
 
-    def add_storage(self, target, dspaces, idx=None):
-        node = {"type": "storage", "target": target, "dspace": dspaces}
+    def add_storage(self, target, dspaces, idx=None, exploits_reuse=False):
+        node = {"type": "storage",
+                "target": target,
+                "dspace": dspaces,
+                "exploits_reuse": exploits_reuse}
         if idx is None:
             self.mapping.append(node)
         else:
