@@ -133,11 +133,13 @@ def compile_mapping(mapping,
         elif node['type'] == 'storage':
             target = node['target']
             tensor_names = node['dspace']
+            exploits_reuse = 'exploits_reuse' not in node or node['exploits_reuse']
             for tensor_id in tensor_names:
                 if isinstance(tensor_id, int):
                     tensor_id = tensor_id
                 else:
                     tensor_id = tensor_name_to_id[tensor_id]
+
                 if tensor_id not in tensors:
                     continue
 
@@ -151,6 +153,10 @@ def compile_mapping(mapping,
                 )
 
                 output.occupancy[(target, tensor_id)] = tensor_size[tensor_id]
+
+                if not exploits_reuse:
+                    actual_tensor_access_multiplier[tensor_id] = \
+                        potential_tensor_access_multiplier[tensor_id]
 
                 output.fills[(target, tensor_id, einsum_id)] = (
                     None,
@@ -172,6 +178,8 @@ def compile_mapping(mapping,
                 )
 
                 actual_tensor_access_multiplier[tensor_id] *= \
+                    fill_multicast_factor[tensor_id]
+                potential_tensor_access_multiplier[tensor_id] *= \
                     fill_multicast_factor[tensor_id]
                 fill_multicast_factor[tensor_id] = 1
 
