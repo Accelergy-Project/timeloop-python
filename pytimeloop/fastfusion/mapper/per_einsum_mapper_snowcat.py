@@ -6,12 +6,15 @@ from joblib import delayed
 
 from combinatorics.dependent_product import dependent_product
 from combinatorics.splitter import split_dependent_product
+import pandas as pd
 
 from pytimeloop.fastfusion.fastmodel import compile_mapping
 from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import explore_tile_shape, process_result, get_hardware_levels
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat import make_subspaces
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
+from pytimeloop.fastfusion.pareto import Pareto, makepareto
+from pytimeloop.fastfusion.sim import SIM
 from pytimeloop.fastfusion.util import parallel
 from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
@@ -159,7 +162,7 @@ def _per_einsum_mapper_snowcat(
                     output_tensors=output_tensors,
                     tag_with=tag_with,
                 )
-        return einsum_id, result
+        return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
 
 
     # # for pm in partial_mappings:
@@ -211,13 +214,21 @@ def per_einsum_mapper_snowcat(
             dataflow_constraint=dataflow_constraint,
             metrics=metrics,
             tag_with=tag_with,
-        ) 
+        )
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
 
-    for einsum_id, result in parallel(jobs, return_as="generator_unordered", pbar="Generating Single-Einsum Mappings"):
+    for einsum_id, result in parallel(jobs, pbar="Generating Single-Einsum Mappings"):
         d = data[einsum_id]
         for k, v in result.items():
-            d[k[0]] += v
+            d[k[0]].append(v)
             
-    return data
+    def makesim(einsum_id, tiling, data):
+        return einsum_id, SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1))
+            
+    data2 = defaultdict(list)
+    jobs = [delayed(makesim)(einsum_id, tiling, data) for einsum_id, tilings in data.items() for tiling, data in tilings.items()]
+    for einsum_id, sim in parallel(jobs, pbar="Generating SIMs"):
+        data2[einsum_id].append(sim)
+    
+    return data2

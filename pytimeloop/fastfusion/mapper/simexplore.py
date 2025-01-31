@@ -6,10 +6,9 @@ import time
 
 import pandas as pd
 from joblib import delayed
-from tqdm import tqdm
 
 from pytimeloop.fastfusion.sim import SIM
-from pytimeloop.fastfusion.pareto import Pareto, check_correctness
+from pytimeloop.fastfusion.pareto import Pareto
 from pytimeloop.fastfusion.util import parallel, debugger_active
 
 
@@ -28,6 +27,8 @@ def mapping2sims(einsum_to_result: Mapping):
     for einsum_id, compat_dict in einsum_to_result.items():
         r[einsum_id] = [paretofy(k, v) for k, v in compat_dict.items()]
     return list(r.values())
+def paretofy(k, v):
+    return SIM(k, Pareto(pd.DataFrame(v).fillna(0)))
 
 
 prev_time = 0
@@ -84,19 +85,20 @@ def consolidate(
 
 
 def fuse_sims(
-    sims: list[SIM],
+    sims: dict[str, list[SIM]],
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
-    pre_filter: bool = True
 ):
     nmappings = []
     nbuckets = []
-    resource2capacity = resource2capacity or {}
-    sims = [s for s in sims]
     
-    for i, s in enumerate(sims):
-        print(f'SIM {i} tensors: {s[0].tensor_names}')
-        
+    sims = list(sims.items())
+    
+    for einsum_id, s in sims:
+        print(f'SIM {einsum_id} tensors: {s[0].tensor_names}')
+
+    # TODO: Lookahead by one SIM. If we're going to create a tiling that has loops
+    # that are not in the ranks of the next SIM, we should drop that tiling.
     # if pre_filter:
     #     for i in range(len(sims) - 1):
     #         left, right = sims[i], sims[i + 1]
@@ -109,12 +111,10 @@ def fuse_sims(
     #         print(f'Filtered {len(left)} -> {len(left2)} SIMs from Einsum {i}')
     #         print(f'Filtered {len(right)} -> {len(right2)} SIMs from Einsum {i + 1}')
 
-    left = sims.pop(0)
-
     init_print_time()
-    
-    if not sims:
-        sims = copy.deepcopy(sims)
+    if len(sims) == 1:
+        left = copy.deepcopy(sims[0][1])
+        sims = []
         left = consolidate(
             x=left,
             left=True,
@@ -122,16 +122,19 @@ def fuse_sims(
             resource2capacity=resource2capacity,
             shared_tensors=set(),
         )
-        
-    # TODO: Lookahead by one SIM. If we're going to create a tiling that has loops
-    # that are not in the ranks of the next SIM, we should drop that tiling.
 
+    n_iterations = 0
+    total_iterations = len(sims)
+    left_einsum, left = sims.pop(0)
     while sims:
+        n_iterations += 1
         nbuckets.append(len(left))
         nmappings.append(sum(len(s.mapping.data) for s in left))
 
-        right = sims.pop(0)
-        live_tensors = set.union(set(), *[s[0].tensor_names for s in sims if s])
+        right_einsum, right = sims.pop(0)
+        print(f'\nEinsum {right_einsum} ({n_iterations}/{total_iterations})')
+        
+        live_tensors = set.union(set(), *[s[0].tensor_names for _, s in sims if s])
         shared_tensors = set(left[0].tensor_names) & set(right[0].tensor_names)
 
         right_tensors = right[0].tensor_names
@@ -144,23 +147,26 @@ def fuse_sims(
             shared_tensors=shared_tensors,
         )
 
-        left = SIM.combine_combineable(left, live_tensors | right_tensors)
-        right = SIM.combine_combineable(right, live_tensors | left_tensors)
-
-        print_time("Combining")
-
         left = sorted(left, key=lambda x: len(x.mapping.data), reverse=True)
         right = sorted(right, key=lambda x: len(x.mapping.data), reverse=True)
+        lr = parallel(
+            [delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left] + 
+            [delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right],
+            pbar=f"Consolidating {left_einsum} <--> {right_einsum}",
+        )
+        left, right = lr[:len(left)], lr[len(left):]
+        print_time(f"Consolidating")
 
-        left = parallel([delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left], pbar="Left consolidate")
-        right = parallel([delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right], pbar="Right consolidate")
+        left = SIM.combine_combineable(left, live_tensors | right_tensors)
+        right = SIM.combine_combineable(right, live_tensors | left_tensors)
+        print_time(f"Combining")
 
-        print_time("Consolidating")
+        # left = parallel([delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left], pbar="Left consolidate")
+        # right = parallel([delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right], pbar="Right consolidate")
 
         # Group left and right into buckets
         right = SIM.group_right(right, left_tensors)
         left = SIM.group_left(left, right_tensors)
-
         print_time("Grouping")
 
         for v in list(left.values()) + list(right.values()):
@@ -196,14 +202,12 @@ def fuse_sims(
         
         if DELAY_MERGE:
             combined = sorted(combined, key=lambda x: x._predicted_mappings, reverse=True)
-            for c, mapping in zip(combined, parallel([c.mapping for c in combined], pbar='Merging mappings')):
+            for c, mapping in zip(combined, parallel([c.mapping for c in combined], pbar=f'Merging mappings {left_einsum} <--> {right_einsum}')):
                 c.mapping = mapping
 
         print_time("Mapping merging")
 
-        print(
-            f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
-        )
+        print(f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}")
         # if DO_PRINT:
         #     for k in right:
         #         if k not in left:
@@ -211,13 +215,14 @@ def fuse_sims(
         #                 print(f"\tREVERSE: No match for {b.tiling}")
 
         left = combined
-        print(f"Number of buckets: {len(left)}")
+        left_einsum = right_einsum
+        print(f"\tNumber of buckets for Einsum {left_einsum}: {len(left)}")
         n_mappings = sum(len(s.mapping.data) for s in left)
-        print(f"Number of mappings: {n_mappings}")
-        print(f"Mappings per bucket: {n_mappings / len(left)}")
+        print(f"\tNumber of mappings for Einsum {left_einsum}: {n_mappings}")
+        print(f"\tMappings per bucket for Einsum {left_einsum}: {n_mappings / len(left)}")
 
     for s in left:
-        s.left_consolidate(set(), resource2capacity)
+        s.left_consolidate(None, resource2capacity)
     s_final = SIM.combine_combineable(left, set())[0]
     data = s_final.mapping.data
     # check_correctness(data, set())
@@ -227,7 +232,3 @@ def fuse_sims(
     if return_nmappings_nbuckets:
         return data, nmappings, nbuckets
     return data
-
-
-def paretofy(k, v):
-    return SIM(k, Pareto(pd.DataFrame(v).fillna(0)))

@@ -51,9 +51,10 @@ def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True, pbar: 
         return {k: v for k, v in r}
 
     if n_jobs == 1:
+        if pbar:
+            jobs = tqdm(jobs, total=len(jobs), desc=pbar, leave=True)
         return [j[0](*j[1], **j[2]) for j in jobs]
-    
+
     if pbar:
         return Parallel(n_jobs=n_jobs, **args)(tqdm(jobs, total=len(jobs), desc=pbar, leave=True))
     return Parallel(n_jobs=n_jobs, **args)(jobs)
-

@@ -94,7 +94,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     tensors_lifetimes = {e: [] for e in einsum_ids}
     all_tensors = set().union(*[set(t.tensors) for t in mappings.values()])
     backers = TensorStorage.get_backing_stores(all_tensors)
-    for t in all_tensors:
+    for t in backers:
         first_appearance = min(i for i, ts in enumerate(mappings.values()) if t in ts.tensors)
         last_appearance = max(i for i, ts in enumerate(mappings.values()) if t in ts.tensors)
         if t.tensor_id in still_live_tensors:

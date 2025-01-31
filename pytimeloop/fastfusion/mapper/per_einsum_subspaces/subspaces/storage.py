@@ -43,8 +43,8 @@ def make_storage(
 
                 retained_tensors = must_retain_tensors | set(also_retained_tensors)
                 mapping.add_storage(level, retained_tensors)
-                if any(t in add_split_at_tensors for t in retained_tensors):
-                    mapping.add_sequential()
+                # if any(t in add_split_at_tensors for t in retained_tensors):
+                #     mapping.add_sequential()
 
                 if return_retained_tensors:
                     yield mapping, retained_tensors
@@ -115,8 +115,8 @@ def make_storage(
         for idx, tensors_at_idx in sorted(idx_to_tensors.items(),
                                           key=lambda pair: pair[0],
                                           reverse=True):
-            if any(t in add_split_at_tensors for t in tensors_at_idx):
-                mapping.add_sequential(idx)
+            # if any(t in add_split_at_tensors for t in tensors_at_idx):
+            #     mapping.add_sequential(idx)
             mapping.add_storage(level, tensors_at_idx, idx)
             # Check for any irrelevant loops above the backing storage for a tensor
             for t in tensors_at_idx:

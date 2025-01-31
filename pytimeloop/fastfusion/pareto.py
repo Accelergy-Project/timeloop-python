@@ -79,18 +79,18 @@ def is_merge_col(c):
     return any(c.endswith(s) for s in MERGE_SUFFIXES)
 
 
-def add_to_col(df, c, c2):
-    if c in df:
-        df.loc[:, c] = df[c] + df[c2]
+def add_to_col(df, target, source):
+    if target in df:
+        df.loc[:, target] = df[target] + df[source]
     else:
-        df.loc[:, c] = df[c2]
+        df.loc[:, target] = df[source]
 
 
-def max_to_col(df, c, c2):
-    if c in df:
-        df.loc[:, c] = df[[c, c2]].max(axis=1)
+def max_to_col(df, target, source):
+    if target in df:
+        df.loc[:, target] = df[[target, source]].max(axis=1)
     else:
-        df.loc[:, c] = df[c2]
+        df.loc[:, target] = df[source]
 
 
 # Above index 0: Freed when Einsum fully terminates
@@ -103,33 +103,73 @@ def max_to_col(df, c, c2):
 # Shared index 0: Sum 0 resources, max everyone below
 
 
-def makepareto(data: pd.DataFrame) -> pd.DataFrame:
-    columns = [
-        c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)
-    ]
-    # Drop any columns that are all zeros
+def makepareto(
+    data: pd.DataFrame,
+    reverse_free: bool = True,
+) -> pd.DataFrame:
+    # Drop any columns that are all zeros or all equal
+    columns = [c for c in data.columns if c not in RESERVED_COLUMNS and not is_merge_col(c)]
     for c in list(columns):
         if not data[c].any():
             data = data.drop(columns=[c])
             columns.remove(c)
-    # TODO: Check if this is helpful. Right will be added to later, so if it is > than the left,
-    # we can overwrite the left with the higher value. May be helpful for pareto pruning.
-    for c in columns:
-        if is_left_col(c):
-            continue
-        if (name_nloops := col2nameloop(c)) is not None:
-            name, n = name_nloops
-            left_equivalent = nameloop2col(name, n, left=True)
-            if left_equivalent in columns:
-                max_to_col(data, left_equivalent, c)
+        elif data[c].nunique() == 1:
+            columns.remove(c)
+
     if len(data) == 1:
         return data
+
+    if reverse_free:
+        df2 = _reverse_free(data[columns].copy())
+        return data[paretoset(df2)].reset_index(drop=True)
+
     return data[paretoset(data[columns])].reset_index(drop=True)
 
+def _reverse_free(data: pd.DataFrame) -> pd.DataFrame:
+    resource_name_to_max_level = defaultdict(int)
+    resource_name_to_min_level = defaultdict(int)
+    keep_columns = [c for c in data.columns if col2nameloop(c) is None and c not in RESERVED_COLUMNS]
+    for c in data.columns:
+        if (name_nloops := col2nameloop(c)) is not None:
+            if is_left_col(c):
+                keep_columns.append(c)
+            else:
+                name, n = name_nloops
+                for f, target in (
+                    (max, resource_name_to_max_level),
+                    (min, resource_name_to_min_level),
+                ):
+                    target.setdefault(name, n)
+                    target[name] = f(target[name], n)
 
-def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None):
+    for name in resource_name_to_max_level:
+        min_level, max_level = resource_name_to_min_level[name], resource_name_to_max_level[name]
+        for i in range(min_level, max_level):
+            target = nameloop2col(name, i)
+            next_target = nameloop2col(name, i + 1)
+            next_target_left = nameloop2col(name, i + 1, left=True)
+                
+            if next_target_left in data:
+                add_to_col(data, next_target_left, target)
+
+            if next_target in data:
+                add_to_col(data, next_target, target)
+                keep_columns.append(target)
+            else:
+                data.rename(columns={target: next_target}, inplace=True)
+
+            if next_target_left in data:
+                max_to_col(data, next_target_left, next_target)
+                
+        keep_columns.append(nameloop2col(name, max_level))
+
+    return data[keep_columns]
+
+
+def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_changed: bool = False) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
     nloops2left = defaultdict(set)
     dropcols = []
+    changed = False
     for c in data.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             if is_left_col(c):
@@ -137,19 +177,20 @@ def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None):
                 if shared_loop_index is None or nloops == shared_loop_index:
                     nloops2left[nloops].add((c, name))
                     dropcols.append(c)
+                    changed = True
 
     for n in nloops2left.keys():
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
             max_to_col(data, target, c)
-
+    if return_changed:
+        return data[[c for c in data.columns if c not in dropcols]], changed
     return data[[c for c in data.columns if c not in dropcols]]
 
 
 def _free_to_loop_index(
     data: pd.DataFrame,
     shared_loop_index: int,
-    skip_pareto: bool = False,
     return_changed: bool = False,
 ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
     nloops2left = defaultdict(set)
@@ -189,8 +230,8 @@ def _free_to_loop_index(
                 keepcols.append(c)
         else:
             keepcols.append(c)
+    data = data[keepcols]
 
-    data = data[keepcols] if skip_pareto else makepareto(data[keepcols])
     changed = bool(nloops2left.keys()) or bool(nloops2right.keys())
     return (data, changed) if return_changed else data
 
@@ -203,9 +244,7 @@ def draw_looptree(row: pd.DataFrame, live_tensors: set[int]):
 
     looptree = tilings2looptree(
         row[MAPPING],
-        row[STATS],
-        row[TENSORS],
-        row[IN_PROGRESS_STATS],
+        row.get(STATS, None),
         skip_backing_tensors_in_right_branch=live_tensors,
         still_live_tensors=live_tensors,
     )
@@ -227,11 +266,11 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
 
-    df_check = _free_to_loop_index(data.copy(), -1, skip_pareto=True)
+    df_check = _free_to_loop_index(data.copy(), -1)
     for i, r in df_check.iterrows():
         looptree = tilings2looptree(
             r[MAPPING],
-            r[STATS],
+            r.get(STATS, None),
             skip_backing_tensors_in_right_branch=live_tensors,
             still_live_tensors=live_tensors,
         )
@@ -240,21 +279,20 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
             col = nameloop2col(k, -1)
             if col not in df_check.columns:
                 got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
-                fail(looptree)
+                fail(i)
                 raise ValueError(f"Missing {k}: Expected {reservations}. Got: {got}")
             if r[col] != v:
                 got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
-                fail(looptree)
+                fail(i)
                 looptree = tilings2looptree(
                     r[MAPPING],
-                    r[STATS],
+                    r.get(STATS, None),
                     skip_backing_tensors_in_right_branch=live_tensors,
                     still_live_tensors=live_tensors,
                 )
                 raise ValueError(
                     f"Mismatched {k}: {v} != {r[col]}. Expected {reservations}. Got: {got}"
                 )
-
 
 def merge_cross(
     left: pd.DataFrame,
@@ -270,6 +308,7 @@ def merge_cross(
 
     df = pd.merge(left, right, how="cross", suffixes=MERGE_SUFFIXES)
     shared_columns = set(left.columns) & set(right.columns) - RESERVED_COLUMNS
+    dropcols = []
 
     for c in shared_columns:
         # Unknown loop index -> add
@@ -277,6 +316,7 @@ def merge_cross(
             callfunc = add_to_col
             for suffix in MERGE_SUFFIXES:
                 callfunc(df, c, c + suffix)
+                dropcols.append(c + suffix)
         else:
             name, nloops = name_nloops
             # <= shared_loop_index -> add
@@ -290,6 +330,7 @@ def merge_cross(
                     df, nameloop2col(name, nloops, left=True), c + MERGE_SUFFIXES[0]
                 )
                 max_to_col(df, nameloop2col(name, nloops), c + MERGE_SUFFIXES[1])
+                dropcols.extend([c + suffix for suffix in MERGE_SUFFIXES])
 
     # Pipeline:
     # - Need to share temporal loops up to the spatial loop index
@@ -330,8 +371,10 @@ def merge_cross(
     #             df = df[df[colname] <= capacity]
     #         del df[colname]
     CHECK_CORRECTNESS = 0
-
+    
+    df.drop(columns=dropcols, inplace=True)
     if not CHECK_CORRECTNESS:
+        cols = [c for c in df.columns if c in RESERVED_COLUMNS or not is_merge_col(c)]
         df = makepareto(df)
 
     for k in DICT_COLUMNS:
@@ -398,25 +441,22 @@ class Pareto:
         return Pareto(df)
 
     def free_to_loop_index(
-        self, n: int, resource2capacity: Optional[dict[str, Optional[int]]] = None
-    ) -> "Pareto":
-        self.data, changed = _free_to_loop_index(
-            self.data, n, skip_pareto=True, return_changed=True
-        )
+        self, 
+        n: int, 
+        resource2capacity: Optional[dict[str, Optional[int]]] = None,
+    ) -> bool:
+        self.data, changed = _free_to_loop_index(self.data, n, return_changed=True)
         if resource2capacity is not None:
-            changed = changed or self.limit_capacity(
-                n, resource2capacity, skip_pareto=True
-            )
+            changed = changed or self.limit_capacity(n, resource2capacity)
+        return changed
 
-        if changed:
-            self.data = makepareto(self.data)
-
-    def alloc(self, resource_name: str, size: int, above_loop_index: int):
+    def alloc(self, resource_name: str, size: int, above_loop_index: int, resource2capacity: dict[str, Optional[int]]):
         n = nameloop2col(resource_name, above_loop_index)
-        if n in self.data:
-            self.data[n] += size
-        else:
-            self.data[n] = size
+        if resource2capacity is None or resource_name in resource2capacity:
+            if n in self.data:
+                self.data[n] = self.data[n] + size
+            else:
+                self.data[n] = size
 
     def add_tensor(self, tensor):
         if len(self.data) == 0:
@@ -431,26 +471,26 @@ class Pareto:
     def copy(self) -> "Pareto":
         return Pareto(self.data.copy())
 
-    def limit_capacity(
-        self,
-        n: int,
-        resource2capacity: dict[str, Optional[int]],
-        skip_pareto: bool = False,
-    ) -> bool:
-        found = False
-        for resource, capacity in resource2capacity.items():
-            colname = nameloop2col(resource, n)
-            if colname in self.data:
-                if capacity is not None:
-                    self.data = self.data[self.data[colname] <= capacity]
-                del self.data[colname]
-                found = True
-        if found and not skip_pareto:
-            self.data = makepareto(self.data)
-        return found
+    def limit_capacity(self, n: int, resource2capacity: dict[str, Optional[int]]) -> bool:
+        changed = False
+        for c in self.data.columns:
+            if (name_nloops := col2nameloop(c)) is not None:
+                name, nloops = name_nloops
+                if nloops == n:
+                    if resource2capacity is None:
+                        capacity = float('inf')
+                    else:
+                        capacity = resource2capacity.get(name, None)
+                    if capacity is not None:
+                        self.data = self.data[self.data[c] <= capacity]
+                        changed = True
+                    del self.data[c]
+                    changed = True
+        return changed
 
-    def squish_left_right(self, shared_loop_index: int = None):
-        self.data = squish_left_right(self.data, shared_loop_index)
+    def squish_left_right(self, shared_loop_index: int = None) -> bool:
+        self.data, changed = squish_left_right(self.data, shared_loop_index, return_changed = True)
+        return changed
 
     def filter_by_mapping_hashes(self, hashes: set[int]):
         self.data = self.data[

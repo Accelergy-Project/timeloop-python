@@ -42,6 +42,8 @@ def make_subspaces(tensors,
 
     def glb_storage(mapping, unfused_tensors):
         glb_fused_tensors = intermediate_tensors - unfused_tensors
+        last_fused_loop_idx = get_last_fused_loop_idx(mapping, intermediate_tensors)
+        # last_fused_loop_idx = None
         for partial_mapping in make_storage(mapping,
                                             level=1,
                                             must_retain_tensors=intermediate_tensors,
@@ -51,9 +53,8 @@ def make_subspaces(tensors,
                                             explore_uneven=True,
                                             add_split_at_tensors=glb_fused_tensors,
                                             must_have_terminal_storage=False,
-                                            apply_lrp_after_loop_idx=None):
-            last_fused_loop_idx = get_last_fused_loop_idx(partial_mapping,
-                                                          intermediate_tensors)
+                                            apply_lrp_after_loop_idx=last_fused_loop_idx):
+            last_fused_loop_idx = get_last_fused_loop_idx(partial_mapping, intermediate_tensors)
             yield from make_storage(partial_mapping,
                                     level=1,
                                     must_retain_tensors=tensors - intermediate_tensors,

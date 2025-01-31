@@ -92,7 +92,7 @@ def process_result(
                 tensor_id_to_name[dspace],
                 len(full_tiling),
                 node["target"],
-                result.occupancy[(node["target"], dspace)],
+                int(result.occupancy[(node["target"], dspace)]),
             )
             all_storages.append(storage)
             if storage.tensor_id in intermediates_to_find:
@@ -178,7 +178,7 @@ def process_result(
     for r in all_storages:
         r: TensorStorage
         if r not in backing_storages:
-            key = nameloop2col(r.backer_id, r.above_loop_index)
+            key = nameloop2col(r.backer_id, min(r.above_loop_index, n_fused_loops))
             results.setdefault(key, 0)
             results[key] += r.tile_size
         # logstring.append(f"{r}")

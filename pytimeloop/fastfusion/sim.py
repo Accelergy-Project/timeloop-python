@@ -289,6 +289,17 @@ class SIM:
         live_tensors = list(self.tiling.tensor_names) + [live_tensors]
         return self.tiling.shared_loop_index(live_tensors)
 
+    def free_squish(
+        self,
+        index: Optional[int],
+        resource2capacity: dict[str, int] = None,
+    ):
+        changed = False
+        changed = changed or self.mapping.free_to_loop_index(index, resource2capacity)
+        changed = changed or self.mapping.squish_left_right(index)
+        if changed:
+            self.mapping.make_pareto()
+
     def consolidate(
         self,
         live_tensors: set[str] = None,
@@ -296,21 +307,16 @@ class SIM:
         shared_tensors: set[str] = None,
     ):
         dead_tensors = set(self.tensors) - (live_tensors or set())
-        shared_tensors = shared_tensors or set()
-        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | live_tensors)
+        check_tensors = (shared_tensors or set()) | (live_tensors or set())
+        shared_loop_index = self.tiling.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.tensors.pop(t)
-            self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
+            self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index, resource2capacity)
+            
         if live_tensors is None:
-            self.mapping.free_to_loop_index(0)
-            self.mapping.squish_left_right()
+            self.free_squish(0, resource2capacity)
         else:
-            # Can free the deepest of:
-            # - The shared loop with the next SIM
-            # - My deepest loop that hasn't yet been freed
-            # if self.tensors:
-            #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
-            self.mapping.free_to_loop_index(shared_loop_index + 1, resource2capacity)
+            self.free_squish(shared_loop_index + 1, resource2capacity)
         return self
 
     def left_consolidate(
@@ -319,27 +325,22 @@ class SIM:
         resource2capacity: dict[str, int] = None,
         shared_tensors: set[str] = None,
     ):
-        shared_tensors = shared_tensors or set()
-        shared_loop_index = self.tiling.shared_loop_index(shared_tensors | live_tensors)
+        check_tensors = (shared_tensors or set()) | (live_tensors or set())
+        shared_loop_index = self.tiling.shared_loop_index(check_tensors)
+        tensors_to_add = []
         for t in self.tensors.values():
             if (
                 t.above_loop_index > shared_loop_index
-                or t.tensor_id not in shared_tensors | live_tensors
+                or t.tensor_id not in check_tensors
             ):
-                self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
-                self.mapping.add_tensor(t)
+                self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index, resource2capacity)
+                tensors_to_add.append(t)
         if live_tensors is None:
-            self.mapping.free_to_loop_index(0)
-            self.mapping.squish_left_right(0)
+            self.free_squish(-1, resource2capacity)
         else:
-            # Can free the deepest of:
-            # - The shared loop with the next SIM
-            # - My deepest loop that hasn't yet been freed
-            # if self.tensors:
-            #     shared_loop_index = max(shared_loop_index, max(t.above_loop_index for t in self.tensors.values()))
-            self.mapping.free_to_loop_index(shared_loop_index + 1, resource2capacity)
-            self.mapping.squish_left_right(shared_loop_index + 1)
-        self.mapping.make_pareto()
+            self.free_squish(shared_loop_index + 1, resource2capacity)
+        for t in tensors_to_add:
+            self.mapping.add_tensor(t)
         return self
 
     def __eq__(self, other):
@@ -378,6 +379,8 @@ class SIM:
     def combine_combineable(sims: list["SIM"], live_tensors: set[str], allow_different_tilings: bool=False) -> list["SIM"]:
         groups = list(SIM._group(sims, live_tensors).values())
         groups_with_one = [g[0] for g in groups if len(g) == 1]
+        if len(groups_with_one) == len(groups):
+            return groups_with_one
         others = parallel(
             [delayed(SIM.concat)(g, allow_different_tilings) for g in groups if len(g) > 1],
             pbar="Combining SIMs"
@@ -391,7 +394,7 @@ class SIM:
         def check(tensors_to_check):
             for t in tensors_to_check:
                 for t2 in tensors:
-                    if t.tensor_id == t2.tensor_id and t != t2:
+                    if (t2.tensor_id == "*" or t.tensor_id == t2.tensor_id) and t != t2:
                         return False
             return True
 

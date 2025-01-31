@@ -73,9 +73,8 @@ def get_ffmt_tag_mha(
         to_try += [(other_ranks[4:], (3, 4))]
         tags.append("FFMT_LAST")
     else: # Middle Einsum in a chain
-        if einsum_id == "AV":
-            a, b = b, a
-            other_ranks[-2], other_ranks[-1] = other_ranks[-1], other_ranks[-2]
+        a, b = b, a
+        other_ranks[-2], other_ranks[-1] = other_ranks[-1], other_ranks[-2]
         to_try += [(other_ranks[:4], (3, 4))]
         tags.append("FFMT_MIDDLE")
 
