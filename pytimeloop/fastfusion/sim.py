@@ -168,8 +168,9 @@ class Tiling:
 
     def __eq__(self, other):
         no_tags = (not self.tags and not other.tags)
-        tags_match = any(s == o for s in self.tags for o in other.tags)
-        return self.loops == other.loops and (no_tags or tags_match) and self.tensors == other.tensors
+        tags_match = any(s == o or o == s for s in self.tags for o in other.tags)
+        # tags_match = self.tags == other.tags
+        return self.loops == other.loops and (self.tags == other.tags) and self.tensors == other.tensors
 
     def __len__(self) -> int:
         return len(self.loops)
@@ -244,6 +245,21 @@ class Tiling:
         return set(Tiling(
             self.loops[:i+1], self.tensors, self.tags
         ) for i in range(min_loops, len(self.loops)))
+        
+    def tags_match(self, other: "Tiling") -> bool:
+        if not self.tags and not other.tags:
+            return True
+        for a in self.tags:
+            for b in other.tags:
+                if hasattr(a, "matches") or hasattr(b, "matches"):
+                    print("HERE")
+                if hasattr(a, "matches") and a.matches(b):
+                    return True
+                elif hasattr(b, "matches") and b.matches(a):
+                    return True
+                elif a == b:
+                    return True
+        return False
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -366,13 +382,16 @@ class SIM:
         sims: list["SIM"], 
         live_tensors: set[str], 
         keep_loops: bool = False,
-        keep_tensors: set[str] = None
+        keep_tensors: set[str] = None,
+        drop_tags: bool = False
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
             grouped[
                 s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops, keep_tensors=keep_tensors)
             ].append(s)
+        if drop_tags:
+            return {k.set_tags(): v for k, v in grouped.items()}
         return grouped
 
     @staticmethod
@@ -409,11 +428,11 @@ class SIM:
         self = SIM(self.tiling, self.mapping.filter_by_mapping_hashes(hashes))
         return self if len(self.mapping.data) > 0 else None
 
-    def group_left(sims: list["SIM"], live_tensors: set[str]) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, keep_loops=True)
+    def group_left(sims: list["SIM"], live_tensors: set[str], drop_tags: bool=False) -> dict[tuple[Tiling, ...], list["SIM"]]:
+        return SIM._group(sims, live_tensors, keep_loops=True, drop_tags=drop_tags)
 
-    def group_right(sims: list["SIM"], live_tensors: set[str]) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors)
+    def group_right(sims: list["SIM"], live_tensors: set[str], drop_tags: bool=False) -> dict[tuple[Tiling, ...], list["SIM"]]:
+        return SIM._group(sims, live_tensors, drop_tags=drop_tags)
     
     def set_tags(self, *tags: Any) -> "SIM":
         self.tiling = self.tiling.set_tags(*tags)

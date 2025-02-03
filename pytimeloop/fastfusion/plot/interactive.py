@@ -78,13 +78,14 @@ def plotly_show(
     logscales: bool = False
 ):
     fig = go.FigureWidget()
+    markers = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down', 'triangle-left', 'triangle-right']
     if isinstance(data, dict):
-        for k, v in data.items():
+        for i, (k, v) in enumerate(data.items()):
             v.sort_values(by=[x, y], inplace=True)
-            fig.add_scatter(x=v[x], y=v[y], name=k, line={"shape": 'hv'})
+            fig.add_scatter(x=v[x], y=v[y], name=k, line={"shape": 'hv'}, mode="markers+lines", marker={"symbol": markers[i % len(markers)]})
     else:
         data.sort_values(by=[x, y], inplace=True)
-        fig.add_scatter(x=data[x], y=data[y], name="", line={"shape": 'hv'})
+        fig.add_scatter(x=data[x], y=data[y], name="", line={"shape": 'hv'}, mode="markers+lines", marker={"symbol": markers[0]})
         data = {"" : data}
     if title is not None:
         fig.update_layout(title=title)

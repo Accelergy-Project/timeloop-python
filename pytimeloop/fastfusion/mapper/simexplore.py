@@ -165,8 +165,8 @@ def fuse_sims(
         # right = parallel([delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right], pbar="Right consolidate")
 
         # Group left and right into buckets
-        right = SIM.group_right(right, left_tensors)
-        left = SIM.group_left(left, right_tensors)
+        right = SIM.group_right(right, left_tensors, drop_tags=True)
+        left = SIM.group_left(left, right_tensors, drop_tags=True)
         print_time("Grouping")
 
         for v in list(left.values()) + list(right.values()):
@@ -178,25 +178,51 @@ def fuse_sims(
         DO_PRINT = False
         DELAY_MERGE = not debugger_active()
 
+        for k in left:
+            print(f'L: {k}')
+            for a in left[k]:
+                print(f'\t{a.tiling}')
+        for k in right:
+            print(f'R: {k}')
+            for a in right[k]:
+                print(f'\t{a.tiling}')
+
         combined: list[SIM] = []
         for k in left:
             if k in right:
                 for a, b in itertools.product(left[k], right[k]):
                     a: SIM
                     b: SIM
-                    combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
-                    combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
-                    if DO_PRINT:
-                        s = f"\t{a.tiling} <--> {b.tiling}"
-                        s += f" --> {combined[-1].tiling}"
-                        s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
-                        print(s)
+                    if a.tiling.tags_match(b.tiling):
+                        combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
+                        combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
+                        if DO_PRINT:
+                            s = f"\t{a.tiling} <--> {b.tiling}"
+                            s += f" --> {combined[-1].tiling}"
+                            s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
+                            print(s)
             elif DO_PRINT:
                 for a in left[k]:
                     print(f"\tNo match for {a.tiling}")
 
         if not combined:
             print(f'No valid combinations found.')
+            for k in left:
+                print(f'Left: {k}')
+                for a in left[k]:
+                    print(f'\t{a.tiling}')
+                if k in right:
+                    for a, b in itertools.product(left[k], right[k]):
+                        a: SIM
+                        b: SIM
+                        if a.tiling.tags_match(b.tiling):
+                            combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
+                            combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
+                            if DO_PRINT:
+                                s = f"\t{a.tiling} <--> {b.tiling}"
+                                s += f" --> {combined[-1].tiling}"
+                                s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
+                                print(s)
 
         print_time("Bucket merging")
         

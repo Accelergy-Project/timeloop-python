@@ -93,7 +93,11 @@ def _per_einsum_mapper_snowcat(
     input_tensors = set(tensor_id_to_name[t] for t in workload.tensors_read_by_einsum(einsum_id))
     output_tensors = set(tensor_id_to_name[t] for t in workload.tensors_written_by_einsum(einsum_id))
     rank_name_to_shared_name = {
-        rank_id_to_name[k]: rank_id_to_name[v] for k, v in equivalent_groups.rank_to_group_id.items()
+        rank_id_to_name[k]: v for k, v in equivalent_groups.rank_to_group_id.items()
+    }
+    ts2rr = tensor_to_relevant_ranks
+    ts2rr = {
+        tensor_id_to_name[t]: {str(rank_name_to_shared_name[rank_id_to_name[r]]) for r in v} for t, v in ts2rr.items()
     }
 
     # successful_partial_mappings = []
@@ -161,6 +165,7 @@ def _per_einsum_mapper_snowcat(
                     input_tensors=input_tensors,
                     output_tensors=output_tensors,
                     tag_with=tag_with,
+                    tensor_to_relevant_ranks=ts2rr,
                 )
         return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
 
@@ -222,10 +227,10 @@ def per_einsum_mapper_snowcat(
         d = data[einsum_id]
         for k, v in result.items():
             d[k[0]].append(v)
-            
+
     def makesim(einsum_id, tiling, data):
         return einsum_id, SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1))
-            
+
     data2 = defaultdict(list)
     jobs = [delayed(makesim)(einsum_id, tiling, data) for einsum_id, tilings in data.items() for tiling, data in tilings.items()]
     for einsum_id, sim in parallel(jobs, pbar="Generating SIMs"):

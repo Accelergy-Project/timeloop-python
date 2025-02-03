@@ -55,7 +55,7 @@ def make_subspaces(tensors,
                                             must_have_terminal_storage=False,
                                             apply_lrp_after_loop_idx=last_fused_loop_idx):
             last_fused_loop_idx = get_last_fused_loop_idx(partial_mapping, intermediate_tensors)
-            yield from make_storage(partial_mapping,
+            for pm2 in make_storage(partial_mapping,
                                     level=1,
                                     must_retain_tensors=tensors - intermediate_tensors,
                                     can_retain_tensors=set(),
@@ -64,7 +64,57 @@ def make_subspaces(tensors,
                                     explore_uneven=True,
                                     add_split_at_tensors=set(),
                                     must_have_terminal_storage=True,
-                                    apply_lrp_after_loop_idx=last_fused_loop_idx)
+                                    apply_lrp_after_loop_idx=last_fused_loop_idx):
+                prev = None
+                success = True
+                # last_glb_index = len(partial_mapping) - 1
+                # for i, node in enumerate(partial_mapping):
+                #     if node["type"] == "storage" and node["target"] == 1:
+                #         last_glb_index = i
+
+                # for node in partial_mapping[last_glb_index:]:
+                #     if node["type"] != "temporal":
+                #         continue
+                #     if prev is not None:
+                #         if prev["rank"] < node["rank"]:
+                #             success = False
+                #     prev = node
+                if success:
+                    yield pm2
+        # for partial_mapping in make_storage(mapping,
+        #                                     level=1,
+        #                                     must_retain_tensors=intermediate_tensors,
+        #                                     can_retain_tensors=set(),
+        #                                     must_fully_reuse_tensors=glb_fused_tensors,
+        #                                     tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+        #                                     explore_uneven=False,
+        #                                     add_split_at_tensors=glb_fused_tensors,
+        #                                     must_have_terminal_storage=False,
+        #                                     apply_lrp_after_loop_idx=None):
+        #     for pm2 in make_storage(partial_mapping,
+        #                             level=1,
+        #                             must_retain_tensors=tensors - intermediate_tensors,
+        #                             can_retain_tensors=set(),
+        #                             must_fully_reuse_tensors=set(),
+        #                             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+        #                             explore_uneven=False,
+        #                             add_split_at_tensors=set(),
+        #                             must_have_terminal_storage=True,
+        #                             apply_lrp_after_loop_idx=None):
+        #         success = True
+        #         prev = None
+        #         # last_fused_loop_idx = get_last_fused_loop_idx(partial_mapping, intermediate_tensors)
+        #         for node in partial_mapping:#[last_fused_loop_idx:]:
+        #             if node["type"] != "temporal":
+        #                 continue
+        #             if prev is not None:
+        #                 if prev["rank"] < node["rank"]:
+        #                     success = False
+        #             prev = node
+        #         if success:
+        #             yield pm2
+        #         yield pm2
+
 
     def tile_shape_optimization(mapping):
         for partial_mapping in infer_smallest_tile_shape(mapping,

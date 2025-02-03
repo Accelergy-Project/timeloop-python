@@ -58,6 +58,7 @@ def process_result(
     rank_name_to_shared_name,
     input_tensors: set[str],
     output_tensors: set[str],
+    tensor_to_relevant_ranks,
     logfunc=None,
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
@@ -111,10 +112,11 @@ def process_result(
         else:
             tile_shape = shape[cur_idx]
             cur_idx += 1
-        rank_id = equiv_groups.rank_to_group_id[node["rank"]]
+        # rank_id = equiv_groups.rank_to_group_id[node["rank"]]
+        rank_id = rank_name_to_shared_name[rank_id_to_name[node["rank"]]]
         # rank_id = node["rank"]
         loop = Loop(
-            rank_id_to_name[rank_id],
+            str(rank_id), #rank_id_to_name[rank_id],
             tile_shape,
             node["type"] == "spatial",
         )
@@ -144,6 +146,7 @@ def process_result(
         output_tensors=output_tensors,
         tiling=tiling_full,
         rank_name_to_shared_name=rank_name_to_shared_name,
+        tensor_to_relevant_ranks=tensor_to_relevant_ranks,
     )
 
     tiling_compatibility = Tiling(
