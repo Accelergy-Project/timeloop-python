@@ -193,7 +193,7 @@ def fuse_sims(
                 for a, b in itertools.product(left[k], right[k]):
                     a: SIM
                     b: SIM
-                    if a.tiling.tags_match(b.tiling):
+                    if a.tiling.tags.are_compatible(b.tiling.tags):
                         combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
                         combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
                         if DO_PRINT:
@@ -205,24 +205,24 @@ def fuse_sims(
                 for a in left[k]:
                     print(f"\tNo match for {a.tiling}")
 
-        if not combined:
-            print(f'No valid combinations found.')
-            for k in left:
-                print(f'Left: {k}')
-                for a in left[k]:
-                    print(f'\t{a.tiling}')
-                if k in right:
-                    for a, b in itertools.product(left[k], right[k]):
-                        a: SIM
-                        b: SIM
-                        if a.tiling.tags_match(b.tiling):
-                            combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
-                            combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
-                            if DO_PRINT:
-                                s = f"\t{a.tiling} <--> {b.tiling}"
-                                s += f" --> {combined[-1].tiling}"
-                                s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
-                                print(s)
+        # if not combined:
+        #     print(f'No valid combinations found.')
+        #     for k in left:
+        #         print(f'Left: {k}')
+        #         for a in left[k]:
+        #             print(f'\t{a.tiling}')
+        #         if k in right:
+        #             for a, b in itertools.product(left[k], right[k]):
+        #                 a: SIM
+        #                 b: SIM
+        #                 if a.tiling.tags_match(b.tiling):
+        #                     combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
+        #                     combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
+        #                     if DO_PRINT:
+        #                         s = f"\t{a.tiling} <--> {b.tiling}"
+        #                         s += f" --> {combined[-1].tiling}"
+        #                         s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
+        #                         print(s)
 
         print_time("Bucket merging")
         
