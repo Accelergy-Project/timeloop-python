@@ -150,24 +150,21 @@ class Tags(frozenset):
     def __str__(self):
         return f"Tags({super().__repr__()})"
 
-    @staticmethod
-    def is_member_of(tag: "Tag", tag_class: TagClass):
-        return all(class_string in tag for class_string in tag_class)
+    def is_member_of(self, tag_class: TagClass):
+        return all(class_string in self for class_string in tag_class)
 
-    @staticmethod
-    def are_compatible(tag1, tag2):
+    def are_compatible(self, tag2):
         return (
-            all(tag2_string in tag1 for tag2_string in tag2)
+            all(tag2_string in self for tag2_string in tag2)
             or
-            all(tag1_string in tag2 for tag1_string in tag1)
+            all(tag1_string in tag2 for tag1_string in self)
         )
         
     # def filter_membership(tags: set["Tag"], tag_class: TagClass) -> set["Tag"]:
     #     return {tag for tag in tags if are_compatible(tag, tag_class)}
 
-    @staticmethod
-    def matches(tag1, tag2):
-        return tag1.strings == tag2.strings
+    def matches(self, tag2):
+        return self == tag2
     
 
 @dataclass(frozen=True)
