@@ -181,7 +181,8 @@ class Tiling:
         self, 
         live_tensors: set[str], 
         keep_loops: bool = False, 
-        keep_tensors: set[str] = None
+        keep_tensors: set[str] = None,
+        drop_tags: bool = False
     ) -> "Tiling":
         loops = (
             self.loops
@@ -190,7 +191,8 @@ class Tiling:
         )
         keep_tensors = keep_tensors if keep_tensors is not None else live_tensors
         tensors = frozenset(t for t in self.tensors if t.tensor_id in keep_tensors)
-        return Tiling(loops, tensors, self.tags)
+        tags = self.tags if not drop_tags else Tags(fzs())
+        return Tiling(loops, tensors, tags)
 
     def __lt__(self, other):
         return (self.loops, self.tensors) < (other.loops, other.tensors)
@@ -373,7 +375,7 @@ class SIM:
         grouped = defaultdict(list)
         for s in sims:
             grouped[
-                s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops, keep_tensors=keep_tensors)
+                s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops, keep_tensors=keep_tensors, drop_tags=drop_tags)
             ].append(s)
         if drop_tags:
             return {k.set_tags(): v for k, v in grouped.items()}

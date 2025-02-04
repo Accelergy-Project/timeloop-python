@@ -15,7 +15,7 @@ from pytimeloop.fastfusion.pareto import (
     IN_PROGRESS_STATS,
     TAGS,
 )
-from pytimeloop.fastfusion.sim import TensorStorage, Tiling, Loop
+from pytimeloop.fastfusion.sim import Tags, TensorStorage, Tiling, Loop
 
 from pytimeloop.fastfusion.util import fzs
 from pytimeloop.looptree.energy import gather_actions, get_accesses
@@ -148,11 +148,17 @@ def process_result(
         rank_name_to_shared_name=rank_name_to_shared_name,
         tensor_to_relevant_ranks=tensor_to_relevant_ranks,
     )
+    
+    tags = []
+    for t in tag_with:
+        result = t(**tagger_args)
+        assert isinstance(result, tuple), "Tagger must return a tuple"
+        tags.extend(result)
 
     tiling_compatibility = Tiling(
         loops=tuple(full_tiling[:n_fused_loops]),
         tensors=frozenset(backing_storages),
-        tags=fzs().union(*([set()] + [set(t(**tagger_args)) for t in tag_with]))
+        tags=Tags(fzs(tags)),
     )
 
     results = {}
