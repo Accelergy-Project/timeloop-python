@@ -9,6 +9,7 @@ from joblib import delayed
 import pandas as pd
 
 from .pareto import Pareto, LOGSTRING, nameloop2col
+from .tags import Tags
 from .util import expfmt, fzs, parallel
 
 # Abstractions:
@@ -139,33 +140,7 @@ class TensorStorage:
             if a != "*" and b != "*" and a != b:
                 return False
         return True
-    
-class TagClass(frozenset):
-    pass
-        
-class Tags(frozenset):
-    def __repr__(self):
-        return f"Tags({super().__repr__()})"
-    
-    def __str__(self):
-        return f"Tags({super().__repr__()})"
 
-    def is_member_of(self, tag_class: TagClass):
-        return all(class_string in self for class_string in tag_class)
-
-    def are_compatible(self, tag2):
-        return (
-            all(tag2_string in self for tag2_string in tag2)
-            or
-            all(tag1_string in tag2 for tag1_string in self)
-        )
-        
-    # def filter_membership(tags: set["Tag"], tag_class: TagClass) -> set["Tag"]:
-    #     return {tag for tag in tags if are_compatible(tag, tag_class)}
-
-    def matches(self, tag2):
-        return self == tag2
-    
 
 @dataclass(frozen=True)
 class Tiling:
