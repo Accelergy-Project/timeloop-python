@@ -171,7 +171,7 @@ def get_tileflow_tag_mha(
     )
     shared_loops = ",".join(l.rank_id for l in tiling.loops[:loops_above_backing_storages])
     if not is_fused:
-        return ("TILEFLOW_VALID", "TILEFLOW_UNFUSED")
+        return ("TILEFLOW_VALID")
     
     return ("TILEFLOW_VALID", "FUSED_LOOPS=" + shared_loops)
 
