@@ -156,7 +156,42 @@ def fuse_sims(
         )
         left, right = lr[:len(left)], lr[len(left):]
         print_time(f"Consolidating")
-
+        
+        # left = [t for t in left if not t.tiling.tags]
+            
+        # if not sims:
+        #     left2 = SIM.combine_combineable(left, live_tensors | right_tensors)
+        #     # left2 = left
+        #     print(f'Left length: {len(left)} -> {len(left2)}')
+        #     for l in left:
+        #         print(f'\t{l.tiling}')
+        #     for l2 in left2:
+        #         print(f'\t-> {l2.tiling}')
+        #     left = left2
+            
+        # if not sims:
+        #     right2 = [t for t in right if not t.tiling.tags]
+        #     for t in SIM.combine_combineable(right, live_tensors | left_tensors):
+        #         print(f'Right: {t.tiling}')
+        #     for t in SIM.combine_combineable(right2, live_tensors | left_tensors):
+        #         print(f'Right2: {t.tiling}')
+        #     right = SIM.combine_combineable(right, live_tensors | left_tensors)
+        #     right2 = SIM.combine_combineable(right2, live_tensors | left_tensors)
+        #     right_grouped = SIM.group_right(right, left_tensors, drop_tags=True)
+        #     right2_grouped = SIM.group_right(right2, left_tensors, drop_tags=True)
+        #     left2 = SIM.group_left(left, right_tensors, drop_tags=True)
+        #     from pytimeloop.fastfusion.sim import Tiling, TensorStorage, Tags, fzs
+        #     t = Tiling((), fzs((TensorStorage('Filter3', 0, 0, 16), TensorStorage('Fmap3', 0, 0, 4), TensorStorage('Fmap4', 0, 0, 16))), Tags(fzs()))
+        #     for k in left2:
+        #         if k in right_grouped and k not in right2_grouped:
+        #             print(f'Right {k} not in right2')
+        #         if k in right2_grouped and k not in right_grouped:
+        #             print(f'Right2 {k} not in right')
+        #         # if k in right_grouped and k in right2_grouped:
+        #         #     for a, b in itertools.product(left[k], right_grouped[k]):
+        #         #         if a.tiling != b.tiling:
+        #         #             print(f'Right {k} not equal
+                
         left = SIM.combine_combineable(left, live_tensors | right_tensors)
         right = SIM.combine_combineable(right, live_tensors | left_tensors)
         print_time(f"Combining")
@@ -253,8 +288,9 @@ def fuse_sims(
 
     for s in left:
         s.left_consolidate(None, resource2capacity)
-    s_final = SIM.combine_combineable(left, set())[0]
-    data = s_final.mapping.data
+    s_final = SIM.combine_combineable(left, set(), drop_tags=True)
+    assert len(s_final) == 1
+    data = s_final[0].mapping.data
     # check_correctness(data, set())
 
     print_total_time()
