@@ -93,13 +93,6 @@ def get_ffmt_tag_mha(
         else:
             max_non_weight_index = max(max_non_weight_index, t.above_loop_index)
 
-    if min_weight_index == 2:
-        tags.append("FFMT_WEIGHTS_UNTILED")
-    elif min_weight_index is None or min_weight_index < max_non_weight_index:
-        tags.append("FFMT_WEIGHTS_INVALID")
-    else:
-        tags.append("FFMT_WEIGHTS_TILED")
-
     to_try = [([B, H], (2, 2)), ([B, H, M], (3, 3))]
     other_ranks = {
         "Q": [B, H, M, E, D],
@@ -114,18 +107,31 @@ def get_ffmt_tag_mha(
     if first and last:  # Unfused
         to_try = []
         valid = True
-        tags.append("FFMT_UNFUSED")
+        # tags.append("FFMT_UNFUSED")
     elif first:  # First Einsum in a chain
         to_try += [(other_ranks[:4], (3, 4)), (other_ranks, (5, 4))]
-        tags.append("FFMT_FIRST")
+        fused = True
+        # tags.append("FFMT_FIRST")
     elif last:  # Last Einsum in a chain
         to_try += [(other_ranks[4:], (3, 4))]
-        tags.append("FFMT_LAST")
+        fused = True
+        # tags.append("FFMT_LAST")
     else:  # Middle Einsum in a chain
         a, b = b, a
         other_ranks[-2], other_ranks[-1] = other_ranks[-1], other_ranks[-2]
         to_try += [(other_ranks[:4], (3, 4))]
-        tags.append("FFMT_MIDDLE")
+        fused = True
+        # tags.append("FFMT_MIDDLE")
+
+    if fused:
+        if min_weight_index == 2:
+            weights_valid = True
+            tags.append("FFMT_WEIGHTS_UNTILED")
+        elif min_weight_index is None or min_weight_index < max_non_weight_index:
+            weights_valid = False
+        else:
+            weights_valid = True
+            tags.append("FFMT_WEIGHTS_TILED")
 
     for i, (c, (a_loops, b_loops)) in enumerate(to_try):
         perm = [rank_name_to_shared_name[x] for x in c] + ["*"]
@@ -139,7 +145,7 @@ def get_ffmt_tag_mha(
             # tags.append(f"FFMT_VALID_{i}")
 
     # return ("FFMT_VALID" if valid else "FFMT_INVALID", weight_tag)
-    if valid:  # and weight_tag != "INVALID":
+    if valid and weights_valid:  # and weight_tag != "INVALID":
         return ("FFMT_VALID", *tags)
     return ("FFMT_INVALID",)
 
