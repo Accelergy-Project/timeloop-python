@@ -139,17 +139,46 @@ class TensorStorage:
             if a != "*" and b != "*" and a != b:
                 return False
         return True
+    
+class TagClass(frozenset):
+    pass
+        
+class Tags(frozenset):
+    def __repr__(self):
+        return f"Tags({super().__repr__()})"
+    
+    def __str__(self):
+        return f"Tags({super().__repr__()})"
+
+    def is_member_of(tag: "Tag", tag_class: TagClass):
+        return all(class_string in tag for class_string in tag_class)
+
+
+    def are_compatible(tag1, tag2):
+        return (
+            all(tag2_string in tag1 for tag2_string in tag2)
+            or
+            all(tag1_string in tag2 for tag1_string in tag1)
+        )
+        
+    # def filter_membership(tags: set["Tag"], tag_class: TagClass) -> set["Tag"]:
+    #     return {tag for tag in tags if are_compatible(tag, tag_class)}
+
+
+def matches(tag1, tag2):
+    return tag1.strings == tag2.strings
+    
 
 @dataclass(frozen=True)
 class Tiling:
     loops: tuple[Loop, ...]
     tensors: fzs[TensorStorage]
-    tags: fzs[Any] = fzs()
+    tags: Tags = Tags(fzs())
     
     def __post_init__(self):
         assert isinstance(self.tensors, frozenset)
         assert isinstance(self.loops, tuple)
-        assert isinstance(self.tags, frozenset)
+        assert isinstance(self.tags, Tags)
 
     @cached_property
     def tensor_names(self) -> set[str]:
@@ -167,10 +196,7 @@ class Tiling:
         return max(n) - 1 if n else -1
 
     def __eq__(self, other):
-        no_tags = (not self.tags and not other.tags)
-        tags_match = any(s == o or o == s for s in self.tags for o in other.tags)
-        # tags_match = self.tags == other.tags
-        return self.loops == other.loops and (self.tags == other.tags) and self.tensors == other.tensors
+        return self.loops == other.loops and self.tags == other.tags and self.tensors == other.tensors
 
     def __len__(self) -> int:
         return len(self.loops)
@@ -238,7 +264,7 @@ class Tiling:
         return all(any(t == tensor for t in self.tensors) for tensor in tensors)
     
     def set_tags(self, *new_tags: Any) -> "Tiling":
-        return Tiling(self.loops, self.tensors, fzs(new_tags))
+        return Tiling(self.loops, self.tensors, Tags(new_tags))
 
     def all_n_loops(self) -> set["Tiling"]:
         min_loops = max(t.above_loop_index for t in self.tensors)
@@ -246,20 +272,6 @@ class Tiling:
             self.loops[:i+1], self.tensors, self.tags
         ) for i in range(min_loops, len(self.loops)))
         
-    def tags_match(self, other: "Tiling") -> bool:
-        if not self.tags and not other.tags:
-            return True
-        for a in self.tags:
-            for b in other.tags:
-                if hasattr(a, "matches") or hasattr(b, "matches"):
-                    print("HERE")
-                if hasattr(a, "matches") and a.matches(b):
-                    return True
-                elif hasattr(b, "matches") and b.matches(a):
-                    return True
-                elif a == b:
-                    return True
-        return False
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
