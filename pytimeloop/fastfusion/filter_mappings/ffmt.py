@@ -47,14 +47,14 @@ def get_ffmt_tag_mha(
     max_non_weight_idx = 0
     first, last = True, True
     for t in tiling.tensors:
-        if t.backer_id != 1:
+        if t.storage_name != 1:
             continue
-        if t.tensor_id == input_tensor and t in backing_storages:
+        if t.tensor_name == input_tensor and t in backing_storages:
             first = False
-        if t.tensor_id == output_tensor and t in backing_storages:
+        if t.tensor_name == output_tensor and t in backing_storages:
             last = False
 
-        is_weight = t.tensor_id not in input_output_tensors
+        is_weight = t.tensor_name not in input_output_tensors
         if is_weight:
             min_weight_idx = min(min_weight_idx, t.above_loop_index)
             max_weight_idx = max(max_weight_idx, t.above_loop_index)
