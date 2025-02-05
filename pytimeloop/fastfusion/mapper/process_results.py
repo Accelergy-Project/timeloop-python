@@ -147,7 +147,7 @@ def process_result(
                 assert l.bound >= l2.bound, f"{l} {l2}"
     
     tagger_args = dict(
-        einsum_id=einsum_id,
+        einsum_name=einsum_id,
         backing_storages=backing_storages,
         input_tensors=input_tensors,
         output_tensors=output_tensors,

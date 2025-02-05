@@ -26,6 +26,12 @@ def get_ffmt_tag_mha(
         "FFA": [G, C],
         "FFB": [C, J]
     }
+
+    if einsum_name not in EINSUM_NAME_TO_REDUCED_RANK_OUTPUT_RANK:
+        if all(s.storage_name == 0 for s in backing_storages):
+            return (FFMT_VALID,)
+        return (FFMT_INVALID,)
+
     reduced_rank, output_rank = EINSUM_NAME_TO_REDUCED_RANK_OUTPUT_RANK[einsum_name]
 
     EINSUM_NAME_TO_INPUT_OUTPUT_TENSORS = {

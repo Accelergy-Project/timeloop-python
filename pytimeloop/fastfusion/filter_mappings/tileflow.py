@@ -3,7 +3,7 @@ from pytimeloop.fastfusion.sim import TensorStorage, Tiling
 
 
 def get_tileflow_tag_mha(
-    einsum_id: str,
+    einsum_name: str,
     backing_storages: set[TensorStorage],
     input_tensors: set[str],
     output_tensors: set[str],

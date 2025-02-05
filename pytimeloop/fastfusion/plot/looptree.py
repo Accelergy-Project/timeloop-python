@@ -68,7 +68,7 @@ class Node:
                 reservations[k] = max(reservations[k], v)
         for t in self.this_level:
             if isinstance(t, TensorStorage):
-                reservations[t.backer_id] += t.tile_size
+                reservations[t.storage_name] += t.tile_size
         return reservations
     
     def get_all_storages(self, _entry: bool = True) -> list[TensorStorage]:
@@ -97,7 +97,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     for t in backers:
         first_appearance = min(i for i, ts in enumerate(mappings.values()) if t in ts.tensors)
         last_appearance = max(i for i, ts in enumerate(mappings.values()) if t in ts.tensors)
-        if t.tensor_id in still_live_tensors:
+        if t.tensor_name in still_live_tensors:
             last_appearance = len(einsum_ids) - 1
         for i, l in enumerate(tensors_lifetimes.values()):
             if first_appearance <= i <= last_appearance and t not in l:
@@ -123,10 +123,10 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
         n.children[-1].this_level.append(f"Einsum {einsum_id}")
         id2tensor = defaultdict(set)
         for t in sorted(tiling.tensors) + tensors_lifetimes[einsum_id]:
-            id2tensor[t.tensor_id].add(t)
+            id2tensor[t.tensor_name].add(t)
         id2tensor = {k: sorted(v) for k, v in id2tensor.items()}
-        for tensor_id, storages in id2tensor.items():
-            if tensor_id in skip_backing_tensors:
+        for tensor_name, storages in id2tensor.items():
+            if tensor_name in skip_backing_tensors:
                 storages = storages[1:]
             for tensor in storages:
                 n = root.access_level(tensor.above_loop_index)
@@ -145,7 +145,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
         i = 0
         while i < len(n.this_level):
             t = n.this_level[i]
-            if t in backers and t.tensor_id in skip_backing_tensors_in_right_branch:
+            if t in backers and t.tensor_name in skip_backing_tensors_in_right_branch:
                 n.this_level.pop(i)
             else:
                 i += 1
