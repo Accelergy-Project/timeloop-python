@@ -53,8 +53,8 @@ def process_result(
     explore_fusion_uneven,
     einsum_shape,
     einsum_id_to_name,
-    rank_id_to_name,
-    tensor_id_to_name,
+    rank_name_to_name,
+    tensor_name_to_name,
     rank_name_to_shared_name,
     input_tensors: set[str],
     output_tensors: set[str],
@@ -90,16 +90,16 @@ def process_result(
     def record_storage(node):
         for dspace in node["dspace"]:
             storage = TensorStorage(
-                tensor_id_to_name[dspace],
+                tensor_name_to_name[dspace],
                 len(full_tiling),
                 node["target"],
                 int(result.occupancy[(node["target"], dspace)]),
             )
             all_storages.append(storage)
-            if storage.tensor_id in intermediates_to_find:
-                intermediates_to_find.remove(storage.tensor_id)
-            if storage.tensor_id not in found_tensors:
-                found_tensors.add(storage.tensor_id)
+            if storage.tensor_name in intermediates_to_find:
+                intermediates_to_find.remove(storage.tensor_name)
+            if storage.tensor_name not in found_tensors:
+                found_tensors.add(storage.tensor_name)
                 backing_storages.append(storage)
                 
         if Metrics.DEBUG in metrics:
@@ -112,11 +112,11 @@ def process_result(
         else:
             tile_shape = shape[cur_idx]
             cur_idx += 1
-        # rank_id = equiv_groups.rank_to_group_id[node["rank"]]
-        rank_id = rank_name_to_shared_name[rank_id_to_name[node["rank"]]]
-        # rank_id = node["rank"]
+        # rank_name = equiv_groups.rank_to_group_id[node["rank"]]
+        # rank_name = rank_name_to_shared_name[rank_name_to_name[node["rank"]]]
+        rank_name = rank_name_to_name[node["rank"]]
         loop = Loop(
-            str(rank_id), #rank_id_to_name[rank_id],
+            fzs((str(rank_name),)), #rank_name_to_name[rank_name],
             tile_shape,
             node["type"] == "spatial",
         )
@@ -136,8 +136,15 @@ def process_result(
     n_fused_loops = max(t.above_loop_index for t in backing_storages)
     tiling_full = Tiling(
         loops=tuple(full_tiling),
-        tensors=frozenset(all_storages),
+        tensors=fzs(all_storages),
     )
+    
+    for i, l in enumerate(tiling_full.loops):
+        for l2 in tiling_full.loops[i+1:]:
+            if l.rank_name == l2.rank_name:
+                if l.bound < l2.bound:
+                    print("AHH")
+                assert l.bound >= l2.bound, f"{l} {l2}"
     
     tagger_args = dict(
         einsum_id=einsum_id,
@@ -157,7 +164,7 @@ def process_result(
 
     tiling_compatibility = Tiling(
         loops=tuple(full_tiling[:n_fused_loops]),
-        tensors=frozenset(backing_storages),
+        tensors=fzs(backing_storages),
         tags=Tags(fzs(tags)),
     )
 
@@ -187,7 +194,7 @@ def process_result(
     for r in all_storages:
         r: TensorStorage
         if r not in backing_storages:
-            key = nameloop2col(r.backer_id, min(r.above_loop_index, n_fused_loops))
+            key = nameloop2col(r.storage_name, min(r.above_loop_index, n_fused_loops))
             results.setdefault(key, 0)
             results[key] += r.tile_size
         # logstring.append(f"{r}")

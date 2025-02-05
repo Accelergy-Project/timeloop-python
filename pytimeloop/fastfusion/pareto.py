@@ -43,7 +43,7 @@ def dict_cached(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        key = (args, frozenset(kwargs.items()))
+        key = (args, fzs(kwargs.items()))
         if key not in cache:
             cache[key] = func(*args, **kwargs)
         return cache[key]

@@ -20,65 +20,88 @@ from .util import expfmt, fzs, parallel
 
 @dataclass(frozen=True)
 class Loop:
-    rank_id: str
+    rank_names: fzs[str]
     bound: int
     is_spatial: bool
+    
+    def __post_init__(self):
+        assert isinstance(self.rank_names, fzs)
+        assert isinstance(self.bound, int)
+        assert isinstance(self.is_spatial, bool)
+    
+    @property
+    def rank_name(self):
+        assert len(self.rank_names) == 1
+        return next(iter(self.rank_names))
 
     def __eq__(self, other):
         if not isinstance(other, Loop):
             return False
         return (
-            self.rank_id == other.rank_id
+            self.rank_name == other.rank_name
             and self.bound == other.bound
             and self.is_spatial == other.is_spatial
         )
 
     def __lt__(self, other):
         return (
-            self.rank_id < other.rank_id
+            self.rank_name < other.rank_name
             or self.bound < other.bound
             or self.is_spatial < other.is_spatial
         )
 
     def __hash__(self):
-        return hash((self.rank_id, self.bound, self.is_spatial))
+        return hash((self.rank_name, self.bound, self.is_spatial))
 
     def subtiles(self, other: "Loop") -> bool:
-        if self.rank_id != other.rank_id:
+        if self.rank_name != other.rank_name:
             return False
         return other.bound % self.bound == 0
 
     def __repr__(self):
-        # return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
-        return f"Loop({self.rank_id.__repr__()}, {self.bound}, {self.is_spatial})"
+        # return ("S-" if self.is_spatial else "") + f"{self.rank_name}-{self.bound}"
+        return f"Loop({self.rank_name.__repr__()}, {self.bound}, {self.is_spatial})"
 
     def __str__(self):
-        return ("S-" if self.is_spatial else "") + f"{self.rank_id}-{self.bound}"
+        return ("S-" if self.is_spatial else "") + f"{self.rank_name}-{self.bound}"
 
     def pydot_str(self):
         if self.is_spatial:
-            return f"S-for R{self.rank_id} size {expfmt(self.bound)}"
-        return f"for {self.rank_id} size {expfmt(self.bound)}"
+            return f"S-for R{self.rank_name} size {expfmt(self.bound)}"
+        return f"for {self.rank_name} size {expfmt(self.bound)}"
 
     def rename(
         self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
     ) -> "Loop":
-        return Loop(rank_renaming[self.rank_id], self.bound, self.is_spatial)
+        return Loop(
+            fzs(rank_renaming[r] for r in self.rank_names), 
+            self.bound, 
+            self.is_spatial
+        )
 
     def to_yaml(self):
         return {
             "type": "loop",
-            "rank_id": self.rank_id,
+            "rank_name": self.rank_name,
             "bound": self.bound,
             "is_spatial": self.is_spatial,
         }
+        
+    def merge_next(self, other: "Loop") -> "Loop":
+        assert self.bound == other.bound
+        assert self.is_spatial == other.is_spatial
+        return Loop(
+            self.rank_names | other.rank_names,
+            self.bound,
+            self.is_spatial,
+        )
 
 @dataclass(frozen=True, order=True)
 class TensorStorage:
     # This order is important. Make sure backing storages are the lowest.
-    tensor_id: str
+    tensor_name: str
     above_loop_index: int
-    backer_id: str
+    storage_name: str
     # NOTE: Tile size is not included in hash or equality functions. This is
     # because inter-Einsum comparisons care about the loops and locations of
     # backing storages, and the tile sizes are derived from these. We don't want
@@ -87,32 +110,32 @@ class TensorStorage:
     # n_repititions: int = 1
 
     def __tuple__(self):
-        return (self.tensor_id, self.backer_id, self.above_loop_index, self.tile_size)
+        return (self.tensor_name, self.storage_name, self.above_loop_index, self.tile_size)
     
     def __hash__(self):
-        return hash((self.tensor_id, self.backer_id, self.above_loop_index))
+        return hash((self.tensor_name, self.storage_name, self.above_loop_index))
 
     @property
     def ts(self):
         return self.tile_size
 
     def __str__(self):
-        return f"[{self.backer_id}] {self.tensor_id} sz {expfmt(self.tile_size)} above {self.above_loop_index}"  # x{expfmt(self.n_repititions)}"
+        return f"[{self.storage_name}] {self.tensor_name} sz {expfmt(self.tile_size)} above {self.above_loop_index}"  # x{expfmt(self.n_repititions)}"
 
     def __repr__(self):
-        return f"TensorStorage({repr(self.tensor_id)}, {self.above_loop_index}, {repr(self.backer_id)}, {self.tile_size})"
+        return f"TensorStorage({repr(self.tensor_name)}, {self.above_loop_index}, {repr(self.storage_name)}, {self.tile_size})"
 
     def pydot_str(self):
-        return f"[{self.backer_id}] {self.tensor_id} size {expfmt(self.tile_size)}"
+        return f"[{self.storage_name}] {self.tensor_name} size {expfmt(self.tile_size)}"
         # *{expfmt(self.n_repititions)}={expfmt(self.tile_size)}"# * self.n_repititions)}"
 
     def rename(
         self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
     ) -> "TensorStorage":
         return TensorStorage(
-            tensor_renaming[self.tensor_id],
+            tensor_renaming[self.tensor_name],
             self.above_loop_index,
-            self.backer_id,
+            self.storage_name,
             self.tile_size,
             # self.n_repititions
         )
@@ -120,8 +143,8 @@ class TensorStorage:
     def to_yaml(self):
         return {
             "type": "storage",
-            "tensor_id": self.tensor_id,
-            "backer_id": self.backer_id,
+            "tensor_name": self.tensor_name,
+            "storage_name": self.storage_name,
             "above_loop_index": self.above_loop_index,
             "tile_size": self.tile_size,
         }
@@ -129,13 +152,13 @@ class TensorStorage:
     def get_backing_stores(all_tensors: set["TensorStorage"]) -> list["TensorStorage"]:
         id2tensor = defaultdict(lambda: [])
         for t in all_tensors:
-            id2tensor[t.tensor_id].append(t)
+            id2tensor[t.tensor_name].append(t)
         return sorted(sorted(v)[0] for v in id2tensor.values())
     
     def __eq__(self, value):
         if not isinstance(value, TensorStorage):
             return False
-        for to_check in ["tensor_id", "backer_id", "above_loop_index"]:#$, "tile_size"]:
+        for to_check in ["tensor_name", "storage_name", "above_loop_index"]:#$, "tile_size"]:
             a, b = getattr(self, to_check), getattr(value, to_check)
             if a != "*" and b != "*" and a != b:
                 return False
@@ -149,19 +172,19 @@ class Tiling:
     tags: Tags = Tags(fzs())
     
     def __post_init__(self):
-        assert isinstance(self.tensors, frozenset)
+        assert isinstance(self.tensors, fzs)
         assert isinstance(self.loops, tuple)
         assert isinstance(self.tags, Tags)
 
     @cached_property
     def tensor_names(self) -> set[str]:
-        return {t.tensor_id for t in self.tensors}
+        return {t.tensor_name for t in self.tensors}
 
     def get_backing_levels(self) -> dict[str, int]:
         backings = {}
         for t in self.tensors:
-            prev = backings.get(t.tensor_id, t.above_loop_index)
-            backings[t.tensor_id] = min(prev, t.above_loop_index)
+            prev = backings.get(t.tensor_name, t.above_loop_index)
+            backings[t.tensor_name] = min(prev, t.above_loop_index)
         return backings
 
     def shared_loop_index(self, live_tensors: set[str]) -> int:
@@ -190,7 +213,7 @@ class Tiling:
             else self.loops[: self.shared_loop_index(live_tensors) + 1]
         )
         keep_tensors = keep_tensors if keep_tensors is not None else live_tensors
-        tensors = frozenset(t for t in self.tensors if t.tensor_id in keep_tensors)
+        tensors = fzs(t for t in self.tensors if t.tensor_name in keep_tensors)
         tags = self.tags if not drop_tags else Tags(fzs())
         return Tiling(loops, tensors, tags)
 
@@ -204,9 +227,17 @@ class Tiling:
         return f"Tiling({self.loops.__repr__()}, {self.tensors.__repr__()}, {self.tags.__repr__()})"
     
     def merge_next(self, n: "Tiling", live_tensors: set[str]) -> "Tiling":
-        tensors = fzs(t for t in (n.tensors | self.tensors) if t.tensor_id in live_tensors)
+        tensors = fzs(t for t in (n.tensors | self.tensors) if t.tensor_name in live_tensors)
         shared_loop_index = max(t.shared_loop_index(live_tensors) for t in [self, n])
-        return Tiling(n.loops[: shared_loop_index + 1], tensors, n.tags)
+        
+        merged_loops = [l.merge_next(l2) for l, l2 in zip(self.loops, n.loops)]
+        additional_loops = n.loops[len(merged_loops):shared_loop_index + 1]
+        
+        return Tiling(
+            additional_loops,
+            tensors,
+            n.tags
+        )
 
     def rename(
         self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
@@ -226,11 +257,11 @@ class Tiling:
                 return False
 
             # Mismatch!
-            if i == len(self.loops) or self.loops[i].rank_id != permutation[j]:
+            if i == len(self.loops) or self.loops[i].rank_name != permutation[j]:
                 if permutation[j] != "*":
                     return False
                 j += 1
-                while i < len(self.loops) and (j == len(permutation) or self.loops[i].rank_id != permutation[j]):
+                while i < len(self.loops) and (j == len(permutation) or self.loops[i].rank_name != permutation[j]):
                     i += 1
             else:
                 i, j = i + 1, j + 1
@@ -253,7 +284,7 @@ class SIM:
         self.tiling: Tiling = tiling
         self.mapping: Pareto = mapping
         self.tensors: dict[str, TensorStorage] = {
-            t.tensor_id: t for t in self.tiling.tensors
+            t.tensor_name: t for t in self.tiling.tensors
         }
 
     def tiling_str(self):
@@ -314,7 +345,7 @@ class SIM:
         shared_loop_index = self.tiling.shared_loop_index(check_tensors)
         for t in dead_tensors:
             t = self.tensors.pop(t)
-            self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index, resource2capacity)
+            self.mapping.alloc(t.storage_name, t.tile_size, t.above_loop_index, resource2capacity)
             
         if live_tensors is None:
             self.free_squish(0, resource2capacity)
@@ -334,9 +365,9 @@ class SIM:
         for t in self.tensors.values():
             if (
                 t.above_loop_index > shared_loop_index
-                or t.tensor_id not in check_tensors
+                or t.tensor_name not in check_tensors
             ):
-                self.mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index, resource2capacity)
+                self.mapping.alloc(t.storage_name, t.tile_size, t.above_loop_index, resource2capacity)
                 tensors_to_add.append(t)
         if live_tensors is None:
             self.free_squish(-1, resource2capacity)
@@ -357,7 +388,7 @@ class SIM:
         sims = list(sims)
         assert len(sims) > 0, "Cannot concat empty list of SIMs"
         if not allow_different_tilings:
-            s = set(frozenset([(k, v) for k, v in s.tensors.items()]) for s in sims)
+            s = set(fzs([(k, v) for k, v in s.tensors.items()]) for s in sims)
             assert len(s) == 1, (
                 f"Cannot concat SIMs with different tensors:\n\t" +
                 "\n\t".join(str(s2) for s2 in s)
@@ -377,13 +408,11 @@ class SIM:
             grouped[
                 s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops, keep_tensors=keep_tensors, drop_tags=drop_tags)
             ].append(s)
-        if drop_tags:
-            return {k.set_tags(): v for k, v in grouped.items()}
         return grouped
 
     @staticmethod
-    def combine_combineable(sims: list["SIM"], live_tensors: set[str], allow_different_tilings: bool=False) -> list["SIM"]:
-        groups = list(SIM._group(sims, live_tensors).values())
+    def combine_combineable(sims: list["SIM"], live_tensors: set[str], allow_different_tilings: bool=False, drop_tags: bool=False) -> list["SIM"]:
+        groups = list(SIM._group(sims, live_tensors, drop_tags=drop_tags).values())
         groups_with_one = [g[0] for g in groups if len(g) == 1]
         if len(groups_with_one) == len(groups):
             return groups_with_one
@@ -400,7 +429,7 @@ class SIM:
         def check(tensors_to_check):
             for t in tensors_to_check:
                 for t2 in tensors:
-                    if (t2.tensor_id == "*" or t.tensor_id == t2.tensor_id) and t != t2:
+                    if (t2.tensor_name == "*" or t.tensor_name == t2.tensor_name) and t != t2:
                         return False
             return True
 
@@ -474,11 +503,11 @@ class TestSIM(unittest.TestCase):
 
         sims: list[SIM] = []
         for tensors, loops in zip([tensors0, tensors1, tensors2, tensors3], loops):
-            tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), fzs(tensors))
+            tiling = Tiling(tuple(Loop(fzs(r), 2, False) for r in loops), fzs(tensors))
             mapping = Pareto(pd.DataFrame({"Energy": [1]}))
             mapping.data[LOGSTRING] = [{}]
             for t in tensors:
-                mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
+                mapping.alloc(t.storage_name, t.tile_size, t.above_loop_index)
             sims.append(SIM(tiling, mapping))
 
         expected = [
@@ -517,11 +546,11 @@ class TestSIM(unittest.TestCase):
 
         sims: list[SIM] = []
         for tensors, loops in zip([tensors0, tensors1, tensors2, tensors3], loops):
-            tiling = Tiling(tuple(Loop(r, 2, False) for r in loops), fzs(tensors))
+            tiling = Tiling(tuple(Loop(fzs(r), 2, False) for r in loops), fzs(tensors))
             mapping = Pareto(pd.DataFrame({"Energy": [1]}))
             mapping.data[LOGSTRING] = [{}]
             for t in tensors:
-                mapping.alloc(t.backer_id, t.tile_size, t.above_loop_index)
+                mapping.alloc(t.storage_name, t.tile_size, t.above_loop_index)
             sims.append(SIM(tiling, mapping))
 
         sims2 = copy.deepcopy(sims)

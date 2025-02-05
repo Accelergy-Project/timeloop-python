@@ -58,7 +58,7 @@ def _per_einsum_mapper_snowcat(
     }
 
     einsum_shape = {
-        rank_id: workload.get_rank_shape(rank_id)[1] + 1 for rank_id in all_ranks
+        rank_name: workload.get_rank_shape(rank_name)[1] + 1 for rank_name in all_ranks
     }
 
 
@@ -88,16 +88,16 @@ def _per_einsum_mapper_snowcat(
 
     partial_mappings = list(dependent_product(parallelized_spaces))
     partial_mappings = [x if isinstance(x, tuple) else (x,) for x in partial_mappings]
-    rank_id_to_name = {v: k for k, v in rank_name_to_id.items()}
-    tensor_id_to_name = {v: k for k, v in tensor_name_to_id.items()}
-    input_tensors = set(tensor_id_to_name[t] for t in workload.tensors_read_by_einsum(einsum_id))
-    output_tensors = set(tensor_id_to_name[t] for t in workload.tensors_written_by_einsum(einsum_id))
+    rank_name_to_name = {v: k for k, v in rank_name_to_id.items()}
+    tensor_name_to_name = {v: k for k, v in tensor_name_to_id.items()}
+    input_tensors = set(tensor_name_to_name[t] for t in workload.tensors_read_by_einsum(einsum_id))
+    output_tensors = set(tensor_name_to_name[t] for t in workload.tensors_written_by_einsum(einsum_id))
     rank_name_to_shared_name = {
-        rank_id_to_name[k]: v for k, v in equivalent_groups.rank_to_group_id.items()
+        rank_name_to_name[k]: v for k, v in equivalent_groups.rank_to_group_id.items()
     }
     ts2rr = tensor_to_relevant_ranks
     ts2rr = {
-        tensor_id_to_name[t]: {str(rank_name_to_shared_name[rank_id_to_name[r]]) for r in v} for t, v in ts2rr.items()
+        tensor_name_to_name[t]: {str(rank_name_to_shared_name[rank_name_to_name[r]]) for r in v} for t, v in ts2rr.items()
     }
 
     # successful_partial_mappings = []
@@ -159,8 +159,8 @@ def _per_einsum_mapper_snowcat(
                     einsum_shape=einsum_shape,
                     metrics=metrics,
                     einsum_id_to_name=einsum_id_to_name,
-                    rank_id_to_name=rank_id_to_name,
-                    tensor_id_to_name=tensor_id_to_name,
+                    rank_name_to_name=rank_name_to_name,
+                    tensor_name_to_name=tensor_name_to_name,
                     rank_name_to_shared_name=rank_name_to_shared_name,
                     input_tensors=input_tensors,
                     output_tensors=output_tensors,

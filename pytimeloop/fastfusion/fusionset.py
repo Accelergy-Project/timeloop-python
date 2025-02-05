@@ -220,11 +220,11 @@ class TestInterchangeableSet(unittest.TestCase):
     def test_combine(self):
         comp1 = Compatibility(
             einsum_id=f"einsum1",
-            tiling={"Q": TensorTiling("GLB", (Loop("A", 1, False),))},
+            tiling={"Q": TensorTiling("GLB", (Loop(fzs("A"), 1, False),))},
         )
         comp2 = Compatibility(
             einsum_id=f"einsum2",
-            tiling={"V": TensorTiling("GLB", (Loop("A", 1, False),))},
+            tiling={"V": TensorTiling("GLB", (Loop(fzs("A"), 1, False),))},
         )
         fs1 = InterchangeableSet({comp1}, Pareto.get_dummy())
         fs2 = InterchangeableSet({comp2}, Pareto.get_dummy())
@@ -236,7 +236,7 @@ class TestInterchangeableSet(unittest.TestCase):
 
     def test_compatibile_with(self):
         def get_tiling(rank_size: int):
-            return {"T": TensorTiling("GLB", (Loop("A", rank_size, False),))}
+            return {"T": TensorTiling("GLB", (Loop(fzs("A"), rank_size, False),))}
 
         comp1 = Compatibility(einsum_id="A", tiling=get_tiling(1))
         comp2 = Compatibility(einsum_id="B", tiling=get_tiling(1))
@@ -262,11 +262,11 @@ class TestInterchangeableSet(unittest.TestCase):
     def test_drop_dead(self):
         comp1 = Compatibility(
             einsum_id=f"einsum1",
-            tiling={"Q": TensorTiling("GLB", (Loop("A", 1, False),))},
+            tiling={"Q": TensorTiling("GLB", (Loop(fzs("A"), 1, False),))},
         )
         comp2 = Compatibility(
             einsum_id=f"einsum2",
-            tiling={"V": TensorTiling("GLB", (Loop("A", 1, False),))},
+            tiling={"V": TensorTiling("GLB", (Loop(fzs("A"), 1, False),))},
         )
         fs = InterchangeableSet({comp1}, Pareto.get_dummy()).combine(
             InterchangeableSet({comp2}, Pareto.get_dummy())
@@ -279,11 +279,11 @@ class TestInterchangeableSet(unittest.TestCase):
         self.assertEqual(len(fs.compatibility), 0)
 
     def test_live_partition(self):
-        ab = {"AB": TensorTiling("GLB", (Loop("AB", 1, False),))}
+        ab = {"AB": TensorTiling("GLB", (Loop(fzs("AB"), 1, False),))}
         bc = {"BC": TensorTiling("GLB", ())}
         cd = {"CD": TensorTiling("GLB", ())}
-        de = {"DE": TensorTiling("GLB", (Loop("DE", 1, False),))}
-        ef = {"EF": TensorTiling("GLB", (Loop("EF", 1, False),))}
+        de = {"DE": TensorTiling("GLB", (Loop(fzs("DE"), 1, False),))}
+        ef = {"EF": TensorTiling("GLB", (Loop(fzs("EF"), 1, False),))}
 
         a = Compatibility(einsum_id="A", tiling={**ab})
         b = Compatibility(einsum_id="B", tiling={**ab, **bc})

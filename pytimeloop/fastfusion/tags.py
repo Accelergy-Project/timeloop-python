@@ -1,8 +1,11 @@
-class TagClass(frozenset):
+from pytimeloop.fastfusion.util import fzs
+
+
+class TagClass(fzs):
     pass
         
 
-class Tags(frozenset):
+class Tags(fzs):
     def __repr__(self):
         return f"Tags({super().__repr__()})"
     

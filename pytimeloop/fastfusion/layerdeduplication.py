@@ -2,6 +2,7 @@ from collections import defaultdict
 from itertools import permutations, product
 
 from pytimeloop.looptree.mapping_utilities import get_intermediate_tensors
+from pytimeloop.fastfusion.util import fzs
 
 
 def group_similar_einsums(workload, analyzer):
@@ -43,7 +44,7 @@ def is_equivalent(einsum_id1, einsum_id2, workload, analyzer):
             if tensor in intermediate_tensors:
                 tensor_properties[tensor].add('intermediate')
         tensor_properties = {
-            tensor: frozenset(properties)
+            tensor: fzs(properties)
             for tensor, properties in tensor_properties.items()
         }
         all_tensor_properties.append(tensor_properties)

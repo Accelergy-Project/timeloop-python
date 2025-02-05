@@ -5,12 +5,12 @@ from pytimeloop.fastfusion.sim import TensorStorage, Tiling
 # def is_even(tiling, tensor_to_relevant_ranks):
 #     storage2level = defaultdict(set)
 #     for ts in tiling.tensors:
-#         if ts.backer_id != 1:
+#         if ts.storage_name != 1:
 #             continue
 #         loop_index = ts.above_loop_index
-#         while loop_index < len(tiling.loops) - 1 and tiling.loops[loop_index + 1].rank_id not in tensor_to_relevant_ranks[ts.tensor_id]:
+#         while loop_index < len(tiling.loops) - 1 and tiling.loops[loop_index + 1].rank_name not in tensor_to_relevant_ranks[ts.tensor_name]:
 #             loop_index += 1
-#         storage2level[ts.backer_id].add(loop_index)
+#         storage2level[ts.storage_name].add(loop_index)
 #     if all(len(s) == 1 for s in storage2level.values()):
 #         return True
 #     return False
@@ -22,17 +22,17 @@ def is_even(tiling: Tiling, tensor_to_relevant_ranks):
     # nodes for even exploration is nominally placed without LRP.
     storage2highestidx = defaultdict(lambda: 0)
     for ts in tiling.tensors:
-        storage2highestidx[ts.backer_id] = max(
-            storage2highestidx[ts.backer_id], ts.above_loop_index
+        storage2highestidx[ts.storage_name] = max(
+            storage2highestidx[ts.storage_name], ts.above_loop_index
         )
 
     for ts in tiling.tensors:
-        highest_idx = storage2highestidx[ts.backer_id]
+        highest_idx = storage2highestidx[ts.storage_name]
         lowest_idx = ts.above_loop_index
         # If any relevant rank separates a tensor's storage node from the
         # "canonical" even storage node, then the tiling is uneven
         if any(
-            l.rank_id in tensor_to_relevant_ranks[ts.tensor_id]
+            l.rank_name in tensor_to_relevant_ranks[ts.tensor_name]
             for l in tiling.loops[lowest_idx:highest_idx]
         ):
             return False
@@ -42,7 +42,7 @@ def is_even(tiling: Tiling, tensor_to_relevant_ranks):
 def is_very_even(storages: set[TensorStorage]):
     storage2level = defaultdict(set)
     for ts in storages:
-        storage2level[ts.backer_id].add(ts.above_loop_index)
+        storage2level[ts.storage_name].add(ts.above_loop_index)
     return all(len(s) == 1 for s in storage2level.values())
 
 
@@ -78,14 +78,14 @@ def get_ffmt_tag_mha(
     max_non_weight_index = 0
     first, last = True, True
     for t in tiling.tensors:
-        if t.backer_id != 1:
+        if t.storage_name != 1:
             continue
-        if t.tensor_id in input_tensors and t in backing_storages:
+        if t.tensor_name in input_tensors and t in backing_storages:
             first = False
-        if t.tensor_id in output_tensors and t in backing_storages:
+        if t.tensor_name in output_tensors and t in backing_storages:
             last = False
-        # if "W_n_to_" in t.tensor_id:
-        if t.tensor_id != a and t.tensor_id != b:  # Weights!
+        # if "W_n_to_" in t.tensor_name:
+        if t.tensor_name != a and t.tensor_name != b:  # Weights!
             if min_weight_index is None:
                 min_weight_index = t.above_loop_index
             else:
@@ -103,7 +103,7 @@ def get_ffmt_tag_mha(
         "Z": [B, H, M, G],
     }[einsum_id]
 
-    valid = False
+    valid, fused, weights_valid = False, False, False
     if first and last:  # Unfused
         to_try = []
         valid = True
@@ -160,7 +160,7 @@ def get_tileflow_tag_mha(
     tensor_to_relevant_ranks,
 ):
     
-    is_fused = any(t.backer_id != 0 for t in backing_storages)
+    is_fused = any(t.storage_name != 0 for t in backing_storages)
     a, b = TensorStorage('Fmap2', 1, 1, "*"), TensorStorage('Fmap3', 1, 1, "*"),
     # if  tiling.has_tensor(a, b):
     #     print("AHHAAHHAH")
@@ -171,11 +171,11 @@ def get_tileflow_tag_mha(
     n_fused_loops = max(t.above_loop_index for t in backing_storages)
     
     loops_above_backing_storages = max([0] + [
-        t.above_loop_index for t in backing_storages if t.backer_id != 0
+        t.above_loop_index for t in backing_storages if t.storage_name != 0
     ]
         
     )
-    shared_loops = ",".join(l.rank_id for l in tiling.loops[:loops_above_backing_storages])
+    shared_loops = ",".join(l.rank_name for l in tiling.loops[:loops_above_backing_storages])
     if not is_fused:
         return ("TILEFLOW_VALID",)
     
@@ -183,17 +183,17 @@ def get_tileflow_tag_mha(
 
     # fused_ranks = set().intersection(
     #     *(
-    #         tensor_to_relevant_ranks[t.tensor_id]
+    #         tensor_to_relevant_ranks[t.tensor_name]
     #         for t in backing_storages
-    #         if t.backer_id == 1
+    #         if t.storage_name == 1
     #     )
     # )
     # for i in range(max(t.above_loop_index for t in backing_storages)):
-    #     if tiling.loops[i].rank_id not in fused_ranks:
+    #     if tiling.loops[i].rank_name not in fused_ranks:
     #         return ("TILEFLOW_INVALID",)
 
     # output_ranks = set().union(*(tensor_to_relevant_ranks[t] for t in output_tensors))
     # for i in range(max(t.above_loop_index for t in backing_storages)):
-    #     if tiling.loops[i].rank_id not in output_ranks:
+    #     if tiling.loops[i].rank_name not in output_ranks:
     #         return ("TILEFLOW_INVALID",)
     # return ("TILEFLOW_VALID",)

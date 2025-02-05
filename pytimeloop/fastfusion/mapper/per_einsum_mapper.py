@@ -63,14 +63,14 @@ def mapper_place_fusion_level(
 
     einsum_name = einsum_id_to_name[einsum_id]
     mac_parallel_rank_name = einsum_name_to_parallel_rank_name[einsum_name]
-    mac_parallel_rank_id = rank_name_to_id[mac_parallel_rank_name]
+    mac_parallel_rank_name = rank_name_to_id[mac_parallel_rank_name]
     mac_reduced_rank_name = einsum_name_to_reduced_rank_name[einsum_name]
-    mac_reduced_rank_id = rank_name_to_id[mac_reduced_rank_name]
+    mac_reduced_rank_name = rank_name_to_id[mac_reduced_rank_name]
 
     weight_tensor_name = mac_array_constraint.weight_tensor[einsum_name]
-    weight_tensor_id = tensor_name_to_id[weight_tensor_name]
-    weight_ranks = analyzer.einsum_dims_relevant_to_tensor(einsum_id, weight_tensor_id)
-    other_weight_ranks = weight_ranks - {mac_parallel_rank_id, mac_reduced_rank_id}
+    weight_tensor_name = tensor_name_to_id[weight_tensor_name]
+    weight_ranks = analyzer.einsum_dims_relevant_to_tensor(einsum_id, weight_tensor_name)
+    other_weight_ranks = weight_ranks - {mac_parallel_rank_name, mac_reduced_rank_name}
     all_ranks = workload.einsum_ospace_dimensions(einsum_id)
     non_weight_ranks = set(all_ranks) - weight_ranks
 
@@ -80,7 +80,7 @@ def mapper_place_fusion_level(
     }
 
     einsum_shape = {
-        rank_id: workload.get_rank_shape(rank_id)[1] + 1 for rank_id in all_ranks
+        rank_name: workload.get_rank_shape(rank_name)[1] + 1 for rank_name in all_ranks
     }
     count = 0
 
@@ -120,9 +120,9 @@ def mapper_place_fusion_level(
             for partial_mapping in make_mac_level_loops(
                 partial_mapping,
                 einsum_id,
-                mac_parallel_rank_id,
+                mac_parallel_rank_name,
                 mac_parallel_shape,
-                mac_reduced_rank_id,
+                mac_reduced_rank_name,
                 mac_reduced_shape,
                 non_weight_ranks,
                 other_weight_ranks,
@@ -161,8 +161,8 @@ def mapper_place_fusion_level(
                         einsum_shape=einsum_shape,
                         metrics=metrics,
                         einsum_id_to_name=einsum_id_to_name,
-                        rank_id_to_name={v: k for k, v in rank_name_to_id.items()},
-                        tensor_id_to_name={v: k for k, v in tensor_name_to_id.items()},
+                        rank_name_to_name={v: k for k, v in rank_name_to_id.items()},
+                        tensor_name_to_name={v: k for k, v in tensor_name_to_id.items()},
                     )
                     if count % 1e4 == 0:
                         print(f"Einsum {einsum_id} #{count}, fulltiling: {fulltiling}")
