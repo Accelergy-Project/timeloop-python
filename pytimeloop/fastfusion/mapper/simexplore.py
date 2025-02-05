@@ -7,9 +7,9 @@ import time
 import pandas as pd
 from joblib import delayed
 
-from pytimeloop.fastfusion.sim import SIM
+from pytimeloop.fastfusion.sim import SIM, Loop, Tiling
 from pytimeloop.fastfusion.pareto import Pareto
-from pytimeloop.fastfusion.util import parallel, debugger_active
+from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
 
 def explore_fusion(
@@ -196,9 +196,6 @@ def fuse_sims(
         right = SIM.combine_combineable(right, live_tensors | left_tensors)
         print_time(f"Combining")
 
-        # left = parallel([delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left], pbar="Left consolidate")
-        # right = parallel([delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right], pbar="Right consolidate")
-
         # Group left and right into buckets
         right = SIM.group_right(right, left_tensors, drop_tags=True)
         left = SIM.group_left(left, right_tensors, drop_tags=True)
@@ -210,20 +207,22 @@ def fuse_sims(
                     if t not in live_tensors:
                         del s.tensors[t]
 
+        def get_possible_translations(t: Tiling):
+            def translate_loop(l: Loop):
+                compatible_ranks = set().intersection(fused_loop_compatibilities[n] for n in l.rank_names)
+                for n in compatible_ranks:
+                    yield Loop(fzs(n,)), (l.bound, l.is_spatial)
+            for loops in itertools.product(*map(translate_loop, t.loops)):
+                yield Tiling(loops, t.tensors, t.tags)
+
         DO_PRINT = False
         DELAY_MERGE = not debugger_active()
 
-        # for k in left:
-        #     print(f'L: {k}')
-        #     for a in left[k]:
-        #         print(f'\t{a.tiling}')
-        # for k in right:
-        #     print(f'R: {k}')
-        #     for a in right[k]:
-        #         print(f'\t{a.tiling}')
-
         combined: list[SIM] = []
         for k in left:
+            # for k_translated in get_possible_translations(left):
+            #     pass
+            
             if k in right:
                 for a, b in itertools.product(left[k], right[k]):
                     a: SIM
@@ -240,29 +239,6 @@ def fuse_sims(
                 for a in left[k]:
                     print(f"\tNo match for {a.tiling}")
 
-        # if all(c.tags for c in combined):
-        #     a = SIM.combine_combineable(left_prev, live_tensors | right_tensors)
-        #     b = SIM.combine_combineable(right_prev, live_tensors | left_tensors)
-        #     a = SIM.group_left(a, right_tensors, drop_tags=True)
-        #     b = SIM.group_right(b, left_tensors, drop_tags=True)
-        #     print(f'No valid combinations found.')
-        #     for k in left:
-        #         print(f'Left: {k}')
-        #         for a in left[k]:
-        #             print(f'\t{a.tiling}')
-        #         if k in right:
-        #             for a, b in itertools.product(left[k], right[k]):
-        #                 a: SIM
-        #                 b: SIM
-        #                 if a.tiling.tags.are_compatible_with(b.tiling.tags):
-        #                     combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
-        #                     combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
-        #                     if DO_PRINT:
-        #                         s = f"\t{a.tiling} <--> {b.tiling}"
-        #                         s += f" --> {combined[-1].tiling}"
-        #                         s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
-        #                         print(s)
-
         print_time("Bucket merging")
         
         if DELAY_MERGE:
@@ -273,11 +249,11 @@ def fuse_sims(
         print_time("Mapping merging")
 
         print(f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}")
-        # if DO_PRINT:
-        #     for k in right:
-        #         if k not in left:
-        #             for b in right[k]:
-        #                 print(f"\tREVERSE: No match for {b.tiling}")
+        if DO_PRINT:
+            for k in right:
+                if k not in left:
+                    for b in right[k]:
+                        print(f"\tREVERSE: No match for {b.tiling}")
 
         left = combined
         left_einsum = right_einsum

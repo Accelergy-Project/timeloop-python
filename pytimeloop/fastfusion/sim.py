@@ -53,11 +53,6 @@ class Loop:
     def __hash__(self):
         return hash((self.rank_name, self.bound, self.is_spatial))
 
-    def subtiles(self, other: "Loop") -> bool:
-        if self.rank_name != other.rank_name:
-            return False
-        return other.bound % self.bound == 0
-
     def __repr__(self):
         # return ("S-" if self.is_spatial else "") + f"{self.rank_name}-{self.bound}"
         return f"Loop({self.rank_name.__repr__()}, {self.bound}, {self.is_spatial})"
