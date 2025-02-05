@@ -240,7 +240,8 @@ namespace pytimeloop::looptree_bindings
         .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dim_is_relevant_to_tensor, EinsumDimIsRelevantToTensor)
         .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dims_directly_relevant_to_tensor, EinsumDimsDirectlyRelevantToTensor)
         .FUSED_WORKLOAD_ANALYZER_METHOD(einsum_dims_relevant_to_tensor, EinsumDimsRelevantToTensor)
-        .FUSED_WORKLOAD_ANALYZER_METHOD(equivalent_dimensions, EquivalentDimensions);
+        .FUSED_WORKLOAD_ANALYZER_METHOD(equivalent_dimensions, EquivalentDimensions)
+        .FUSED_WORKLOAD_ANALYZER_METHOD(pairwise_equivalent_dimensions, PairwiseEquivalentDimensions);
   }
 }
 

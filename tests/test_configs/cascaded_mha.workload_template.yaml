@@ -20,47 +20,47 @@ problem:
       0 <= EQ < {E} and
       0 <= DQ < {D}
 
-  # - shape:
-  #     name: K
-  #     dimensions: [ BK, MK, HK, EK, DK ]
-  #     data_spaces:
-  #     - name: I
-  #       dimensions: [ I_B, I_M, I_D ]
-  #       projection: '[ BK, MK, DK ]'
-  #     - name: WK
-  #       dimensions: [ WK_H, WK_E, WK_D ]
-  #       projection: '[ HK, EK, DK ]'
-  #     - name: K
-  #       dimensions: [ K_B, K_M, K_H, K_E ]
-  #       projection: '[ BK, MK, HK, EK ]'
-  #       read_write: True
-  #   instance: >-
-  #     0 <= BK < {B} and
-  #     0 <= MK < {M} and
-  #     0 <= HK < {H} and
-  #     0 <= EK < {E} and
-  #     0 <= DK < {D}
+  - shape:
+      name: K
+      dimensions: [ BK, MK, HK, EK, DK ]
+      data_spaces:
+      - name: I
+        dimensions: [ I_B, I_M, I_D ]
+        projection: '[ BK, MK, DK ]'
+      - name: WK
+        dimensions: [ WK_H, WK_E, WK_D ]
+        projection: '[ HK, EK, DK ]'
+      - name: K
+        dimensions: [ K_B, K_M, K_H, K_E ]
+        projection: '[ BK, MK, HK, EK ]'
+        read_write: True
+    instance: >-
+      0 <= BK < {B} and
+      0 <= MK < {M} and
+      0 <= HK < {H} and
+      0 <= EK < {E} and
+      0 <= DK < {D}
 
-  # - shape:
-  #     name: V
-  #     dimensions: [ BV, MV, HV, EV, DV ]
-  #     data_spaces:
-  #     - name: I
-  #       dimensions: [ I_B, I_M, I_D ]
-  #       projection: '[ BV, MV, DV ]'
-  #     - name: WV
-  #       dimensions: [ WV_H, WV_E, WV_D ]
-  #       projection: '[ HV, EV, DV ]'
-  #     - name: V
-  #       dimensions: [ V_B, V_M, V_H, V_E ]
-  #       projection: '[ BV, MV, HV, EV ]'
-  #       read_write: True
-  #   instance: >-
-  #     0 <= BV < {B} and
-  #     0 <= MV < {M} and
-  #     0 <= HV < {H} and
-  #     0 <= EV < {E} and
-  #     0 <= DV < {D}
+  - shape:
+      name: V
+      dimensions: [ BV, MV, HV, EV, DV ]
+      data_spaces:
+      - name: I
+        dimensions: [ I_B, I_M, I_D ]
+        projection: '[ BV, MV, DV ]'
+      - name: WV
+        dimensions: [ WV_H, WV_E, WV_D ]
+        projection: '[ HV, EV, DV ]'
+      - name: V
+        dimensions: [ V_B, V_M, V_H, V_E ]
+        projection: '[ BV, MV, HV, EV ]'
+        read_write: True
+    instance: >-
+      0 <= BV < {B} and
+      0 <= MV < {M} and
+      0 <= HV < {H} and
+      0 <= EV < {E} and
+      0 <= DV < {D}
 
   - shape:
       name: QK
