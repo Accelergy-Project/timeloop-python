@@ -7,6 +7,8 @@ import time
 import pandas as pd
 from joblib import delayed
 
+from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
+
 from pytimeloop.fastfusion.sim import SIM, Loop, Tiling
 from pytimeloop.fastfusion.pareto import Pareto
 from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
@@ -14,11 +16,15 @@ from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
 def explore_fusion(
     einsum_to_result: Mapping,
+    equivalent_ranks: PairwiseEquivalentRanks,
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
 ):
     return fuse_sims(
-        mapping2sims(einsum_to_result), resource2capacity, return_nmappings_nbuckets
+        mapping2sims(einsum_to_result),
+        equivalent_ranks,
+        resource2capacity,
+        return_nmappings_nbuckets
     )
 
 
@@ -86,6 +92,7 @@ def consolidate(
 
 def fuse_sims(
     sims: dict[str, list[SIM]],
+    pairwise_equivalent_ranks: PairwiseEquivalentRanks,
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
 ):
@@ -209,7 +216,7 @@ def fuse_sims(
 
         def get_possible_translations(t: Tiling):
             def translate_loop(l: Loop):
-                compatible_ranks = set().intersection(fused_loop_compatibilities[n] for n in l.rank_names)
+                compatible_ranks = set().intersection(pairwise_equivalent_ranks[n] for n in l.rank_names)
                 for n in compatible_ranks:
                     yield Loop(fzs(n,)), (l.bound, l.is_spatial)
             for loops in itertools.product(*map(translate_loop, t.loops)):
@@ -220,24 +227,22 @@ def fuse_sims(
 
         combined: list[SIM] = []
         for k in left:
-            # for k_translated in get_possible_translations(left):
-            #     pass
-            
-            if k in right:
-                for a, b in itertools.product(left[k], right[k]):
-                    a: SIM
-                    b: SIM
-                    if a.tiling.tags.are_compatible_with(b.tiling.tags):
-                        combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
-                        combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
-                        if DO_PRINT:
-                            s = f"\t{a.tiling} <--> {b.tiling}"
-                            s += f" --> {combined[-1].tiling}"
-                            s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
-                            print(s)
-            elif DO_PRINT:
-                for a in left[k]:
-                    print(f"\tNo match for {a.tiling}")
+            for k_translated in get_possible_translations(left):
+                if k in right:
+                    for a, b in itertools.product(left[k], right[k]):
+                        a: SIM
+                        b: SIM
+                        if a.tiling.tags.are_compatible_with(b.tiling.tags):
+                            combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
+                            combined[-1]._predicted_mappings = len(a.mapping.data) * len(b.mapping.data)
+                            if DO_PRINT:
+                                s = f"\t{a.tiling} <--> {b.tiling}"
+                                s += f" --> {combined[-1].tiling}"
+                                s += f"({len(a.mapping.data)})x({len(b.mapping.data)})"
+                                print(s)
+                elif DO_PRINT:
+                    for a in left[k]:
+                        print(f"\tNo match for {a.tiling}")
 
         print_time("Bucket merging")
         

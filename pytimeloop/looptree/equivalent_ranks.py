@@ -28,3 +28,11 @@ class EquivalentGroups:
                         groups.rank_to_group_id[r] = group_id
 
         return groups
+
+
+class PairwiseEquivalentRanks:
+    def __init__(self, workload: LooptreeWorkload):
+        self.analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+
+    def __getitem__(self, rank):
+        return self.analyzer.pairwise_equivalent_dimensions(rank)
