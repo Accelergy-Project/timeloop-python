@@ -13,9 +13,9 @@ PYDOT_NODE_DEFAULTS = {
 }
 
 class Node:
-    def __init__(self):
-        self.this_level = []
-        self.children = []
+    def __init__(self, this_level: Iterable[Any] = (), children: Iterable["Node"] = ()):
+        self.this_level = list(this_level)
+        self.children = list(children)
 
     def access_level(self, index: int) -> "Node":
         if index == -1:
@@ -79,15 +79,26 @@ class Node:
     
     def get_backing_stores(self):
         return TensorStorage.get_backing_stores(self.get_all_storages())
+    
+    def merge(self, other: "Node") -> "Node":
+        new_this_level = self.this_level + other.this_level
+        loops = [l for l in new_this_level if isinstance(l, Loop)]
+        assert len(loops) == 2
+        new_loop = loops[0].merge_next(loops[1])
+        new_this_level.remove(loops[0])
+        new_this_level.remove(loops[1])
+        new_this_level.append(new_loop)
+        return Node(new_this_level, self.children + other.children)
+    
+    def get_shared_tensors(self, other: "Node") -> set[TensorStorage]:
+        return set(self.get_all_storages()) & set(other.get_all_storages())
 
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = (), shared_loop_index: int = -1):
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = ()):
     prev_tilings = []
     root = Node()
     einsum_ids = list(mappings.keys())
     if stats is not None:
         assert set(einsum_ids) == set(stats.keys())
-    
-    
 
     # If a tensor appears in non-back-to-back Einsums, then we need to store it for
     # all Einsums in between
@@ -105,7 +116,6 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     
     # Add each Einsum to the tree
     for i, einsum_id in enumerate(einsum_ids):
-        skip_backing_tensors = () #if i < len(einsum_ids) - 1 else skip_backing_tensors_in_right_branch
         tiling = mappings[einsum_id]
         if not prev_tilings:
             index = -1
@@ -126,8 +136,6 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
             id2tensor[t.tensor_name].add(t)
         id2tensor = {k: sorted(v) for k, v in id2tensor.items()}
         for tensor_name, storages in id2tensor.items():
-            if tensor_name in skip_backing_tensors:
-                storages = storages[1:]
             for tensor in storages:
                 n = root.access_level(tensor.above_loop_index)
                 # TODO if tensor not in n.this_level or tensor not in backers:
@@ -138,6 +146,34 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
         # for k, v in partial_stats[einsum_id].items():
         #     last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
         prev_tilings.append(tiling)
+        
+    # Start at the root. Iterate through each leaf. Recursively:
+    # - If two leaves have the same tensor and this tensor is a backing tensor,
+    #   merge the two leaves. Remove the duplicate tensor from the right leaf.
+    def merge_nodes(n: Node):
+        i = 0
+        children = n.children
+        while i < len(children) - 1:
+            for j in range(len(children) - 1, i, -1):
+                shared_tensors = children[i].get_shared_tensors(children[j])
+                if shared_tensors & set(backers):
+                    while j != i:
+                        children[i] = children[i].merge(children.pop(i + 1))
+                        j -= 1
+                    break
+            this_level = children[i].this_level
+            for t0 in range(len(this_level)):
+                for t1 in range(len(this_level) - 1, t0, -1):
+                    if this_level[t0] == this_level[t1] and this_level[t0] in backers:
+                        this_level.pop(t1)
+            i += 1
+
+        for c in children:
+            merge_nodes(c)
+            
+        n.children = children
+            
+    merge_nodes(root)
 
     n = root
     skip_backing_tensors_in_right_branch= set(skip_backing_tensors_in_right_branch)

@@ -120,10 +120,13 @@ def mapper(
     
     equiv_ranks = PairwiseEquivalentRanks(workload)
     equiv_ranks_dict = defaultdict(set)
-    for einsum_id in workload.einsum_id_to_name():
-        for rank_id in workload.einsum_ospace_dimensions(einsum_id):
-            rank_name = dimension_id_to_name[rank_id]
+    rank_ids = set().union(*(set(workload.einsum_ospace_dimensions(einsum_id)) for einsum_id in workload.einsum_id_to_name()))
+    for rank_id in rank_ids:
+        rank_name = dimension_id_to_name[rank_id]
+        try:
             equiv_ranks_dict[rank_name] = set(dimension_id_to_name[x] for x in equiv_ranks[rank_id])
+        except IndexError:
+            equiv_ranks_dict[rank_name] = set()
     return data, equiv_ranks_dict
 
 
