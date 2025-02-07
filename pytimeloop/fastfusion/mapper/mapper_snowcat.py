@@ -11,7 +11,7 @@ yaml = YAML(typ="safe")
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
-from pytimeloop.looptree.equivalent_ranks import EquivalentGroups
+from pytimeloop.looptree.equivalent_ranks import EquivalentGroups, PairwiseEquivalentRanks
 
 from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.layerdeduplication import is_equivalent
@@ -117,8 +117,14 @@ def mapper(
     # data has to come out in sorted Einsum-id order
     data = {k: v for k, v in sorted(data.items(), key=lambda item: item[0])}
     data = {einsum_id_to_name[k]: v for k, v in data.items()}
-
-    return data
+    
+    equiv_ranks = PairwiseEquivalentRanks(workload)
+    equiv_ranks_dict = defaultdict(set)
+    for einsum_id in workload.einsum_id_to_name():
+        for rank_id in workload.einsum_ospace_dimensions(einsum_id):
+            rank_name = dimension_id_to_name[rank_id]
+            equiv_ranks_dict[rank_name] = set(dimension_id_to_name[x] for x in equiv_ranks[rank_id])
+    return data, equiv_ranks_dict
 
 
 def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):

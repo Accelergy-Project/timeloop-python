@@ -38,32 +38,32 @@ class Loop:
         if not isinstance(other, Loop):
             return False
         return (
-            self.rank_name == other.rank_name
+            self.rank_names == other.rank_names
             and self.bound == other.bound
             and self.is_spatial == other.is_spatial
         )
 
     def __lt__(self, other):
         return (
-            self.rank_name < other.rank_name
+            self.rank_names < other.rank_names
             or self.bound < other.bound
             or self.is_spatial < other.is_spatial
         )
 
     def __hash__(self):
-        return hash((self.rank_name, self.bound, self.is_spatial))
+        return hash((self.rank_names, self.bound, self.is_spatial))
 
     def __repr__(self):
         # return ("S-" if self.is_spatial else "") + f"{self.rank_name}-{self.bound}"
-        return f"Loop({self.rank_name.__repr__()}, {self.bound}, {self.is_spatial})"
+        return f"Loop({self.rank_names.__repr__()}, {self.bound}, {self.is_spatial})"
 
     def __str__(self):
-        return ("S-" if self.is_spatial else "") + f"{self.rank_name}-{self.bound}"
+        return ("S-" if self.is_spatial else "") + f"{self.rank_names}-{self.bound}"
 
     def pydot_str(self):
         if self.is_spatial:
-            return f"S-for R{self.rank_name} size {expfmt(self.bound)}"
-        return f"for {self.rank_name} size {expfmt(self.bound)}"
+            return f"S-for R{self.rank_names} size {expfmt(self.bound)}"
+        return f"for {self.rank_names} size {expfmt(self.bound)}"
 
     def rename(
         self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]
@@ -229,7 +229,7 @@ class Tiling:
         additional_loops = n.loops[len(merged_loops):shared_loop_index + 1]
         
         return Tiling(
-            additional_loops,
+            tuple(merged_loops + list(additional_loops))[:shared_loop_index + 1],
             tensors,
             n.tags
         )
@@ -281,6 +281,7 @@ class SIM:
         self.tensors: dict[str, TensorStorage] = {
             t.tensor_name: t for t in self.tiling.tensors
         }
+        self.n_pre_prune_mappings = 0
 
     def tiling_str(self):
         tiling = ",".join(str(l) for l in self.tiling.loops)
@@ -312,6 +313,7 @@ class SIM:
         ), f"{self.tiling} {n.tiling} {next_shared_loop_index + 1} -> {tiling} {len(tiling.loops)}"
         s.tensors.update(n.tensors)
         s.tensors.update(self.tensors)
+        s.n_pre_prune_mappings = len(self.mapping.data) * len(n.mapping.data)
         return s
 
     def get_shared_loop_index(self, live_tensors: set[str]) -> int:

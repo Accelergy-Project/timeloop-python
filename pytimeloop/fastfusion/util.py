@@ -15,6 +15,30 @@ class fzs(frozenset):
     
     def __str__(self):
         return self.__repr__()
+    
+    def __or__(self, other):
+        return fzs(super().__or__(other))
+    
+    def __and__(self, other):
+        return fzs(super().__and__(other))
+    
+    def __sub__(self, other):
+        return fzs(super().__sub__(other))
+    
+    def __xor__(self, other):
+        return fzs(super().__xor__(other))
+    
+    def __lt__(self, other):
+        return sorted(self) < sorted(other)
+    
+    def __le__(self, other):
+        return sorted(self) <= sorted(other)
+    
+    def __gt__(self, other):
+        return sorted(self) > sorted(other)
+    
+    def __ge__(self, other):
+        return sorted(self) >= sorted(other)
 
 def debugger_active():
     return sys.gettrace() is not None
