@@ -71,10 +71,13 @@ class Node:
                 reservations[t.storage_name] += t.tile_size
         return reservations
     
-    def get_all_storages(self, _entry: bool = True) -> list[TensorStorage]:
-        storages = set(t for t in self.this_level if isinstance(t, TensorStorage))
+    def get_all_storages(self, _entry: bool = True, start_at: int = 0) -> list[TensorStorage]:
+        if start_at <= 0:
+            storages = set(t for t in self.this_level if isinstance(t, TensorStorage))
+        else:
+            storages = set()
         for c in self.children:
-            storages.update(c.get_all_storages(_entry=False))
+            storages.update(c.get_all_storages(_entry=False, start_at=start_at - 1))
         return sorted(storages) if _entry else storages
     
     def get_backing_stores(self):
@@ -83,15 +86,16 @@ class Node:
     def merge(self, other: "Node") -> "Node":
         new_this_level = self.this_level + other.this_level
         loops = [l for l in new_this_level if isinstance(l, Loop)]
-        assert len(loops) == 2
-        new_loop = loops[0].merge_next(loops[1])
-        new_this_level.remove(loops[0])
-        new_this_level.remove(loops[1])
-        new_this_level.append(new_loop)
+        new_this_level = [t for t in new_this_level if not isinstance(t, Loop)]
+        assert len(loops) <= 2, "Can only merge two nodes with two loops. Loops: " + str(loops)
+        assert len(loops) > 0, "Can only merge two nodes with loops. Loops: " + str(loops)
+        while len(loops) > 1:
+            loops[0] = loops[0].merge_next(loops.pop(1))
+        new_this_level.append(loops[0])
         return Node(new_this_level, self.children + other.children)
     
-    def get_shared_tensors(self, other: "Node") -> set[TensorStorage]:
-        return set(self.get_all_storages()) & set(other.get_all_storages())
+    def get_shared_tensors(self, other: "Node", start_at: int=0) -> set[TensorStorage]:
+        return set(self.get_all_storages(start_at=start_at)) & set(other.get_all_storages(start_at=start_at))
 
 def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = ()):
     prev_tilings = []
@@ -117,10 +121,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     # Add each Einsum to the tree
     for i, einsum_id in enumerate(einsum_ids):
         tiling = mappings[einsum_id]
-        if not prev_tilings:
-            index = -1
-        else:
-            index = max(p.shared_loop_index(tiling.tensor_names) for p in prev_tilings)
+        index = -1
         n = root.access_level(index)
         loops = tiling.loops[index:] if index != -1 else tiling.loops
         for l in loops:
@@ -150,26 +151,30 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     # Start at the root. Iterate through each leaf. Recursively:
     # - If two leaves have the same tensor and this tensor is a backing tensor,
     #   merge the two leaves. Remove the duplicate tensor from the right leaf.
-    def merge_nodes(n: Node):
+    def merge_nodes(n: Node, level: int = 0):
         i = 0
         children = n.children
+        for c in children:
+            merge_nodes(c, level + 1)
+
         while i < len(children) - 1:
             for j in range(len(children) - 1, i, -1):
-                shared_tensors = children[i].get_shared_tensors(children[j])
+                shared_tensors = children[i].get_shared_tensors(children[j], start_at=1)
                 if shared_tensors & set(backers):
                     while j != i:
+                        # print(f'Level {level} merging {shared_tensors} between {i} and {j}')
                         children[i] = children[i].merge(children.pop(i + 1))
                         j -= 1
                     break
+            else:
+                i += 1
+                
             this_level = children[i].this_level
             for t0 in range(len(this_level)):
                 for t1 in range(len(this_level) - 1, t0, -1):
                     if this_level[t0] == this_level[t1] and this_level[t0] in backers:
                         this_level.pop(t1)
-            i += 1
 
-        for c in children:
-            merge_nodes(c)
             
         n.children = children
             
