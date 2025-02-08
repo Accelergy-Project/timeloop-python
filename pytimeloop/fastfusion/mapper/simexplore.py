@@ -95,6 +95,7 @@ def fuse_sims(
     pairwise_equivalent_ranks: PairwiseEquivalentRanks,
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
+    lookahead_filter: bool = True,
 ):
     nmappings = []
     nbuckets = []
@@ -103,21 +104,6 @@ def fuse_sims(
     
     for einsum_id, s in sims:
         print(f'SIM {einsum_id} tensors: {s[0].tensor_names}')
-
-    # TODO: Lookahead by one SIM. If we're going to create a tiling that has loops
-    # that are not in the ranks of the next SIM, we should drop that tiling.
-    # if pre_filter:
-    #     for i in range(len(sims) - 1):
-    #         left, right = sims[i], sims[i + 1]
-    #         left_live = set.union(set(), *[s[0].tensor_names for s in sims[:i + 1]])
-    #         right_live = set.union(set(), *[s[0].tensor_names for s in sims[i + 1:]])
-    #         left2, right2 = SIM.get_possibly_compatible(left, right, left_live, right_live)
-    #         if not left2 or not right2:
-    #             left2, right2 = SIM.get_possibly_compatible(left, right, left_live, right_live)
-    #         sims[i], sims[i + 1] = left2, right2
-    #         print(f'Filtered {len(left)} -> {len(left2)} SIMs from Einsum {i}')
-    #         print(f'Filtered {len(right)} -> {len(right2)} SIMs from Einsum {i + 1}')
-
     init_print_time()
     if len(sims) == 1:
         left = copy.deepcopy(sims[0][1])
@@ -130,81 +116,61 @@ def fuse_sims(
             shared_tensors=set(),
         )
 
+    class SIMHolder:
+        def __init__(self, einsum_id: str, sim_list: list[SIM]):
+            self.einsum_id: str = einsum_id
+            self.sims: list[SIM] = sim_list
+            self.tensor_names: set[str] = set(sim_list[0].tensor_names)
+            
+        def __getitem__(self, i):
+            return self.sims[i]
+            
+    sims = [SIMHolder(*s) for s in sims]
+    
+    # Right consolidate all SIMs
+    for i, sim_holder in enumerate(sims):
+        if i == 0:
+            continue
+        left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
+        right_tensors = set.union(set(), *[s.tensor_names for s in sims[i+1:]])
+        live_tensors = right_tensors
+        shared_tensors = left_tensors & sim_holder.tensor_names
+        sim_holder.sims = sorted(sim_holder.sims, key=lambda x: len(x.mapping.data), reverse=True)
+        sim_holder.sims = parallel(
+            [delayed(lambda x: x.consolidate(live_tensors, resource2capacity, shared_tensors))(x) for x in sim_holder.sims],
+            pbar=f"Right consolidate {sim_holder.einsum_id}"
+        )
+        sim_holder.sims = SIM.combine_combineable(sim_holder.sims, left_tensors | right_tensors)
+        if i > 0:
+            sim_holder.sims = SIM.group_right(sim_holder.sims, left_tensors, drop_tags=True)
+    print(f'Initial consolidate')
+    
     n_iterations = 1
     total_iterations = len(sims)
-    left_einsum, left = sims.pop(0)
+    left_holder = sims.pop(0)
+    left, left_einsum, left_tensors = left_holder.sims, left_holder.einsum_id, left_holder.tensor_names
     while sims:
         n_iterations += 1
         nbuckets.append(len(left))
         nmappings.append(sum(len(s.mapping.data) for s in left))
 
-        right_einsum, right = sims.pop(0)
+        right_holder = sims.pop(0)
+        right, right_einsum, right_tensors = right_holder.sims, right_holder.einsum_id, right_holder.tensor_names
         print(f'\nEinsum {right_einsum} ({n_iterations}/{total_iterations})')
         
-        live_tensors = set.union(set(), *[s[0].tensor_names for _, s in sims if s])
-        shared_tensors = set(left[0].tensor_names) & set(right[0].tensor_names)
+        live_tensors = set.union(set(), *[s.tensor_names for s in sims])
+        shared_tensors = set(left_tensors) & set(right_tensors)
 
-        right_tensors = right[0].tensor_names
-        left_tensors = left[0].tensor_names
-        
-        args = dict(
-            left=False,
-            live_tensors=live_tensors,
-            resource2capacity=resource2capacity,
-            shared_tensors=shared_tensors,
+        left = parallel(
+            [delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left],
+            pbar=f"Left consolidate {left_einsum}"
         )
-
-        left = sorted(left, key=lambda x: len(x.mapping.data), reverse=True)
-        right = sorted(right, key=lambda x: len(x.mapping.data), reverse=True)
-        lr = parallel(
-            [delayed(lambda l: l.left_consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in left] + 
-            [delayed(lambda l: l.consolidate(live_tensors, resource2capacity, shared_tensors))(l) for l in right],
-            pbar=f"Consolidating {left_einsum} <--> {right_einsum}",
-        )
-        left, right = lr[:len(left)], lr[len(left):]
         print_time(f"Consolidating")
         
-        # left = [t for t in left if not t.tiling.tags]
-            
-        # if not sims:
-        #     left2 = SIM.combine_combineable(left, live_tensors | right_tensors)
-        #     # left2 = left
-        #     print(f'Left length: {len(left)} -> {len(left2)}')
-        #     for l in left:
-        #         print(f'\t{l.tiling}')
-        #     for l2 in left2:
-        #         print(f'\t-> {l2.tiling}')
-        #     left = left2
-            
-        # if not sims:
-        #     right2 = [t for t in right if not t.tiling.tags]
-        #     for t in SIM.combine_combineable(right, live_tensors | left_tensors):
-        #         print(f'Right: {t.tiling}')
-        #     for t in SIM.combine_combineable(right2, live_tensors | left_tensors):
-        #         print(f'Right2: {t.tiling}')
-        #     right = SIM.combine_combineable(right, live_tensors | left_tensors)
-        #     right2 = SIM.combine_combineable(right2, live_tensors | left_tensors)
-        #     right_grouped = SIM.group_right(right, left_tensors, drop_tags=True)
-        #     right2_grouped = SIM.group_right(right2, left_tensors, drop_tags=True)
-        #     left2 = SIM.group_left(left, right_tensors, drop_tags=True)
-        #     from pytimeloop.fastfusion.sim import Tiling, TensorStorage, Tags, fzs
-        #     t = Tiling((), fzs((TensorStorage('Filter3', 0, 0, 16), TensorStorage('Fmap3', 0, 0, 4), TensorStorage('Fmap4', 0, 0, 16))), Tags(fzs()))
-        #     for k in left2:
-        #         if k in right_grouped and k not in right2_grouped:
-        #             print(f'Right {k} not in right2')
-        #         if k in right2_grouped and k not in right_grouped:
-        #             print(f'Right2 {k} not in right')
-        #         # if k in right_grouped and k in right2_grouped:
-        #         #     for a, b in itertools.product(left[k], right_grouped[k]):
-        #         #         if a.tiling != b.tiling:
-        #         #             print(f'Right {k} not equal
-                
         left = SIM.combine_combineable(left, live_tensors | right_tensors)
-        right = SIM.combine_combineable(right, live_tensors | left_tensors)
         print_time(f"Combining")
 
         # Group left and right into buckets
-        right = SIM.group_right(right, left_tensors, drop_tags=True)
         left = SIM.group_left(left, right_tensors, drop_tags=True)
         print_time("Grouping")
 
@@ -236,11 +202,7 @@ def fuse_sims(
                     b: SIM
                     if a.tiling.tags.are_compatible_with(b.tiling.tags):
                         found = True
-                        new = a.merge_next(b, live_tensors, delay=DELAY_MERGE)
-                        # This "if" check is only for speed. If we can't merge this with
-                        # anything later on, we don't need to add it to the list.
-                        if get_possible_translations(new.tiling) or not sims:
-                            combined.append(new)
+                        combined.append(a.merge_next(b, live_tensors, delay=DELAY_MERGE))
                         if DO_PRINT:
                             s = f"\t{a.tiling} <--> {b.tiling}"
                             s += f" --> {combined[-1].tiling}"
@@ -251,6 +213,20 @@ def fuse_sims(
                     print(f"\tNo match for {a.tiling}")
 
         print_time("Bucket merging")
+
+        # This check is only for speed. If we can't merge with
+        # anything later on, we don't need to add it to the list.
+        if sims and lookahead_filter:
+            prev_len = len(combined)
+            next_right_tensors = sims[0].tensor_names
+            combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
+            for k in list(combined):
+                if not any(kt in sims[0].sims for kt in get_possible_translations(k)):
+                    del combined[k]
+                    # print(f'\tNo match for {k}')
+            combined = list(itertools.chain.from_iterable(combined.values()))
+            print(f'Pruned {prev_len - len(combined)}/{prev_len} ({len(combined)/prev_len*100:.2f}% remaining)')
+            print_time("Removing mappings that can't be combined later.")
         
         if DELAY_MERGE:
             combined = sorted(combined, key=lambda x: x.n_pre_prune_mappings, reverse=True)
@@ -268,6 +244,7 @@ def fuse_sims(
 
         left = combined
         left_einsum = right_einsum
+        left_tensors |= right_tensors
         print(f"\tNumber of buckets for Einsum {left_einsum}: {len(left)}")
         n_mappings = sum(len(s.mapping.data) for s in left)
         print(f"\tNumber of mappings for Einsum {left_einsum}: {n_mappings}")
