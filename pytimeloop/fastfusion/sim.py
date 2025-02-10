@@ -331,7 +331,7 @@ class SIM:
         if changed:
             self.mapping.make_pareto()
 
-    def consolidate(
+    def _right_consolidate(
         self,
         live_tensors: set[str] = None,
         resource2capacity: dict[str, int] = None,
@@ -350,7 +350,7 @@ class SIM:
             self.free_squish(shared_loop_index + 1, resource2capacity)
         return self
 
-    def left_consolidate(
+    def _left_consolidate(
         self,
         live_tensors: set[str] = None,
         resource2capacity: dict[str, int] = None,
@@ -373,6 +373,30 @@ class SIM:
         for t in tensors_to_add:
             self.mapping.add_tensor(t)
         return self
+    
+    @staticmethod
+    def right_consolidate(
+        sims: list["SIM"],
+        live_tensors: set[str],
+        resource2capacity: dict[str, int] = None,
+        shared_tensors: set[str] = None,
+        pbar: str = None,
+    ) -> list["SIM"]:
+        def job(s):
+            return s._right_consolidate(live_tensors, resource2capacity, shared_tensors)
+        return parallel([delayed(job)(s) for s in sims], pbar=pbar)
+
+    @staticmethod
+    def left_consolidate(
+        sims: list["SIM"],
+        live_tensors: set[str],
+        resource2capacity: dict[str, int] = None,
+        shared_tensors: set[str] = None,
+        pbar: str = None,
+    ) -> list["SIM"]:
+        def job(s):
+            return s._left_consolidate(live_tensors, resource2capacity, shared_tensors)
+        return parallel([delayed(job)(s) for s in sims], pbar=pbar)
 
     def __eq__(self, other):
         return self.tiling == other.tiling and self.tensors == other.tensors
@@ -441,12 +465,21 @@ class SIM:
         self = SIM(self.tiling, self.mapping.filter_by_mapping_hashes(hashes))
         return self if len(self.mapping.data) > 0 else None
 
+    @staticmethod
     def group_left(sims: list["SIM"], live_tensors: set[str], drop_tags: bool=False) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors, keep_loops=True, drop_tags=drop_tags)
 
+    @staticmethod
     def group_right(sims: list["SIM"], live_tensors: set[str], drop_tags: bool=False) -> dict[tuple[Tiling, ...], list["SIM"]]:
         return SIM._group(sims, live_tensors, drop_tags=drop_tags)
     
+    @staticmethod
+    def remove_dead_tensors(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:
+        for s in sims:
+            for t in list(s.tensors):
+                if t not in live_tensors:
+                    del s.tensors[t]
+        
     def set_tags(self, *tags: Any) -> "SIM":
         self.tiling = self.tiling.set_tags(*tags)
 

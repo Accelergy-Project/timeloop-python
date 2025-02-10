@@ -127,7 +127,14 @@ def mapper(
             equiv_ranks_dict[rank_name] = set(dimension_id_to_name[x] for x in equiv_ranks[rank_id])
         except IndexError:
             equiv_ranks_dict[rank_name] = set()
-    return data, equiv_ranks_dict
+            
+    einsum2ranks = {}
+    for einsum_id in einsum_id_to_name:
+        einsum2ranks[einsum_id_to_name[einsum_id]] = set(
+            dimension_id_to_name[x] for x in workload.einsum_ospace_dimensions(einsum_id)
+        )
+            
+    return data, equiv_ranks_dict, einsum2ranks
 
 
 def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):

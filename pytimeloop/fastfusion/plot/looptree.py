@@ -97,7 +97,9 @@ class Node:
     def get_shared_tensors(self, other: "Node", start_at: int=0) -> set[TensorStorage]:
         return set(self.get_all_storages(start_at=start_at)) & set(other.get_all_storages(start_at=start_at))
 
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_backing_tensors_in_right_branch: Iterable[str] = (), still_live_tensors: set[str] = ()):
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], 
+                     skip_backing_tensors_in_right_branch: Iterable[str] = (), 
+                     still_live_tensors: set[str] = (), skip_merge: bool = False) -> Node:
     prev_tilings = []
     root = Node()
     einsum_ids = list(mappings.keys())
@@ -154,12 +156,12 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
     def merge_nodes(n: Node, level: int = 0):
         i = 0
         children = n.children
-        for c in children:
-            merge_nodes(c, level + 1)
-
         while i < len(children) - 1:
             for j in range(len(children) - 1, i, -1):
                 shared_tensors = children[i].get_shared_tensors(children[j], start_at=1)
+                shared_tensors |= set(
+                    c for c in children[i].get_all_storages(start_at=1) if c.tensor_name in still_live_tensors
+                )
                 if shared_tensors & set(backers):
                     while j != i:
                         # print(f'Level {level} merging {shared_tensors} between {i} and {j}')
@@ -175,10 +177,13 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], skip_ba
                     if this_level[t0] == this_level[t1] and this_level[t0] in backers:
                         this_level.pop(t1)
 
+        for c in children:
+            merge_nodes(c, level + 1)
             
         n.children = children
-            
-    merge_nodes(root)
+    
+    if not skip_merge:
+        merge_nodes(root)
 
     n = root
     skip_backing_tensors_in_right_branch= set(skip_backing_tensors_in_right_branch)
