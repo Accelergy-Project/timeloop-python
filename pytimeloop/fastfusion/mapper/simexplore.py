@@ -294,6 +294,7 @@ def fuse_sims(
             mappings = parallel(
                 [c.mapping for c in combined],
                 pbar=f"Merging mappings {left_einsum} <--> {right_einsum}",
+                return_as="generator",
             )
             for c, mapping in zip(combined, mappings):
                 c.mapping = mapping

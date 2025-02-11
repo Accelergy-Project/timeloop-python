@@ -53,8 +53,8 @@ def process_result(
     explore_fusion_uneven,
     einsum_shape,
     einsum_id_to_name,
-    rank_name_to_name,
-    tensor_name_to_name,
+    rank_id_to_name,
+    tensor_id_to_name,
     rank_name_to_shared_name,
     input_tensors: set[str],
     output_tensors: set[str],
@@ -62,6 +62,7 @@ def process_result(
     logfunc=None,
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
+    copy_einsums: set[str] = (),
 ):
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
@@ -90,7 +91,7 @@ def process_result(
     def record_storage(node):
         for dspace in node["dspace"]:
             storage = TensorStorage(
-                tensor_name_to_name[dspace],
+                tensor_id_to_name[dspace],
                 len(full_tiling),
                 node["target"],
                 int(result.occupancy[(node["target"], dspace)]),
@@ -113,10 +114,10 @@ def process_result(
             tile_shape = shape[cur_idx]
             cur_idx += 1
         # rank_name = equiv_groups.rank_to_group_id[node["rank"]]
-        # rank_name = rank_name_to_shared_name[rank_name_to_name[node["rank"]]]
-        rank_name = rank_name_to_name[node["rank"]]
+        # rank_name = rank_name_to_shared_name[rank_id_to_name[node["rank"]]]
+        rank_name = rank_id_to_name[node["rank"]]
         loop = Loop(
-            fzs((str(rank_name),)), #rank_name_to_name[rank_name],
+            fzs((str(rank_name),)), #rank_id_to_name[rank_name],
             tile_shape,
             node["type"] == "spatial",
         )
@@ -132,6 +133,29 @@ def process_result(
             record_storage(node)
         elif node["type"] == "spatial" or node["type"] == "temporal":
             record_loop(node)
+        
+    # If this Einsum is a copy op, consider only the movement from one backing
+    # storage to another.
+    copy_einsum = einsum_id in copy_einsums
+    if copy_einsum:
+        all_storages = backing_storages
+
+    # If this Einsum is a copy op and the source and destination locations are
+    # the same, then it is a null operation. Assume that the input tensors are
+    # the output tensors. We don't want to double count, so get rid of the input
+    # tensor occupancies. Note that we would like to keep the output tensor
+    # occupancies in case their reservatinos get propagated to later Einsums. 
+    null_copy_einsum = copy_einsum and len(set(t.storage_name for t in backing_storages)) == 1
+    if null_copy_einsum:
+        for i, r in enumerate(backing_storages):
+            if r.tensor_name in input_tensors:
+                backing_storages[i] = TensorStorage(
+                    tensor_name=r.tensor_name,
+                    above_loop_index=r.above_loop_index,
+                    storage_name=r.storage_name,
+                    tile_size=0,
+                )
+
 
     n_fused_loops = max(t.above_loop_index for t in backing_storages)
     tiling_full = Tiling(
@@ -142,8 +166,6 @@ def process_result(
     for i, l in enumerate(tiling_full.loops):
         for l2 in tiling_full.loops[i+1:]:
             if l.rank_name == l2.rank_name:
-                if l.bound < l2.bound:
-                    print("AHH")
                 assert l.bound >= l2.bound, f"{l} {l2}"
     
     tagger_args = dict(
@@ -190,14 +212,14 @@ def process_result(
 
     # Only record non-backing reservations. We'll reserve backing storage later
     # when we free the tensors & we know all operations for which the tensor must
-    # be backed
-    for r in all_storages:
-        r: TensorStorage
-        if r not in backing_storages:
-            key = nameloop2col(r.storage_name, min(r.above_loop_index, n_fused_loops))
-            results.setdefault(key, 0)
-            results[key] += r.tile_size
-        # logstring.append(f"{r}")
+    # be backed.
+    if not copy_einsum:
+        for r in all_storages:
+            r: TensorStorage
+            if r not in backing_storages:
+                key = nameloop2col(r.storage_name, min(r.above_loop_index, n_fused_loops))
+                results.setdefault(key, 0)
+                results[key] += r.tile_size
 
     if Metrics.LATENCY in metrics and Metrics.DEBUG in metrics:
         logstring.append(f"L={results['Latency']:.2e}")
@@ -218,6 +240,13 @@ def process_result(
         results[TENSORS] = {einsum_id: backing_storages}
 
     results[MAPPING] = {einsum_id: tiling_full}
+    
+    if einsum_id in copy_einsums:
+        if null_copy_einsum:
+            for k, v in list(results.items()):
+                results[k] = {} if k in DICT_COLUMNS else 0
+
+    
     key = (tiling_compatibility, fzs(results.keys()))
 
     is_pareto = True

@@ -37,8 +37,6 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, 
         backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
         for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")
-        for t in sorted(list(d.iloc[index][MAPPING].values())[-1].tensors):
-            print(f"{t.__repr__()},")
         for v in d.iloc[index][MAPPING].values():
             print(v)
     out2 = Output()
@@ -53,8 +51,6 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, 
         backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.tensors)
         backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
         for t in sorted(backing_tensors):
-            print(f"{t.__repr__()},")
-        for t in sorted(list(d.iloc[index][MAPPING].values())[-1].tensors):
             print(f"{t.__repr__()},")
         for v in d.iloc[index][MAPPING].values():
             print(v)
