@@ -1,0 +1,126 @@
+problem:
+  - shape:
+      name: Q
+      dimensions: [ BQ, MQ, HQ, EQ, DQ ]
+      data_spaces:
+      - name: I
+        dimensions: [ I_B, I_M, I_D ]
+        projection: '[ BQ, MQ, DQ ]'
+      - name: WQ
+        dimensions: [ WQ_H, WQ_E, WQ_D ]
+        projection: '[ HQ, EQ, DQ ]'
+      - name: Q
+        dimensions: [ Q_B, Q_M, Q_H, Q_E ]
+        projection: '[ BQ, MQ, HQ, EQ ]'
+        read_write: True
+    instance: >-
+      0 <= BQ < 2 and
+      0 <= MQ < 2 and
+      0 <= HQ < 2 and
+      0 <= EQ < 2 and
+      0 <= DQ < 2
+
+  - shape:
+      name: K
+      dimensions: [ BK, MK, HK, EK, DK ]
+      data_spaces:
+      - name: I
+        dimensions: [ I_B, I_M, I_D ]
+        projection: '[ BK, MK, DK ]'
+      - name: WK
+        dimensions: [ WK_H, WK_E, WK_D ]
+        projection: '[ HK, EK, DK ]'
+      - name: K
+        dimensions: [ K_B, K_M, K_H, K_E ]
+        projection: '[ BK, MK, HK, EK ]'
+        read_write: True
+    instance: >-
+      0 <= BK < 2 and
+      0 <= MK < 2 and
+      0 <= HK < 2 and
+      0 <= EK < 2 and
+      0 <= DK < 2
+
+  - shape:
+      name: V
+      dimensions: [ BV, MV, HV, EV, DV ]
+      data_spaces:
+      - name: I
+        dimensions: [ I_B, I_M, I_D ]
+        projection: '[ BV, MV, DV ]'
+      - name: WV
+        dimensions: [ WV_H, WV_E, WV_D ]
+        projection: '[ HV, EV, DV ]'
+      - name: V
+        dimensions: [ V_B, V_M, V_H, V_E ]
+        projection: '[ BV, MV, HV, EV ]'
+        read_write: True
+    instance: >-
+      0 <= BV < 2 and
+      0 <= MV < 2 and
+      0 <= HV < 2 and
+      0 <= EV < 2 and
+      0 <= DV < 2
+
+  - shape:
+      name: QK
+      dimensions: [ BQK, HQK, MQK, PQK, EQK ]
+      data_spaces:
+      - name: Q
+        dimensions: [ Q_B, Q_M, Q_H, Q_E ]
+        projection: '[ BQK, MQK, HQK, EQK ]'
+      - name: K
+        dimensions: [ K_B, K_M, K_H, K_E ]
+        projection: '[ BQK, PQK, HQK, EQK ]'
+      - name: QK
+        dimensions: [ QK_B, QK_M, QK_P, QK_H ]
+        projection: '[ BQK, MQK, PQK, HQK ]'
+        read_write: True
+    instance: >-
+      0 <= BQK < 2 and
+      0 <= HQK < 2 and
+      0 <= MQK < 2 and
+      0 <= PQK < 2 and
+      0 <= EQK < 2
+
+  - shape:
+      name: AV
+      dimensions: [ BAV, HAV, MAV, PAV, FAV ]
+      data_spaces:
+      - name: QK
+        dimensions: [ QK_B, QK_M, QK_P, QK_H ]
+        projection: '[ BAV, MAV, PAV, HAV ]'
+      - name: V
+        dimensions: [ V_B, V_M, V_H, V_E ]
+        projection: '[ BAV, PAV, HAV, FAV ]'
+      - name: AV
+        dimensions: [ AV_B, AV_M, AV_H, AV_F ]
+        projection: '[ BAV, MAV, HAV, FAV ]'
+        read_write: True
+    instance: >-
+      0 <= BAV < 2 and
+      0 <= HAV < 2 and
+      0 <= MAV < 2 and
+      0 <= PAV < 2 and
+      0 <= FAV < 2
+
+  - shape:
+      name: Z
+      dimensions: [ BZ, MZ, HZ, FZ, GZ ]
+      data_spaces:
+      - name: AV
+        dimensions: [ AV_B, AV_M, AV_H, AV_F ]
+        projection: '[ BZ, MZ, HZ, FZ ]'
+      - name: WZ
+        dimensions: [ WZ_H, WZ_F, WZ_G ]
+        projection: '[ HZ, FZ, GZ ]'
+      - name: Z
+        dimensions: [ Z_B, Z_M, Z_G ]
+        projection: '[ BZ, MZ, GZ ]'
+        read_write: True
+    instance: >-
+      0 <= BZ < 2 and
+      0 <= MZ < 2 and
+      0 <= HZ < 2 and
+      0 <= FZ < 2 and
+      0 <= GZ < 2
