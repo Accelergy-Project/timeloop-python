@@ -76,7 +76,6 @@ def get_ffmt_tag_mha(
         return (FFMT_INVALID,)
 
     prefix_choices = [
-        ([B], (1, 1)),
         ([B, H], (2, 2))
     ]
 
@@ -130,6 +129,13 @@ def get_ffmt_tag_mha(
             if not tiling.matches_permutation(permutation):
                 continue
             if not tiling.has_tensor(*check_tensors):
+                continue
+
+            # INVARIANCE: at this point, loops[0] must be over batch
+            # and loops[1] must be over heads
+            if tiling.loops[0].bound != 1:   # TODO: `bound` should be `shape`
+                continue
+            if tiling.loops[1].bound != 1:
                 continue
 
             weight_untiled = (

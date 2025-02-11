@@ -97,7 +97,7 @@ def _per_einsum_mapper_snowcat(
     }
     ts2rr = tensor_to_relevant_ranks
     ts2rr = {
-        tensor_name_to_name[t]: {str(rank_name_to_shared_name[rank_name_to_name[r]]) for r in v} for t, v in ts2rr.items()
+        tensor_name_to_name[t]: {rank_name_to_name[r] for r in v} for t, v in ts2rr.items()
     }
 
     # successful_partial_mappings = []
