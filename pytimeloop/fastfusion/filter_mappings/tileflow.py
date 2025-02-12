@@ -21,13 +21,17 @@ def get_tileflow_tag_mha(
     loops_above_backing_storages = max([0] + [
         t.above_loop_index for t in backing_storages if t.storage_name != 0
     ]
-        
     )
-    shared_loops = ",".join(l.rank_name for l in tiling.loops[:loops_above_backing_storages])
+
+    if loops_above_backing_storages != min(
+        t.above_loop_index for t in backing_storages if t.storage_name != 0
+    ):
+        return ("TILEFLOW_INVALID",)
+    # shared_loops = ",".join(l.rank_name for l in tiling.loops[:loops_above_backing_storages])
     if not is_fused:
         return ("TILEFLOW_VALID",)
     
-    return ("TILEFLOW_VALID", "FUSED_LOOPS=" + shared_loops)
+    return ("TILEFLOW_VALID", "FUSED_LOOPS=" + loops_above_backing_storages)
 
 
 def is_even(tiling: Tiling, tensor_to_relevant_ranks):
