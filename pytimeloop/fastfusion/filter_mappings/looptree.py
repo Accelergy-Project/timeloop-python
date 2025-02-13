@@ -13,17 +13,12 @@ def get_looptree_tag_mha(
 ):
     
     is_fused = any(t.storage_name != 0 for t in backing_storages)
-
-    loops_above_backing_storages = max([0] + [
-        t.above_loop_index for t in backing_storages if t.storage_name != 0
-    ]
-    )
-    if loops_above_backing_storages != min(
-        t.above_loop_index for t in backing_storages if t.storage_name != 0
-    ):
-        return ("LOOPTREE_INVALID",)
-    # shared_loops = ",".join(l.rank_name for l in tiling.loops[:loops_above_backing_storages])
     if not is_fused:
         return ("LOOPTREE_VALID",)
+
+    n_loops_above_backing_storages = max([0] + [
+        t.above_loop_index for t in backing_storages if int(t.storage_name) != 0
+    ]
+    )
     
-    return ("LOOPTREE_VALID", "FUSED_LOOPS=" + loops_above_backing_storages)
+    return ("LOOPTREE_VALID", f"FUSED_LOOPS={n_loops_above_backing_storages}")

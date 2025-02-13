@@ -11,27 +11,19 @@ def get_tileflow_tag_mha(
     rank_name_to_shared_name: dict[str, str],
     tensor_to_relevant_ranks,
 ):
-    
-    is_fused = any(t.storage_name != 0 for t in backing_storages)
 
-    # Valid iff it's an even mapping
     if not is_even(tiling, tensor_to_relevant_ranks):
         return ("TILEFLOW_INVALID",)
-    
-    loops_above_backing_storages = max([0] + [
-        t.above_loop_index for t in backing_storages if t.storage_name != 0
-    ]
-    )
 
-    if loops_above_backing_storages != min(
-        t.above_loop_index for t in backing_storages if t.storage_name != 0
-    ):
-        return ("TILEFLOW_INVALID",)
-    # shared_loops = ",".join(l.rank_name for l in tiling.loops[:loops_above_backing_storages])
+    is_fused = any(t.storage_name != 0 for t in backing_storages)
     if not is_fused:
         return ("TILEFLOW_VALID",)
-    
-    return ("TILEFLOW_VALID", "FUSED_LOOPS=" + loops_above_backing_storages)
+
+    n_loops_above_backing_storages = max([0] + [
+        t.above_loop_index for t in backing_storages if int(t.storage_name) != 0
+    ]
+    )
+    return ("TILEFLOW_VALID", f"FUSED_LOOPS={n_loops_above_backing_storages}")
 
 
 def is_even(tiling: Tiling, tensor_to_relevant_ranks):

@@ -267,11 +267,9 @@ class Tiling:
     def set_tags(self, *new_tags: Any) -> "Tiling":
         return Tiling(self.loops, self.tensors, Tags(new_tags))
 
-    def all_n_loops(self) -> set["Tiling"]:
+    def all_n_loops(self) -> list["Tiling"]:
         min_loops = max(t.above_loop_index for t in self.tensors)
-        return set(Tiling(
-            self.loops[:i+1], self.tensors, self.tags
-        ) for i in range(min_loops, len(self.loops)))
+        return list(Tiling(self.loops[:i], self.tensors, self.tags) for i in range(min_loops, len(self.loops)+1))
         
 
 class SIM:
@@ -421,14 +419,25 @@ class SIM:
         sims: list["SIM"], 
         live_tensors: set[str], 
         keep_loops: bool = False,
+        variable_n_loops: bool = False,
         keep_tensors: set[str] = None,
         drop_tags: bool = False
     ) -> dict[tuple[Tiling, ...], list["SIM"]]:
         grouped = defaultdict(list)
         for s in sims:
-            grouped[
-                s.tiling.clear_dead_tensors(live_tensors, keep_loops=keep_loops, keep_tensors=keep_tensors, drop_tags=drop_tags)
-            ].append(s)
+            tiling = s.tiling.clear_dead_tensors(
+                live_tensors, 
+                keep_loops=keep_loops or variable_n_loops, 
+                keep_tensors=keep_tensors, 
+                drop_tags=drop_tags
+            )
+            if variable_n_loops:
+                tiling = tiling.all_n_loops()
+            else:
+                tiling = [tiling]
+            for t in tiling:
+                grouped[t].append(s)
+                
         return grouped
 
     @staticmethod
@@ -471,7 +480,7 @@ class SIM:
 
     @staticmethod
     def group_right(sims: list["SIM"], live_tensors: set[str], drop_tags: bool=False) -> dict[tuple[Tiling, ...], list["SIM"]]:
-        return SIM._group(sims, live_tensors, drop_tags=drop_tags)
+        return SIM._group(sims, live_tensors, drop_tags=drop_tags, variable_n_loops=True)
     
     @staticmethod
     def remove_dead_tensors(sims: list["SIM"], live_tensors: set[str]) -> list["SIM"]:

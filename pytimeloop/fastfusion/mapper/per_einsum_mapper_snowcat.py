@@ -61,12 +61,6 @@ def _per_einsum_mapper_snowcat(
         rank_name: workload.get_rank_shape(rank_name)[1] + 1 for rank_name in all_ranks
     }
 
-
-    tensor_to_relevant_ranks = {
-        tensor: analyzer.einsum_dims_relevant_to_tensor(einsum_id, tensor)
-        for tensor in tensors
-    }
-
     if not ffmt:
         subspaces = make_subspaces(tensors,
                                     intermediate_tensors,
@@ -95,9 +89,8 @@ def _per_einsum_mapper_snowcat(
     rank_name_to_shared_name = {
         rank_id_to_name[k]: v for k, v in equivalent_groups.rank_to_group_id.items()
     }
-    ts2rr = tensor_to_relevant_ranks
-    ts2rr = {
-        tensor_id_to_name[t]: {str(rank_name_to_shared_name[rank_id_to_name[r]]) for r in v} for t, v in ts2rr.items()
+    tensor_to_relevant_ranks = {
+        tensor_id_to_name[t]: {rank_id_to_name[r] for r in v} for t, v in tensor_to_relevant_ranks.items()
     }
 
     # successful_partial_mappings = []
@@ -165,7 +158,7 @@ def _per_einsum_mapper_snowcat(
                     input_tensors=input_tensors,
                     output_tensors=output_tensors,
                     tag_with=tag_with,
-                    tensor_to_relevant_ranks=ts2rr,
+                    tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                     copy_einsums={"I"}
                 )
         return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
@@ -238,3 +231,31 @@ def per_einsum_mapper_snowcat(
         data2[einsum_id].append(sim)
     
     return data2
+
+
+    # def makesim(einsum_id, tiling, data):
+    #     return SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1))
+    
+    # data = {}
+    # for i, einsum_id in enumerate(einsums_to_explore):
+    #     jobs = _per_einsum_mapper_snowcat(
+    #         config,
+    #         spec,
+    #         explore_glb_uneven,
+    #         einsum_id,
+    #         energy_dict,
+    #         ffmt=ffmt,
+    #         ffmt_refetch_weights=ffmt_refetch_weights,
+    #         dataflow_constraint=dataflow_constraint,
+    #         metrics=metrics,
+    #         tag_with=tag_with,
+    #     )
+    #     result = defaultdict(list)
+    #     for res in parallel(jobs, pbar=f"Generating data for Einsum {i+1}/{len(einsums_to_explore)}", return_as="generator"):
+    #         einsum_id, res = res
+    #         for k, v in res.items():
+    #             result[k[0]].append(v)             
+                
+    #     jobs = [delayed(makesim)(None, tiling, data) for tiling, data in result.items()]
+    #     data[einsum_id] = parallel(jobs, pbar=f"Generating SIMs for Einsum {i+1}/{len(einsums_to_explore)}")
+    # return data

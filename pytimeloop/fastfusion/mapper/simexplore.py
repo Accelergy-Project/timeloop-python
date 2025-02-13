@@ -55,7 +55,6 @@ def get_possible_translations(
     for loops in itertools.product(*map(translate_loop, t.loops)):
         yield Tiling(loops, t.tensors, t.tags)
 
-
 prev_time = 0
 total_time = defaultdict(int)
 
@@ -132,6 +131,17 @@ def fuse_sims(
     return_nmappings_nbuckets: bool = False,
     lookahead_filter: bool = True,
 ):
+    changed = True
+    while changed:
+        changed = False
+        for r in pairwise_equivalent_ranks:
+            for r2 in list(pairwise_equivalent_ranks[r]):
+                for r3 in list(pairwise_equivalent_ranks[r2]):
+                    if r3 in pairwise_equivalent_ranks[r]:
+                        continue
+                    changed = True
+                    pairwise_equivalent_ranks[r].add(r3)
+    
     nmappings = []
     nbuckets = []
 
