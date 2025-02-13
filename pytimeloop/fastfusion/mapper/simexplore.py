@@ -40,14 +40,27 @@ def paretofy(k, v):
 
 
 def get_possible_translations(
-    t: Tiling, pairwise_equivalent_ranks: dict[str, set[str]], right_ranks: set[str]
+    t: Tiling, 
+    pairwise_equivalent_ranks: dict[str, set[str]],
+    full_equivalent_ranks: dict[str, set[str]],
+    right_ranks: set[str]
 ):
+    # Fused ranks should be transitive, but if a fused loop indexes into
+    # two different ranks in the next Einsum, we can't fuse becuase it will
+    # tile in multiple directions.
+    # The first union checks what loops we CAN fuse with in the next Einsum.
+    # The second intersection checks what loops we'll alias into in the next
+    # Einsum.
+    # If we alias into multiple ranks, we can't fuse. Otherwise, try out each
+    # possible rank.
     def translate_loop(l: Loop):
         compatible_ranks = set.union(
+            *(full_equivalent_ranks[n] for n in l.rank_names)
+        ) & right_ranks
+        aliased_ranks = set.intersection(
             *(pairwise_equivalent_ranks[n] for n in l.rank_names)
-        )
-        compatible_ranks &= right_ranks
-        if len(compatible_ranks) > 1:
+        ) & right_ranks
+        if len(aliased_ranks) > 1:
             return
         for n in compatible_ranks:
             yield Loop(fzs((n,)), l.bound, l.is_spatial)
@@ -131,16 +144,17 @@ def fuse_sims(
     return_nmappings_nbuckets: bool = False,
     lookahead_filter: bool = True,
 ):
+    full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
     changed = True
     while changed:
         changed = False
-        for r in pairwise_equivalent_ranks:
-            for r2 in list(pairwise_equivalent_ranks[r]):
-                for r3 in list(pairwise_equivalent_ranks[r2]):
-                    if r3 in pairwise_equivalent_ranks[r]:
+        for r in full_equivalent_ranks:
+            for r2 in list(full_equivalent_ranks[r]):
+                for r3 in list(full_equivalent_ranks[r2]):
+                    if r3 in full_equivalent_ranks[r]:
                         continue
                     changed = True
-                    pairwise_equivalent_ranks[r].add(r3)
+                    full_equivalent_ranks[r].add(r3)
     
     nmappings = []
     nbuckets = []
@@ -244,7 +258,7 @@ def fuse_sims(
             [s for lr in [left, right] for v in lr.values() for s in v], live_tensors
         )
 
-        DO_PRINT = False
+        DO_PRINT = True
         DELAY = not debugger_active()
 
         # ======================================================================
@@ -254,7 +268,7 @@ def fuse_sims(
         for k in left:
             found = False
             for k_translated in get_possible_translations(
-                k, pairwise_equivalent_ranks, right_ranks
+                k, pairwise_equivalent_ranks, full_equivalent_ranks, right_ranks
             ):
                 for a, b in itertools.product(left[k], right.get(k_translated, [])):
                     if a.tiling.tags.are_compatible_with(b.tiling.tags):
@@ -269,6 +283,12 @@ def fuse_sims(
                 for a in left[k]:
                     print(f"\tNo match for {a.tiling}")
 
+        if DO_PRINT:
+            for k in right:
+                if k not in left:
+                    for b in right[k]:
+                        print(f"\tREVERSE: No match for {b.tiling}")
+
         print_time("Bucket merging")
 
         # ======================================================================
@@ -282,9 +302,15 @@ def fuse_sims(
             combined = SIM.group_left(combined, next_right_tensors, drop_tags=True)
             for k in list(combined):
                 translations = get_possible_translations(
-                    k, pairwise_equivalent_ranks, next_right_ranks
+                    k, pairwise_equivalent_ranks, full_equivalent_ranks, next_right_ranks
                 )
                 if not any(kt in sims[0].sims for kt in translations):
+                    list(get_possible_translations(
+                        k, pairwise_equivalent_ranks, full_equivalent_ranks, next_right_ranks
+                    ))
+                    if DO_PRINT:
+                        for b in combined[k]:
+                            print(f'\tLOOKAHEAD: No match for {b.tiling}')
                     del combined[k]
             if not combined:
                 raise ValueError("No match found for any bucket")
@@ -316,11 +342,6 @@ def fuse_sims(
         print(
             f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
         )
-        if DO_PRINT:
-            for k in right:
-                if k not in left:
-                    for b in right[k]:
-                        print(f"\tREVERSE: No match for {b.tiling}")
 
         n_mappings = sum(len(s.mapping.data) for s in combined)
         for_einsum_text = f"for Einsum {right_einsum}"
