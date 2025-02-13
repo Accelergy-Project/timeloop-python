@@ -258,7 +258,7 @@ def fuse_sims(
             [s for lr in [left, right] for v in lr.values() for s in v], live_tensors
         )
 
-        DO_PRINT = True
+        DO_PRINT = False
         DELAY = not debugger_active()
 
         # ======================================================================
