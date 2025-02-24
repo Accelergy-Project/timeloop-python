@@ -22,6 +22,77 @@ from pytimeloop.fastfusion.mapper.process_results import Metrics, process_result
 
 from bindings.looptree import LooptreeWorkload, LooptreeWorkloadDependencyAnalyzer
 
+def per_worker_exploration(
+    workload,
+    task_spaces,
+    einsum_shape,
+    max_capacity,
+    max_fanout,
+    tensors,
+    einsum_id,
+    intermediate_tensors,
+    bindings,
+    energy_dict,
+    equivalent_groups,
+    explore_glb_uneven,
+    metrics,
+    einsum_id_to_name,
+    rank_id_to_name,
+    tensor_id_to_name,
+    rank_name_to_shared_name,
+    input_tensors,
+    output_tensors,
+    tag_with,
+    tensor_to_relevant_ranks,
+    task_space_args,
+):
+    analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
+    local_task_spaces = deepcopy(task_spaces)
+    local_task_spaces[0] = lambda : task_spaces[0](*task_space_args)
+    result = defaultdict(list)
+    for partial_mapping in dependent_product(local_task_spaces):
+        _, compiled_results = compile_mapping(
+            partial_mapping, workload, analyzer
+        )
+        tile_shape_explorer = explore_tile_shape(
+            partial_mapping,
+            einsum_shape,
+            compiled_results,
+            max_capacity,
+            max_fanout,
+            tensors=tensors,
+        )
+        # HACKY: Pop out the subspace object as the first in the iterator
+        shape_subspace = next(tile_shape_explorer)
+
+        count = 0
+        for shape, res in tile_shape_explorer:
+            count += 1
+            is_pareto, results, fulltiling = process_result(
+                res,
+                shape,
+                result,
+                einsum_id,
+                intermediate_tensors,
+                partial_mapping,
+                bindings,
+                workload,
+                energy_dict,
+                equivalent_groups,
+                explore_fusion_uneven=explore_glb_uneven,
+                einsum_shape=einsum_shape,
+                metrics=metrics,
+                einsum_id_to_name=einsum_id_to_name,
+                rank_id_to_name=rank_id_to_name,
+                tensor_id_to_name=tensor_id_to_name,
+                rank_name_to_shared_name=rank_name_to_shared_name,
+                input_tensors=input_tensors,
+                output_tensors=output_tensors,
+                tag_with=tag_with,
+                tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+                copy_einsums={"I"}
+            )
+    return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
 
 def _per_einsum_mapper_snowcat(
     config,
@@ -76,7 +147,7 @@ def _per_einsum_mapper_snowcat(
                                         workload,
                                         refetch_weights=ffmt_refetch_weights)
 
-    n_jobs=32
+    n_jobs=16
     parallelized_spaces, task_spaces = \
         split_dependent_product(n_split_min=n_jobs, spaces=subspaces)
 
@@ -113,55 +184,8 @@ def _per_einsum_mapper_snowcat(
     #         if not fail:
     #             successful_partial_mappings.append(p)
     # partial_mappings = successful_partial_mappings
-
-    def per_worker_exploration(*args):
-        analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
-        local_task_spaces = deepcopy(task_spaces)
-        local_task_spaces[0] = lambda : task_spaces[0](*args)
-        result = defaultdict(list)
-        for partial_mapping in dependent_product(local_task_spaces):
-            _, compiled_results = compile_mapping(
-                partial_mapping, workload, analyzer
-            )
-            tile_shape_explorer = explore_tile_shape(
-                partial_mapping,
-                einsum_shape,
-                compiled_results,
-                max_capacity,
-                max_fanout,
-                tensors=tensors,
-            )
-            # HACKY: Pop out the subspace object as the first in the iterator
-            shape_subspace = next(tile_shape_explorer)
-
-            count = 0
-            for shape, res in tile_shape_explorer:
-                count += 1
-                is_pareto, results, fulltiling = process_result(
-                    res,
-                    shape,
-                    result,
-                    einsum_id,
-                    intermediate_tensors,
-                    partial_mapping,
-                    bindings,
-                    workload,
-                    energy_dict,
-                    equivalent_groups,
-                    explore_fusion_uneven=explore_glb_uneven,
-                    einsum_shape=einsum_shape,
-                    metrics=metrics,
-                    einsum_id_to_name=einsum_id_to_name,
-                    rank_id_to_name=rank_id_to_name,
-                    tensor_id_to_name=tensor_id_to_name,
-                    rank_name_to_shared_name=rank_name_to_shared_name,
-                    input_tensors=input_tensors,
-                    output_tensors=output_tensors,
-                    tag_with=tag_with,
-                    tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-                    copy_einsums={"I"}
-                )
-        return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
+    
+    # Remove things that won't be used later or in per_worker_exploration
 
 
     # # for pm in partial_mappings:
@@ -174,8 +198,32 @@ def _per_einsum_mapper_snowcat(
     # ):
     #     for k, v in res.items():
     #         data[einsum_id][k[0]] += v
+    
+    worker_args = dict(
+        workload=workload,
+        task_spaces=task_spaces,
+        einsum_shape=einsum_shape,
+        max_capacity=max_capacity,
+        max_fanout=max_fanout,
+        tensors=tensors,
+        einsum_id=einsum_id,
+        intermediate_tensors=intermediate_tensors,
+        bindings=bindings,
+        energy_dict=energy_dict,
+        equivalent_groups=equivalent_groups,
+        explore_glb_uneven=explore_glb_uneven,
+        metrics=metrics,
+        einsum_id_to_name=einsum_id_to_name,
+        rank_id_to_name=rank_id_to_name,
+        tensor_id_to_name=tensor_id_to_name,
+        rank_name_to_shared_name=rank_name_to_shared_name,
+        input_tensors=input_tensors,
+        output_tensors=output_tensors,
+        tag_with=tag_with,
+        tensor_to_relevant_ranks=tensor_to_relevant_ranks
+    )
 
-    return [delayed(per_worker_exploration)(*pm) for pm in partial_mappings]
+    return [delayed(per_worker_exploration)(task_space_args=pm, **worker_args) for pm in partial_mappings]
 
 def per_einsum_mapper_snowcat(
     config,
@@ -189,19 +237,6 @@ def per_einsum_mapper_snowcat(
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
 ):
-    # return _per_einsum_mapper_snowcat(
-    #     config,
-    #     spec,
-    #     explore_glb_uneven,
-    #     einsums_to_explore,
-    #     energy_dict,
-    #     ffmt=ffmt,
-    #     ffmt_refetch_weights=ffmt_refetch_weights,
-    #     dataflow_constraint=dataflow_constraint,
-    #     metrics=metrics,
-    #     tag_with=tag_with,
-    # )
-    
     jobs = list(j for einsum_id in einsums_to_explore for j in _per_einsum_mapper_snowcat(
             config,
             spec,
@@ -217,7 +252,7 @@ def per_einsum_mapper_snowcat(
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
 
-    for einsum_id, result in parallel(jobs, pbar="Generating Single-Einsum Mappings"):
+    for einsum_id, result in parallel(jobs, pbar="Generating Single-Einsum Mappings", return_as="generator"):
         d = data[einsum_id]
         for k, v in result.items():
             d[k[0]].append(v)
@@ -226,8 +261,16 @@ def per_einsum_mapper_snowcat(
         return einsum_id, SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1))
 
     data2 = defaultdict(list)
-    jobs = [delayed(makesim)(einsum_id, tiling, data) for einsum_id, tilings in data.items() for tiling, data in tilings.items()]
-    for einsum_id, sim in parallel(jobs, pbar="Generating SIMs"):
+    jobs = []
+    for einsum_id, tilings in data.items():
+        for tiling, data in tilings.items():
+            if len(data) == 1:
+                data2[einsum_id].append(SIM(tiling, Pareto(data[0], skip_pareto=True)))
+            else:
+                jobs.append(delayed(makesim)(einsum_id, tiling, data))
+    # jobs = [delayed(makesim)(einsum_id, tiling, data) for einsum_id, tilings in data.items() for tiling, data in tilings.items()]
+
+    for einsum_id, sim in parallel(jobs, pbar="Generating SIMs", return_as="generator"):
         data2[einsum_id].append(sim)
     
     return data2

@@ -86,7 +86,7 @@ def plotly_show(
     if title is not None:
         fig.update_layout(title=title)
     if logscales:
-        fig.update_xaxes(type="log")
+        # fig.update_xaxes(type="log")
         fig.update_yaxes(type="log")
     fig.update_xaxes(title_text=x)
     fig.update_yaxes(title_text=y)

@@ -1,6 +1,8 @@
+import itertools
+from math import ceil
 from numbers import Number
 
-from joblib import Parallel
+from joblib import Parallel, delayed
 
 import sys
 
@@ -57,8 +59,23 @@ def expfmt(x):
     x = x.replace("e+", "e")
     return x
 
+def fakeparallel(**kwargs):
+    if "return_as" in kwargs and kwargs["return_as"] == "generator" or kwargs["return_as"] == "generator_unordered":
+        def fake_parallel_generator(jobs):
+            for j in jobs:
+                yield j[0](*j[1], **j[2])
+        return fake_parallel_generator
+    return lambda jobs: [j[0](*j[1], **j[2]) for j in jobs]
 
-def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True, pbar: str = None, return_as: str = None):
+def parallel(
+        jobs, 
+        n_jobs: int = None,
+        one_job_if_debugging: bool = True, 
+        pbar: str = None,
+        return_as: str = None,
+        chunk: bool = True
+    ):
+
     args = {}
     if return_as is not None:
         args["return_as"] = return_as
@@ -79,6 +96,46 @@ def parallel(jobs, n_jobs: int = None, one_job_if_debugging: bool = True, pbar: 
             jobs = tqdm(jobs, total=len(jobs), desc=pbar, leave=True)
         return [j[0](*j[1], **j[2]) for j in jobs]
 
+    # We were getting a lot of the runtime in parallelizing overhead. What this
+    # does is chunks jobs into larger groups. The last n_jobs groups are 1 job,
+    # the previous n_jobs groups are 2 jobs, the previous n_jobs groups are 4
+    # jobs, and so on. Jobs get smaller near the end to reduce the impact of
+    # long pole jobs.
+    
+    if chunk:
+        def job_chunk(chunk_of_jobs):
+            # print(list(j[0](*j[1], **j[2]) for j in chunk_of_jobs[::-1])[0][0])
+            return list(j[0](*j[1], **j[2]) for j in chunk_of_jobs[::-1])
+
+        jobs = list(reversed(jobs))
+        new_jobs = []
+        i = 0
+        chunksize = 1
+        while i < len(jobs):
+            stop = min(i + n_jobs * chunksize, len(jobs))
+            new_jobs += [delayed(job_chunk)(jobs[j:j + chunksize]) for j in range(i, stop, chunksize)]
+            i = stop
+            chunksize *= 2
+        jobs = list(reversed(new_jobs))
+        # jobs = [delayed(job_chunk)([j]) for j in jobs]
+        if pbar:
+            jobs = tqdm(jobs, total=len(jobs), desc=pbar, leave=True)
+        if return_as == "generator" or return_as == "generator_unordered":
+            def yield_jobs():
+                for job in Parallel(n_jobs=n_jobs, **args)(jobs):
+                    yield from job
+            return yield_jobs()
+        return list(itertools.chain(*Parallel(n_jobs=n_jobs, **args)(jobs)))
+
     if pbar:
         return Parallel(n_jobs=n_jobs, **args)(tqdm(jobs, total=len(jobs), desc=pbar, leave=True))
     return Parallel(n_jobs=n_jobs, **args)(jobs)
+
+if __name__ == "__main__":
+    def test_job(x):
+        print(f'Called with {x}')
+        return (x, 1)
+    jobs = [delayed(test_job)(i) for i in range(100)]
+    for j in parallel(jobs, pbar="test", return_as="generator"):
+        print(j)
+    

@@ -165,7 +165,6 @@ def fuse_sims(
         print(f"SIM {einsum_id} tensors: {s[0].tensor_names}")
     init_print_time()
     if len(sims) == 1:
-        sims = []
         left = consolidate(
             x=copy.deepcopy(sims[0][1]),
             left=True,
@@ -173,6 +172,7 @@ def fuse_sims(
             resource2capacity=resource2capacity,
             shared_tensors=set(),
         )
+        sims = []
 
     sims = [GroupOfSIMsHolder(*s) for s in sims]
 
@@ -214,7 +214,8 @@ def fuse_sims(
         holder = sims.pop(0)
         return holder.sims, holder.einsum_id, holder.tensor_names
 
-    left, left_einsum, left_tensors = grab_sim_holder()
+    if sims:
+        left, left_einsum, left_tensors = grab_sim_holder()
 
     while sims:
         # ======================================================================

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pytimeloop.fastfusion.sim import TensorStorage, Tiling
 
 FFMT_VALID = "FFMT_VALID"
@@ -5,6 +6,33 @@ FFMT_INVALID = "FFMT_INVALID"
 FFMT_WEIGHT_UNTILED = "FFMT_WEIGHT_UNTILED"
 FFMT_WEIGHT_TILED = "FFMT_WEIGHT_TILED"
 
+def is_even(tiling: Tiling, tensor_to_relevant_ranks, skip_tensors=None):
+    if skip_tensors is None:
+        skip_tensors = set()
+    # Highest index of all storage nodes of a given hardware level.
+    # This is the "canonical" even storage node, which is where storage
+    # nodes for even exploration is nominally placed without LRP.
+    storage2highestidx = defaultdict(lambda: 0)
+    for ts in tiling.tensors:
+        if any(t in ts.tensor_name for t in skip_tensors):
+            continue
+        storage2highestidx[ts.storage_name] = max(
+            storage2highestidx[ts.storage_name], ts.above_loop_index
+        )
+
+    for ts in tiling.tensors:
+        if any(t in ts.tensor_name for t in skip_tensors):
+            continue
+        highest_idx = storage2highestidx[ts.storage_name]
+        lowest_idx = ts.above_loop_index
+        # If any relevant rank separates a tensor's storage node from the
+        # "canonical" even storage node, then the tiling is uneven
+        if any(
+            l.rank_name in tensor_to_relevant_ranks[ts.tensor_name]
+            for l in tiling.loops[lowest_idx:highest_idx]
+        ):
+            return False
+    return True
 
 def get_ffmt_tag_mha(
         einsum_name: str, 
@@ -26,9 +54,56 @@ def get_ffmt_tag_mha(
         "FFA": [G, C],
         "FFB": [C, J]
     }
+    
+    unfused = all(t.storage_name == 0 for t in backing_storages)
+    if "Matmul" in einsum_name:
+        min_weight_idx, max_weight_idx, max_non_weight_idx = float('inf'), 0, 0
+        max_weight_idx = 0
+        # if not is_even(tiling, tensor_to_relevant_ranks, skip_tensors=["Filter"]):
+        #     return (FFMT_INVALID,)
+        if unfused:
+            if is_even(tiling, tensor_to_relevant_ranks, skip_tensors=["Filter"]):
+                return (FFMT_VALID,)
+            return (FFMT_INVALID,)
+        untiled_fused = all(t.above_loop_index == 0 for t in backing_storages)
+        if untiled_fused:
+            return (FFMT_VALID, )
+
+        for t in tiling.tensors:
+            is_weight = "Filter" in t.tensor_name
+            if is_weight:
+                min_weight_idx = min(min_weight_idx, t.above_loop_index)
+                max_weight_idx = max(max_weight_idx, t.above_loop_index)
+            else:
+                max_non_weight_idx = max(max_non_weight_idx, t.above_loop_index)
+                
+        # If there are 2 tensors backed in 1, they should both be above loop index 1
+        # if sum(t.storage_name == 1 for t in backing_storages) == 2:
+        #     for t in backing_storages:
+        #         if t.storage_name == 1:
+        #             if t.above_loop_index != 1:
+        #                 return (FFMT_INVALID, )
+        # if sum(t.storage_name == 1 for t in backing_storages) == 1:
+        #     if einsum_name == "Matmul3":
+        #         print(f'Matmul 3!')
+        #     for t in backing_storages:
+        #         if t.storage_name == 1:
+        #             if t.above_loop_index != 2:
+        #                 return (FFMT_INVALID,)
+        
+        weight_untiled = (
+            min_weight_idx == 0
+            and
+            max_weight_idx == 0
+        )
+        if weight_untiled:
+            return (FFMT_VALID, FFMT_WEIGHT_UNTILED)
+        elif min_weight_idx >= max_non_weight_idx:
+            return (FFMT_VALID, FFMT_WEIGHT_TILED)
+        return (FFMT_INVALID,)
 
     if einsum_name not in EINSUM_NAME_TO_REDUCED_RANK_OUTPUT_RANK:
-        if all(s.storage_name == 0 for s in backing_storages):
+        if unfused:
             return (FFMT_VALID,)
         return (FFMT_INVALID,)
 
