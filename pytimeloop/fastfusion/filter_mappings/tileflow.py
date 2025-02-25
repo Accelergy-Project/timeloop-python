@@ -11,6 +11,10 @@ def get_tileflow_tag_mha(
     rank_name_to_shared_name: dict[str, str],
     tensor_to_relevant_ranks,
 ):
+    fused_storages = [t for t in backing_storages if t.storage_name != 0]
+    n_loops = set(t.above_loop_index for t in fused_storages)
+    if len(n_loops) > 1:
+        return ("TILEFLOW_INVALID",)
 
     if not is_even(tiling, tensor_to_relevant_ranks):
         return ("TILEFLOW_INVALID",)
