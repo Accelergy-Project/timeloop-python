@@ -45,22 +45,23 @@ def get_possible_translations(
     full_equivalent_ranks: dict[str, set[str]],
     right_ranks: set[str]
 ):
-    # Fused ranks should be transitive, but if a fused loop indexes into
-    # two different ranks in the next Einsum, we can't fuse becuase it will
-    # tile in multiple directions.
-    # The first union checks what loops we CAN fuse with in the next Einsum.
-    # The second intersection checks what loops we'll alias into in the next
-    # Einsum.
-    # If we alias into multiple ranks, we can't fuse. Otherwise, try out each
-    # possible rank.
+    # Fused ranks should be transitive, but if a fused loop indexes into two
+    # different ranks in the next Einsum, we can't fuse becuase it will tile in
+    # multiple directions.
+    #
+    # The first union checks what loops we CAN fuse with in the next Einsum. The
+    # second union checks what loops MUST index into in the next
+    #
+    # Einsum. If we alias into multiple ranks, we can't fuse. Otherwise, try out
+    # each possible rank.
     def translate_loop(l: Loop):
         compatible_ranks = set.union(
             *(full_equivalent_ranks[n] for n in l.rank_names)
         ) & right_ranks
-        aliased_ranks = set.intersection(
+        pairwise_compatible_ranks = set.union(
             *(pairwise_equivalent_ranks[n] for n in l.rank_names)
         ) & right_ranks
-        if len(aliased_ranks) > 1:
+        if len(pairwise_compatible_ranks) > 1:
             return
         for n in compatible_ranks:
             yield Loop(fzs((n,)), l.bound, l.is_spatial)
