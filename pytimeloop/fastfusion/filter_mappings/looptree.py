@@ -27,4 +27,4 @@ def get_looptree_tag_mha(
     n_loops = set(t.above_loop_index for t in fused_storages)
     if len(n_loops) > 1:
         return ("LOOPTREE_INVALID",)
-    return ("LOOPTREE_VALID",)
+    return ("LOOPTREE_VALID", f"FUSED_LOOPS={n_loops.pop()}")
