@@ -113,7 +113,7 @@ if __name__ == '__main__':
         entry_points={
             'console_scripts': [
                 'timeloop = pytimeloop.timeloopfe.command_line_interface:main',
-                'tl = timeloopfe.command_line_interface:main'
+                'tl = pytimeloop.timeloopfe.command_line_interface:main'
             ]
         }
     )
