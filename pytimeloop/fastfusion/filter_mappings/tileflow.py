@@ -23,11 +23,11 @@ def get_tileflow_tag_mha(
     if not is_fused:
         return ("TILEFLOW_VALID",)
 
-    n_loops_above_backing_storages = max([0] + [
-        t.above_loop_index for t in backing_storages if int(t.storage_name) != 0
+    n_loops_above_glb = max([0] + [
+        t.above_loop_index for t in tiling.tensors if int(t.storage_name) != 0
     ]
     )
-    return ("TILEFLOW_VALID", f"FUSED_LOOPS={n_loops_above_backing_storages}")
+    return ("TILEFLOW_VALID", f"LOOPS_ABOVE_GLB={n_loops_above_glb}")
 
 
 def is_even(tiling: Tiling, tensor_to_relevant_ranks):
