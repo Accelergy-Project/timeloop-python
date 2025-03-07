@@ -1,4 +1,5 @@
 import functools
+from numbers import Number
 import re
 
 from ..common.nodes import DictNode, ListNode
@@ -78,7 +79,7 @@ class Action(DictNode):
 
         super().add_attr("name", str)
         super().add_attr("arguments", ActionArguments)
-        super().add_attr("energy", float)
+        super().add_attr("energy", Number)
 
 
 class ActionArguments(DictNode):

@@ -1,4 +1,5 @@
 from ..common.nodes import DictNode, ListNode
+from numbers import Number
 
 
 class Art(DictNode):
@@ -24,7 +25,7 @@ class Table(DictNode):
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
         super().add_attr("name", str)
-        super().add_attr("area", float)
+        super().add_attr("area", Number)
 
 
 Art.declare_attrs()
