@@ -90,6 +90,10 @@ class Loop:
             self.bound,
             self.is_spatial,
         )
+        
+    def update(self, **kwargs) -> "Loop":
+        dict_self = {k: v for k, v in self.__dict__.items() if k != "rank_name"}
+        return Loop(**{**self.__dict__, **kwargs})
 
 @dataclass(frozen=True, order=True)
 class TensorStorage:
@@ -109,10 +113,6 @@ class TensorStorage:
     
     def __hash__(self):
         return hash((self.tensor_name, self.storage_name, self.above_loop_index))
-
-    @property
-    def ts(self):
-        return self.tile_size
 
     def __str__(self):
         return f"[{self.storage_name}] {self.tensor_name} sz {expfmt(self.tile_size)} above {self.above_loop_index}"  # x{expfmt(self.n_repititions)}"
@@ -159,7 +159,6 @@ class TensorStorage:
                 return False
         return True
 
-
 @dataclass(frozen=True)
 class Tiling:
     loops: tuple[Loop, ...]
@@ -171,7 +170,7 @@ class Tiling:
         assert isinstance(self.loops, tuple)
         assert isinstance(self.tags, Tags)
 
-    @cached_property
+    @property
     def tensor_names(self) -> set[str]:
         return {t.tensor_name for t in self.tensors}
 
@@ -264,13 +263,36 @@ class Tiling:
     def has_tensor(self, *tensors: TensorStorage) -> bool:
         return all(any(t == tensor for t in self.tensors) for tensor in tensors)
     
+    def update(self, **kwargs) -> "Tiling":
+        dict_self = {k: v for k, v in self.__dict__.items() if k != "tensor_names"}
+        return Tiling(**{**dict_self, **kwargs})
+    
     def set_tags(self, *new_tags: Any) -> "Tiling":
-        return Tiling(self.loops, self.tensors, Tags(new_tags))
+        return self.update(tags=Tags(new_tags))
 
     def all_n_loops(self) -> list["Tiling"]:
         min_loops = max(t.above_loop_index for t in self.tensors)
         return list(Tiling(self.loops[:i], self.tensors, self.tags) for i in range(min_loops, len(self.loops)+1))
         
+    def add_tensors(self, *tensors: TensorStorage) -> "Tiling":
+        return self.update(tensors=self.tensors | fzs(tensors))
+
+    def get_tensor_storage(self, tensor_name: str) -> TensorStorage:
+        storage = [t for t in self.tensors if t.tensor_name == tensor_name]
+        assert len(storage) == 1
+        return storage[0]
+    
+    def set_loop(self, index: int, loop: Loop) -> "Tiling":
+        loops = list(self.loops)
+        if index == len(loops):
+            loops.append(loop)
+        else:
+            loops[index] = loop
+        return self.update(loops=tuple(loops))
+    
+    def set_tensor_storage(self, tensor_name: str, storage: TensorStorage) -> "Tiling":
+        tensors = fzs(t if t.tensor_name != tensor_name else storage for t in self.tensors)
+        return self.update(tensors=tensors)
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -299,7 +321,7 @@ class SIM:
     def merge_next(
         self, n: "SIM", live_tensors: set[str], delay: bool = False
     ) -> "SIM":
-        shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names)
+        shared_loop_index = self.tiling.shared_loop_index(n.tiling.tensor_names | live_tensors)
         tiling = self.tiling.merge_next(n.tiling, live_tensors)
         next_shared_loop_index = tiling.shared_loop_index(live_tensors)
         mapping = self.mapping.merge_next(
@@ -324,8 +346,8 @@ class SIM:
         resource2capacity: dict[str, int] = None,
     ):
         changed = False
-        changed = changed or self.mapping.free_to_loop_index(index, resource2capacity)
-        changed = changed or self.mapping.squish_left_right(index)
+        changed = self.mapping.free_to_loop_index(index, resource2capacity) or changed
+        changed = self.mapping.squish_left_right(index) or changed
         if changed:
             self.mapping.make_pareto()
 
@@ -512,7 +534,6 @@ class SIM:
         left_list = [s for k in left for s in left[k] if k in right_keys]
         right_list = [s for k in right for s in right[k] if k in left_keys]
         return left_list, right_list
-        
 
 import unittest
 
@@ -605,9 +626,9 @@ class TestSIM(unittest.TestCase):
             self.assertTrue((data0[k] == data1[k]).all())
 
         expected_util = max(
-            max(a2.ts, b2.ts) + a1.ts + b1.ts + a1b1.ts,
-            max(c2.ts, d2.ts) + c1.ts + d1.ts + c1d1.ts,
-        ) + (b0c0.ts + a0.ts + b0.ts + c0.ts + d0.ts)
+            max(a2.tile_size, b2.tile_size) + a1.tile_size + b1.tile_size + a1b1.tile_size,
+            max(c2.tile_size, d2.tile_size) + c1.tile_size + d1.tile_size + c1d1.tile_size,
+        ) + (b0c0.tile_size + a0.tile_size + b0.tile_size + c0.tile_size + d0.tile_size)
 
         colname = nameloop2col("GLB", 0)
         self.assertEqual(sims[0].mapping.data[colname].sum(), expected_util)

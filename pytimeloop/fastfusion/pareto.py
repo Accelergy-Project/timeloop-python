@@ -91,6 +91,9 @@ def max_to_col(df, target, source):
         df.loc[:, target] = df[[target, source]].max(axis=1)
     else:
         df.loc[:, target] = df[source]
+        
+def is_special_col(c):
+    return c in RESERVED_COLUMNS or col2nameloop(c) is not None
 
 
 # Above index 0: Freed when Einsum fully terminates
@@ -187,7 +190,6 @@ def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_
         return data[[c for c in data.columns if c not in dropcols]], changed
     return data[[c for c in data.columns if c not in dropcols]]
 
-
 def _free_to_loop_index(
     data: pd.DataFrame,
     shared_loop_index: int,
@@ -204,13 +206,16 @@ def _free_to_loop_index(
     max_nloops = max(
         max(nloops2left.keys(), default=-1), max(nloops2right.keys(), default=-1)
     )
+    changed = False
     for n in range(max_nloops, shared_loop_index, -1):
         # LEFT data: Max to the same level on the right
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
             if target in data:
                 max_to_col(data, target, c)
+                changed = True
             else:
+                # This does change things but we won't need another pareto
                 data.rename(columns={c: target}, inplace=True)
             nloops2right[n].add((target, name))
         # RIGHT data: Sum to the level below on the right
@@ -218,7 +223,9 @@ def _free_to_loop_index(
             target = nameloop2col(name, n - 1)
             if target in data:
                 add_to_col(data, target, c)
+                changed = True
             else:
+                # This does change things but we won't need another pareto
                 data.rename(columns={c: target}, inplace=True)
             nloops2right[n - 1].add((target, name))
 
@@ -230,9 +237,10 @@ def _free_to_loop_index(
                 keepcols.append(c)
         else:
             keepcols.append(c)
+
+    changed = changed or (len(keepcols) != len(data.columns))
     data = data[keepcols]
 
-    changed = bool(nloops2left.keys()) or bool(nloops2right.keys())
     return (data, changed) if return_changed else data
 
 
@@ -277,6 +285,8 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
         reservations = dict(looptree.get_reservations())
         for k, v in reservations.items():
             col = nameloop2col(k, -1)
+            if str(k) == '0':
+                continue
             if col not in df_check.columns:
                 got = r[[c for c in df_check.columns if col2nameloop(c) is not None]]
                 fail(i)
@@ -300,6 +310,7 @@ def merge_cross(
     shared_loop_index: int,
     live_tensors: set[int],
     as_pareto: bool = False,
+    pareto_prune: bool = True,
 ) -> pd.DataFrame:
     for c in left.columns:
         if (name_nloops := col2nameloop(c)) is not None:
@@ -375,7 +386,8 @@ def merge_cross(
     df.drop(columns=dropcols, inplace=True)
     if not CHECK_CORRECTNESS:
         cols = [c for c in df.columns if c in RESERVED_COLUMNS or not is_merge_col(c)]
-        df = makepareto(df)
+        if pareto_prune:
+            df = makepareto(df)
 
     for k in DICT_COLUMNS:
         if k not in left.columns:
@@ -397,7 +409,8 @@ def merge_cross(
 
     if CHECK_CORRECTNESS:
         check_correctness(df, live_tensors)
-        df = makepareto(df)
+        if pareto_prune:
+            df = makepareto(df)
 
     # Assert no NaNs
     assert not df.isnull().values.any()
@@ -447,12 +460,12 @@ class Pareto:
     ) -> bool:
         self.data, changed = _free_to_loop_index(self.data, n, return_changed=True)
         if resource2capacity is not None:
-            changed = changed or self.limit_capacity(n, resource2capacity)
+            changed = self.limit_capacity(n, resource2capacity) or changed
         return changed
 
     def alloc(self, resource_name: str, size: int, above_loop_index: int, resource2capacity: dict[str, Optional[int]]):
         n = nameloop2col(resource_name, above_loop_index)
-        if resource2capacity is None or resource_name in resource2capacity:
+        if resource2capacity is None or str(resource_name) in resource2capacity:
             if n in self.data:
                 self.data[n] = self.data[n] + size
             else:
@@ -473,19 +486,18 @@ class Pareto:
 
     def limit_capacity(self, n: int, resource2capacity: dict[str, Optional[int]]) -> bool:
         changed = False
+        resource2capacity = resource2capacity or {}
+        if resource2capacity:
+            assert all(isinstance(v, str) for v in resource2capacity.keys())
         for c in self.data.columns:
             if (name_nloops := col2nameloop(c)) is not None:
                 name, nloops = name_nloops
-                if nloops == n:
-                    if resource2capacity is None:
-                        capacity = float('inf')
-                    else:
-                        capacity = resource2capacity.get(name, None)
-                    if capacity is not None:
-                        self.data = self.data[self.data[c] <= capacity]
-                        changed = True
-                    del self.data[c]
+                capacity = resource2capacity.get(name)
+                if capacity is not None:
+                    self.data = self.data[self.data[c] <= capacity]
                     changed = True
+                    if nloops == n:
+                        del self.data[c]
         return changed
 
     def squish_left_right(self, shared_loop_index: int = None) -> bool:

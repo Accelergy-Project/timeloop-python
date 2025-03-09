@@ -274,31 +274,3 @@ def per_einsum_mapper_snowcat(
         data2[einsum_id].append(sim)
     
     return data2
-
-
-    # def makesim(einsum_id, tiling, data):
-    #     return SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1))
-    
-    # data = {}
-    # for i, einsum_id in enumerate(einsums_to_explore):
-    #     jobs = _per_einsum_mapper_snowcat(
-    #         config,
-    #         spec,
-    #         explore_glb_uneven,
-    #         einsum_id,
-    #         energy_dict,
-    #         ffmt=ffmt,
-    #         ffmt_refetch_weights=ffmt_refetch_weights,
-    #         dataflow_constraint=dataflow_constraint,
-    #         metrics=metrics,
-    #         tag_with=tag_with,
-    #     )
-    #     result = defaultdict(list)
-    #     for res in parallel(jobs, pbar=f"Generating data for Einsum {i+1}/{len(einsums_to_explore)}", return_as="generator"):
-    #         einsum_id, res = res
-    #         for k, v in res.items():
-    #             result[k[0]].append(v)             
-                
-    #     jobs = [delayed(makesim)(None, tiling, data) for tiling, data in result.items()]
-    #     data[einsum_id] = parallel(jobs, pbar=f"Generating SIMs for Einsum {i+1}/{len(einsums_to_explore)}")
-    # return data

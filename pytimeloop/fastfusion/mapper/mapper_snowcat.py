@@ -23,6 +23,7 @@ from pytimeloop.fastfusion.mapper.process_results import Metrics
 
 from pytimeloop.timeloopfe.v4 import Ert
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+from pytimeloop.fastfusion.sim import SIM
 
 
 def mapper(
@@ -127,17 +128,24 @@ def mapper(
             equiv_ranks_dict[rank_name] = set(dimension_id_to_name[x] for x in equiv_ranks[rank_id])
         except IndexError:
             equiv_ranks_dict[rank_name] = set()
-            
+
     einsum2ranks = {}
     for einsum_id in einsum_id_to_name:
         einsum2ranks[einsum_id_to_name[einsum_id]] = set(
             dimension_id_to_name[x] for x in workload.einsum_ospace_dimensions(einsum_id)
         )
-            
+
     return data, equiv_ranks_dict, einsum2ranks
 
 
 def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):
+    def convert(sim):
+        return SIM(
+            _convert_tiling(sim.tiling, rank_renaming, tensor_renaming),
+            _convert_stats(from_einsum, to_einsum, sim.mapping, rank_renaming, tensor_renaming)
+        )
+    return [convert(sim) for sim in data]
+    
     return {
         _convert_tiling(tiling, rank_renaming, tensor_renaming)
         :
@@ -152,17 +160,15 @@ def _convert_tiling(tiling: Tiling, rank_renaming, tensor_renaming):
 
 def _convert_stats(from_einsum: int, to_einsum: int, stats, rank_renaming, tensor_renaming):
     stats = deepcopy(stats)
-    for s in stats:
-        for d in DICT_COLUMNS:
-            if d in s:
-                s[d][to_einsum] = s[d].pop(from_einsum)
-        if MAPPING in s:
-            s[MAPPING][to_einsum] = s[MAPPING][to_einsum].rename(rank_renaming, tensor_renaming)
-        if TENSORS in s:
-            s[TENSORS][to_einsum] = [t.rename(rank_renaming, tensor_renaming) for t in s[TENSORS][to_einsum]]
+    data = stats.data
+    for c in data.columns:
+        if c in DICT_COLUMNS:
+            data[c] = data[c].apply(lambda x: {to_einsum: x[from_einsum]})
+        if c == MAPPING:
+            data[c] = data[c].apply(lambda x: {to_einsum: x[to_einsum].rename(rank_renaming, tensor_renaming)})
+        if c == TENSORS:
+            data[c] = data[c].apply(lambda x: {to_einsum: [t.rename(rank_renaming, tensor_renaming) for t in x[to_einsum]]})
     return stats
-    
-
 
 def detect_similar_einsums(workload, analyzer, separated_einsums=None):
     if separated_einsums is None:
@@ -223,9 +229,4 @@ def get_ffmt_separated_einsums(workload):
 
 def _convert_rank_renaming(rank_renaming, equiv_ranks):
     # The Tiling class uses string ids
-    return {
-        str(equiv_ranks.rank_to_group_id[r1])
-        :
-        str(equiv_ranks.rank_to_group_id[r2])
-        for r1, r2 in rank_renaming.items()
-    }
+    return {str(r1): str(r2) for r1, r2 in rank_renaming.items()}

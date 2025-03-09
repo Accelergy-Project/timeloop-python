@@ -252,9 +252,9 @@ def fuse_sims(
 
         # ======================================================================
         # Remove dead tensors from left and right. This happens after grouping
-        # because we only space for shared tensors after it's dead. This is in
-        # case the tensor lifetime extends beyond the Einsums for which it is
-        # used.
+        # because we only reserve space for shared tensors after it's dead. This
+        # is in case the tensor lifetime extends beyond the Einsums for which it
+        # is used.
         # ======================================================================
         SIM.remove_dead_tensors(
             [s for lr in [left, right] for v in lr.values() for s in v], live_tensors
