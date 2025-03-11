@@ -169,10 +169,10 @@ def _reverse_free(data: pd.DataFrame) -> pd.DataFrame:
     return data[keep_columns]
 
 
-def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_changed: bool = False) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
+def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_needs_pareto: bool = False) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
     nloops2left = defaultdict(set)
     dropcols = []
-    changed = False
+    needs_pareto = False
     for c in data.columns:
         if (name_nloops := col2nameloop(c)) is not None:
             if is_left_col(c):
@@ -180,20 +180,20 @@ def squish_left_right(data: pd.DataFrame, shared_loop_index: int = None, return_
                 if shared_loop_index is None or nloops == shared_loop_index:
                     nloops2left[nloops].add((c, name))
                     dropcols.append(c)
-                    changed = True
+                    needs_pareto = True
 
     for n in nloops2left.keys():
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
             max_to_col(data, target, c)
-    if return_changed:
-        return data[[c for c in data.columns if c not in dropcols]], changed
+    if return_needs_pareto:
+        return data[[c for c in data.columns if c not in dropcols]], needs_pareto
     return data[[c for c in data.columns if c not in dropcols]]
 
 def _free_to_loop_index(
     data: pd.DataFrame,
     shared_loop_index: int,
-    return_changed: bool = False,
+    return_needs_pareto: bool = False,
 ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, bool]]:
     nloops2left = defaultdict(set)
     nloops2right = defaultdict(set)
@@ -206,14 +206,14 @@ def _free_to_loop_index(
     max_nloops = max(
         max(nloops2left.keys(), default=-1), max(nloops2right.keys(), default=-1)
     )
-    changed = False
+    needs_pareto = False
     for n in range(max_nloops, shared_loop_index, -1):
         # LEFT data: Max to the same level on the right
         for c, name in nloops2left[n]:
             target = nameloop2col(name, n)
             if target in data:
                 max_to_col(data, target, c)
-                changed = True
+                needs_pareto = True
             else:
                 # This does change things but we won't need another pareto
                 data.rename(columns={c: target}, inplace=True)
@@ -223,7 +223,7 @@ def _free_to_loop_index(
             target = nameloop2col(name, n - 1)
             if target in data:
                 add_to_col(data, target, c)
-                changed = True
+                needs_pareto = True
             else:
                 # This does change things but we won't need another pareto
                 data.rename(columns={c: target}, inplace=True)
@@ -238,10 +238,10 @@ def _free_to_loop_index(
         else:
             keepcols.append(c)
 
-    changed = changed or (len(keepcols) != len(data.columns))
+    needs_pareto = needs_pareto or (len(keepcols) != len(data.columns))
     data = data[keepcols]
 
-    return (data, changed) if return_changed else data
+    return (data, needs_pareto) if return_needs_pareto else data
 
 
 def paretofy_by(data: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
@@ -458,18 +458,23 @@ class Pareto:
         n: int, 
         resource2capacity: Optional[dict[str, Optional[int]]] = None,
     ) -> bool:
-        self.data, changed = _free_to_loop_index(self.data, n, return_changed=True)
+        self.data, needs_pareto = _free_to_loop_index(self.data, n, return_needs_pareto=True)
         if resource2capacity is not None:
-            changed = self.limit_capacity(n, resource2capacity) or changed
-        return changed
+            self.limit_capacity(n, resource2capacity)
+        return needs_pareto
 
     def alloc(self, resource_name: str, size: int, above_loop_index: int, resource2capacity: dict[str, Optional[int]]):
+        resource2capacity = resource2capacity or {}
+        resource_name = str(resource_name)
+        
+        if resource_name not in resource2capacity:
+            return
+        
         n = nameloop2col(resource_name, above_loop_index)
-        if resource2capacity is None or str(resource_name) in resource2capacity:
-            if n in self.data:
-                self.data[n] = self.data[n] + size
-            else:
-                self.data[n] = size
+        if n in self.data:
+            self.data[n] = self.data[n] + size
+        else:
+            self.data[n] = size
 
     def add_tensor(self, tensor):
         if len(self.data) == 0:
@@ -485,24 +490,25 @@ class Pareto:
         return Pareto(self.data.copy())
 
     def limit_capacity(self, n: int, resource2capacity: dict[str, Optional[int]]) -> bool:
-        changed = False
         resource2capacity = resource2capacity or {}
         if resource2capacity:
             assert all(isinstance(v, str) for v in resource2capacity.keys())
         for c in self.data.columns:
             if (name_nloops := col2nameloop(c)) is not None:
                 name, nloops = name_nloops
-                capacity = resource2capacity.get(name)
-                if capacity is not None:
-                    self.data = self.data[self.data[c] <= capacity]
-                    changed = True
-                    if nloops == n:
-                        del self.data[c]
-        return changed
+                if name in resource2capacity:
+                    capacity = resource2capacity.get(name)
+                    if capacity is not None:
+                        self.data = self.data[self.data[c] <= capacity]
+                        needs_pareto = True
+                        if nloops == n:
+                            del self.data[c]
+                else:
+                    del self.data[c]
 
     def squish_left_right(self, shared_loop_index: int = None) -> bool:
-        self.data, changed = squish_left_right(self.data, shared_loop_index, return_changed = True)
-        return changed
+        self.data, needs_pareto = squish_left_right(self.data, shared_loop_index, return_needs_pareto = True)
+        return needs_pareto
 
     def filter_by_mapping_hashes(self, hashes: set[int]):
         self.data = self.data[

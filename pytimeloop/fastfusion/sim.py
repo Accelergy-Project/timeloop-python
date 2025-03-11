@@ -345,10 +345,10 @@ class SIM:
         index: Optional[int],
         resource2capacity: dict[str, int] = None,
     ):
-        changed = False
-        changed = self.mapping.free_to_loop_index(index, resource2capacity) or changed
-        changed = self.mapping.squish_left_right(index) or changed
-        if changed:
+        needs_pareto = False
+        needs_pareto = self.mapping.free_to_loop_index(index, resource2capacity) or needs_pareto
+        needs_pareto = self.mapping.squish_left_right(index) or needs_pareto
+        if needs_pareto:
             self.mapping.make_pareto()
 
     def _right_consolidate(
