@@ -19,38 +19,33 @@ class PeArrayConstraint:
 WILDCARD = '*'
 SEPARATOR = '/'
 
+
+@dataclass
+class PerEinsumDataflowConstraint:
+    disallowed_ranks: set
+    rank_order: list
+
+    @staticmethod
+    def parse(pattern: list[str]):
+        if SEPARATOR in pattern:
+            separator_idx = pattern.index(SEPARATOR)
+            disallowed_ranks = set(pattern[:separator_idx])
+            rank_order = pattern[separator_idx+1:]
+        else:
+            separator_idx = 0
+            disallowed_ranks = set()
+            rank_order = pattern
+        return PerEinsumDataflowConstraint(disallowed_ranks, rank_order)
+
+
 @dataclass
 class DataflowConstraint:
-    einsum_to_constraint: dict[int, list]
+    # From EinsumId to PerEinsumDataflowConstraint
+    einsum_to_constraint: dict[int, PerEinsumDataflowConstraint]
 
     @staticmethod
-    def parse(pattern: dict[str, list[str]], workload):
-        einsum_name_to_id = workload.einsum_name_to_id()
-        rank_name_to_id = workload.dimension_name_to_id()
-
-        def str_to_rank_or_wildcard(string: str):
-            if string == WILDCARD:
-                return WILDCARD
-            elif string == '/':
-                return SEPARATOR
-            else:
-                return rank_name_to_id[string]
-
-        constraint = {
-            einsum_name_to_id[einsum_name]: [
-                str_to_rank_or_wildcard(rank_name)
-                for rank_name in constraint
-            ]
+    def parse(pattern: dict[str, list[str]]):
+        return DataflowConstraint({
+            einsum_name : PerEinsumDataflowConstraint.parse(constraint)
             for einsum_name, constraint in pattern.items()
-        }
-        for einsum_id in workload.einsum_id_to_name():
-            if einsum_id not in constraint:
-                constraint[einsum_id] = [WILDCARD]
-        return constraint
-
-    @staticmethod
-    def default(workload):
-        constraint = {}
-        for einsum_id in workload.einsum_id_to_name():
-            constraint[einsum_id] = [WILDCARD]
-        return constraint
+        })

@@ -1,9 +1,10 @@
 from collections.abc import Callable
 from itertools import permutations
-from pytimeloop.fastfusion.mapper.constraints import SEPARATOR, WILDCARD
+from pytimeloop.fastfusion.mapper.constraints import PerEinsumDataflowConstraint, WILDCARD
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.subspaces.linear_mapping import LinearMapping
 
 
-def make_spatial_fors(mapping,
+def make_spatial_fors(mapping: LinearMapping,
                       ranks,
                       max_factor):
     original = mapping.copy()
@@ -18,28 +19,24 @@ def make_spatial_fors(mapping,
             yield mapping
 
 
-def make_temporal_fors(mapping,
+def make_temporal_fors(mapping: LinearMapping,
                        ranks,
-                       dataflow_constraint: list=None,
+                       dataflow_constraint: PerEinsumDataflowConstraint=None,
                        logfunc: Callable=None):
     if dataflow_constraint is None:
         top_ranks = []
         other_ranks = ranks
     else:
-        if SEPARATOR in dataflow_constraint:
-            i = dataflow_constraint.index(SEPARATOR)
-            disallowed_ranks = set(dataflow_constraint[i+1:])
-            dataflow_constraint = dataflow_constraint[:i]
-        else:
-            disallowed_ranks = set()
+        disallowed_ranks = dataflow_constraint.disallowed_ranks
+        rank_order = dataflow_constraint.rank_order
 
-        num_wildcards = sum(map(lambda x: x is WILDCARD, dataflow_constraint))
+        num_wildcards = sum(map(lambda x: x is WILDCARD, rank_order))
         top_ranks = []
         if num_wildcards == 0:
-            top_ranks = dataflow_constraint
+            top_ranks = rank_order
             other_ranks = set()
         elif num_wildcards == 1:
-            top_ranks = dataflow_constraint[:-1]
+            top_ranks = rank_order[:-1]
             other_ranks = set(ranks) - set(top_ranks) - disallowed_ranks
         else:
             raise NotImplementedError("Constraint not implemented")
@@ -56,7 +53,7 @@ def make_temporal_fors(mapping,
                 yield mapping
 
 
-def make_temporal_fors_with_smallest_tile(original, ranks):
+def make_temporal_fors_with_smallest_tile(original: LinearMapping, ranks):
     for ordered_ranks in permutations(ranks):
         mapping = original.copy()
         for r in ordered_ranks:
@@ -64,7 +61,7 @@ def make_temporal_fors_with_smallest_tile(original, ranks):
         yield mapping
 
 
-def make_temporal_fors_in_order(original, ranks):
+def make_temporal_fors_in_order(original: LinearMapping, ranks):
     for i in range(len(ranks)+1):
         mapping = original.copy()
         for r in ranks[:i]:
