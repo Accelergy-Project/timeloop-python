@@ -24,7 +24,7 @@ architecture:
       n_wr_ports: 0
     required_actions: ['read', 'write']
   - !Container
-    name: PE 
+    name: Core
     spatial: {meshX: 4}
   - !Component
     name: LocalBuffer
@@ -39,6 +39,9 @@ architecture:
       n_rd_ports: 0
       n_wr_ports: 0
     required_actions: ['read', 'write']
+  - !Container
+    name: PE
+    spatial: {meshX: 128, meshY: 128}
   - !Component
     name: Register
     class: regfile
@@ -54,6 +57,5 @@ architecture:
   - !Component
     name: MACC
     class: intmac
-    spatial: {meshX: 128, meshY: 128}
     attributes: {datawidth: 8, width: 8, cycle_time: 1e-9}
     required_actions: ['compute']

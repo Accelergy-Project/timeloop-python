@@ -68,14 +68,26 @@ def make_subspaces(tensors,
                 if success:
                     yield pm2
 
+    def core_spatial_fors(mapping, unfused_tensors):
+        raise NotImplementedError()
 
-    def tile_shape_optimization(mapping):
-        for partial_mapping in infer_smallest_tile_shape(mapping,
-                                                         workload,
-                                                         einsum_id,
-                                                         tensor_to_relevant_ranks,
-                                                         hw_level=1):
-            yield partial_mapping
+    def core_temporal_fors(mapping, unfused_tensors):
+        raise NotImplementedError()
+
+    def llb_storage(mapping, unfused_tensors):
+        raise NotImplementedError()
+
+    def pe_spatial_fors(mapping, unfused_tensors):
+        raise NotImplementedError()
+
+    def pe_temporal_fors(mapping, unfused_tensors):
+        raise NotImplementedError()
+
+    def register_storage(mapping, unfused_tensors):
+        raise NotImplementedError()
+
+    def mac_temporal_fors(mapping, unfused_tensors):
+        raise NotImplementedError()
 
     def mac(mapping):
         mapping.add_compute(einsum_id, 2)
@@ -86,6 +98,12 @@ def make_subspaces(tensors,
         off_chip_storage,
         fused_temporal_fors,
         glb_storage,
-        tile_shape_optimization,
+        core_spatial_fors,
+        core_temporal_fors,
+        llb_storage,
+        pe_spatial_fors,
+        pe_temporal_fors,
+        register_storage,
+        mac_temporal_fors,
         mac
     ]
