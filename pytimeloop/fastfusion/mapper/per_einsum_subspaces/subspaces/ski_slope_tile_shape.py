@@ -8,6 +8,15 @@ def infer_smallest_tile_shape(mapping,
                               einsum_id,
                               tensor_to_relevant_ranks,
                               hw_level):
+    """
+    Set the tile shape of a loop node to 1 (smallest) if the loop is
+    relevant to all tensors in storage nodes below the loop.
+
+    Rationale: loop that is relevant to all tensors in storage nodes
+    below the loop will not reduce reuse.
+
+    Caution: might sacrifice paralellism.
+    """
     tensors = workload.tensors_read_by_einsum(einsum_id)
     tensors |= workload.tensors_written_by_einsum(einsum_id)
 
