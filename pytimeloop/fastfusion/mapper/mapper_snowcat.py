@@ -35,6 +35,7 @@ def mapper(
     ffmt_refetch_weights: bool=True,
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
+    four_level=False,
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -85,6 +86,7 @@ def mapper(
         dataflow_constraint=dataflow_constraint,
         metrics=metrics,
         tag_with=tag_with,
+        four_level=four_level
     )
 
     generated_data = {}

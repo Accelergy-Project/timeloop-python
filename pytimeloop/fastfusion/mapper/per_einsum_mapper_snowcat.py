@@ -13,6 +13,7 @@ from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.mapper.per_einsum_mapper import explore_tile_shape, process_result, get_hardware_levels
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat import make_subspaces
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.snowcat_ffmt import make_ffmt_subspaces
+from pytimeloop.fastfusion.mapper.per_einsum_subspaces.four_level_arch import make_subspaces as make_four_level_subspaces
 from pytimeloop.fastfusion.pareto import Pareto, makepareto
 from pytimeloop.fastfusion.sim import SIM
 from pytimeloop.fastfusion.util import parallel
@@ -105,6 +106,7 @@ def _per_einsum_mapper_snowcat(
     dataflow_constraint=None,
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
+    four_level=False,
 ):
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -132,13 +134,21 @@ def _per_einsum_mapper_snowcat(
         rank_name: workload.get_rank_shape(rank_name)[1] + 1 for rank_name in all_ranks
     }
 
-    if not ffmt:
+    if not ffmt and not four_level:
         subspaces = make_subspaces(tensors,
                                     intermediate_tensors,
                                     tensor_to_relevant_ranks,
                                     einsum_id,
                                     workload,
                                     dataflow_constraint[einsum_id])
+    elif four_level:
+        subspaces = make_four_level_subspaces(
+            tensors,
+            intermediate_tensors,
+            tensor_to_relevant_ranks,
+            einsum_id,
+            workload
+        )
     else:
         subspaces = make_ffmt_subspaces(tensors,
                                         intermediate_tensors,
@@ -236,6 +246,7 @@ def per_einsum_mapper_snowcat(
     dataflow_constraint=None,
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
+    four_level=False,
 ):
     jobs = list(j for einsum_id in einsums_to_explore for j in _per_einsum_mapper_snowcat(
             config,
@@ -248,6 +259,7 @@ def per_einsum_mapper_snowcat(
             dataflow_constraint=dataflow_constraint,
             metrics=metrics,
             tag_with=tag_with,
+            four_level=four_level
         )
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}

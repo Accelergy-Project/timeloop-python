@@ -3,17 +3,89 @@ from .subspaces import (
     LinearMapping,
     make_storage,
     make_temporal_fors,
+    make_temporal_fors_with_smallest_tile,
+    make_spatial_fors
 )
 from pytimeloop.looptree.mapping_utilities import get_last_fused_loop_idx
 from pytimeloop.fastfusion.mapper.constraints import DataflowConstraint
+
+
+"""
+Mapping constraint:
+DRAM
+----
+for loop over any rank
+----
+GlobalBuffer
+----
+par-for loop over H
+par-for loop over M
+for loop over any rank
+----
+LocalBuffer
+----
+par-for loop over M
+par-for loop over C
+for loop over any rank
+----
+Register
+----
+leftover for loop
+"""
+
+EINSUM_ID_TO_FULLY_PARALLEL_RANKS = {
+    "EinsumQ": [],
+    "EinsumK": [],
+    "EinsumV": [],
+    "EinsumQK": ["HQK"],
+    "EinsumAV": ["HAV"],
+    "EinsumZ": []
+}
+
+EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS = {
+    "EinsumQ": ["HQ", "EQ"],
+    "EinsumK": ["HK", "EK"],
+    "EinsumV": ["HV", "EV"],
+    "EinsumQK": ["PQK"],
+    "EinsumAV": ["FAV"],
+    "EinsumZ": ["GZ"]
+}
+
+EINSUM_ID_TO_REDUCED_RANKS = {
+    "EinsumQ": ["DQ"],
+    "EinsumK": ["DK"],
+    "EinsumV": ["DV"],
+    "EinsumQK": ["EQK"],
+    "EinsumAV": ["PAV"],
+    "EinsumZ": ["HZ", "FZ"]
+}
+
+EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
+    "EinsumQ": "WQ",
+    "EinsumK": "WK",
+    "EinsumV": "WV",
+    "EinsumQK": "K",
+    "EinsumAV": "V",
+    "EinsumZ": "WZ"
+}
 
 
 def make_subspaces(tensors,
                    intermediate_tensors,
                    tensor_to_relevant_ranks,
                    einsum_id,
-                   workload,
-                   dataflow_constraint: DataflowConstraint=None):
+                   workload):
+    """
+    fully_parallel_ranks: in all tensors
+    output_parallel_ranks: not in input
+    reduced_ranks: not in output
+    weight_like_tensor: tensor that will be stationary in systolic array
+    """
+    fully_parallel_ranks = EINSUM_ID_TO_FULLY_PARALLEL_RANKS[einsum_id]
+    output_parallel_ranks = EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[einsum_id]
+    reduced_ranks = EINSUM_ID_TO_REDUCED_RANKS[einsum_id]
+    weight_like_tensor = EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[einsum_id]
+
     def off_chip_storage(mapping):
         off_chip_must_retain = tensors - intermediate_tensors
         off_chip_can_retain = intermediate_tensors
@@ -33,8 +105,7 @@ def make_subspaces(tensors,
 
     def fused_temporal_fors(mapping, unfused_tensors):
         for partial_mapping in make_temporal_fors(mapping,
-                                                  all_ranks,
-                                                  dataflow_constraint=dataflow_constraint):
+                                                  all_ranks):
             yield partial_mapping, unfused_tensors
 
 
@@ -55,39 +126,51 @@ def make_subspaces(tensors,
             last_fused_loop_idx = get_last_fused_loop_idx(partial_mapping, intermediate_tensors)
             for pm2 in make_storage(partial_mapping,
                                     level=1,
-                                    must_retain_tensors=tensors - intermediate_tensors,
-                                    can_retain_tensors=set(),
+                                    must_retain_tensors=set(),
+                                    can_retain_tensors=tensors - intermediate_tensors,
                                     must_fully_reuse_tensors=set(),
                                     tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                                     explore_uneven=True,
                                     add_split_at_tensors=set(),
                                     must_have_terminal_storage=True,
                                     apply_lrp_after_loop_idx=last_fused_loop_idx):
-                prev = None
-                success = True
-                if success:
-                    yield pm2
+                yield pm2
 
-    def core_spatial_fors(mapping, unfused_tensors):
-        raise NotImplementedError()
+    def core_spatial_fors(mapping):
+        ranks = fully_parallel_ranks + output_parallel_ranks
+        yield from make_spatial_fors(mapping, ranks, 4)
 
-    def core_temporal_fors(mapping, unfused_tensors):
-        raise NotImplementedError()
+    def core_temporal_fors(mapping):
+        yield from make_temporal_fors(mapping, all_ranks)
 
-    def llb_storage(mapping, unfused_tensors):
-        raise NotImplementedError()
+    def llb_storage(mapping):
+        yield from make_storage(mapping,
+                                level=2,
+                                must_retain_tensors=tensors - weight_like_tensor,
+                                can_retain_tensors=set(),
+                                tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+                                explore_uneven=True)
 
-    def pe_spatial_fors(mapping, unfused_tensors):
-        raise NotImplementedError()
+    def pe_spatial_fors(mapping):
+        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128):
+            yield from make_spatial_fors(pm, reduced_ranks, 128)
 
-    def pe_temporal_fors(mapping, unfused_tensors):
-        raise NotImplementedError()
+    def pe_temporal_fors(mapping):
+        for pm in make_temporal_fors_with_smallest_tile(mapping, fully_parallel_ranks):
+            for pm2 in make_temporal_fors_with_smallest_tile(pm, output_parallel_ranks):
+                yield from make_temporal_fors_with_smallest_tile(pm2, reduced_ranks)
 
-    def register_storage(mapping, unfused_tensors):
-        raise NotImplementedError()
+    def register_storage(mapping):
+        yield from make_storage(mapping,
+                                level=3,
+                                must_retain_tensors=weight_like_tensor,
+                                can_retain_tensors=set(),
+                                tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+                                explore_uneven=False)
 
-    def mac_temporal_fors(mapping, unfused_tensors):
-        raise NotImplementedError()
+    other_ranks = all_ranks - fully_parallel_ranks - output_parallel_ranks - reduced_ranks
+    def mac_temporal_fors(mapping):
+        yield from make_temporal_fors_with_smallest_tile(mapping, other_ranks)
 
     def mac(mapping):
         mapping.add_compute(einsum_id, 2)
