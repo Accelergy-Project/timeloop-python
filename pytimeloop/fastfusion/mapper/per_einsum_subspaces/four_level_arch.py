@@ -34,6 +34,7 @@ leftover for loop
 """
 
 EINSUM_ID_TO_FULLY_PARALLEL_RANKS = {
+    # "I": set(),
     "Q": set(),
     "K": set(),
     "V": set(),
@@ -43,6 +44,7 @@ EINSUM_ID_TO_FULLY_PARALLEL_RANKS = {
 }
 
 EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS = {
+    # "I": set(),
     "Q": {"HQ", "EQ"},
     "K": {"HK", "EK"},
     "V": {"HV", "EV"},
@@ -52,6 +54,7 @@ EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS = {
 }
 
 EINSUM_ID_TO_REDUCED_RANKS = {
+    # "I": set(),
     "Q": {"DQ"},
     "K": {"DK"},
     "V": {"DV"},
@@ -61,12 +64,13 @@ EINSUM_ID_TO_REDUCED_RANKS = {
 }
 
 EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
-    "Q": "WQ",
-    "K": "WK",
-    "V": "WV",
-    "QK": "K",
-    "AV": "V",
-    "Z": "WZ"
+    # "I": set(),
+    "Q": "W_n_to_Q",
+    "K": "W_n_to_K",
+    "V": "W_n_to_V",
+    "QK": "K_K_to_QK",
+    "AV": "V_V_to_AV",
+    "Z": "W_n_to_Z"
 }
 
 
