@@ -52,7 +52,6 @@ def per_worker_exploration(
     local_task_spaces[0] = lambda : task_spaces[0](*task_space_args)
     result = defaultdict(list)
     for partial_mapping in dependent_product(local_task_spaces):
-        print(partial_mapping)
         _, compiled_results = compile_mapping(
             partial_mapping, workload, analyzer
         )
