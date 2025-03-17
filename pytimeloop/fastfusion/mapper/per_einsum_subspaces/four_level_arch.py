@@ -34,39 +34,39 @@ leftover for loop
 """
 
 EINSUM_ID_TO_FULLY_PARALLEL_RANKS = {
-    "EinsumQ": [],
-    "EinsumK": [],
-    "EinsumV": [],
-    "EinsumQK": ["HQK"],
-    "EinsumAV": ["HAV"],
-    "EinsumZ": []
+    "Q": set(),
+    "K": set(),
+    "V": set(),
+    "QK": {"HQK"},
+    "AV": {"HAV"},
+    "Z": set()
 }
 
 EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS = {
-    "EinsumQ": ["HQ", "EQ"],
-    "EinsumK": ["HK", "EK"],
-    "EinsumV": ["HV", "EV"],
-    "EinsumQK": ["PQK"],
-    "EinsumAV": ["FAV"],
-    "EinsumZ": ["GZ"]
+    "Q": {"HQ", "EQ"},
+    "K": {"HK", "EK"},
+    "V": {"HV", "EV"},
+    "QK": {"PQK"},
+    "AV": {"FAV"},
+    "Z": {"GZ"}
 }
 
 EINSUM_ID_TO_REDUCED_RANKS = {
-    "EinsumQ": ["DQ"],
-    "EinsumK": ["DK"],
-    "EinsumV": ["DV"],
-    "EinsumQK": ["EQK"],
-    "EinsumAV": ["PAV"],
-    "EinsumZ": ["HZ", "FZ"]
+    "Q": {"DQ"},
+    "K": {"DK"},
+    "V": {"DV"},
+    "QK": {"EQK"},
+    "AV": {"PAV"},
+    "Z": {"HZ", "FZ"}
 }
 
 EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
-    "EinsumQ": "WQ",
-    "EinsumK": "WK",
-    "EinsumV": "WV",
-    "EinsumQK": "K",
-    "EinsumAV": "V",
-    "EinsumZ": "WZ"
+    "Q": "WQ",
+    "K": "WK",
+    "V": "WV",
+    "QK": "K",
+    "AV": "V",
+    "Z": "WZ"
 }
 
 
@@ -81,10 +81,21 @@ def make_subspaces(tensors,
     reduced_ranks: not in output
     weight_like_tensor: tensor that will be stationary in systolic array
     """
-    fully_parallel_ranks = EINSUM_ID_TO_FULLY_PARALLEL_RANKS[einsum_id]
-    output_parallel_ranks = EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[einsum_id]
-    reduced_ranks = EINSUM_ID_TO_REDUCED_RANKS[einsum_id]
-    weight_like_tensor = EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[einsum_id]
+    einsum_name = workload.einsum_id_to_name()[einsum_id]
+    fully_parallel_ranks = {
+        workload.dimension_name_to_id()[r]
+        for r in EINSUM_ID_TO_FULLY_PARALLEL_RANKS[einsum_name]
+    }
+    output_parallel_ranks = {
+        workload.dimension_name_to_id()[r]
+        for r in EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[einsum_name]
+    }
+    reduced_ranks = {
+        workload.dimension_name_to_id()[r]
+        for r in EINSUM_ID_TO_REDUCED_RANKS[einsum_name]
+    }
+    weight_like_tensor = EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[einsum_name]
+    weight_like_tensor = workload.data_space_name_to_id()[weight_like_tensor]
 
     def off_chip_storage(mapping):
         off_chip_must_retain = tensors - intermediate_tensors
@@ -137,7 +148,7 @@ def make_subspaces(tensors,
                 yield pm2
 
     def core_spatial_fors(mapping):
-        ranks = fully_parallel_ranks + output_parallel_ranks
+        ranks = fully_parallel_ranks | output_parallel_ranks
         yield from make_spatial_fors(mapping, ranks, 4)
 
     def core_temporal_fors(mapping):
@@ -146,7 +157,7 @@ def make_subspaces(tensors,
     def llb_storage(mapping):
         yield from make_storage(mapping,
                                 level=2,
-                                must_retain_tensors=tensors - weight_like_tensor,
+                                must_retain_tensors=tensors - {weight_like_tensor},
                                 can_retain_tensors=set(),
                                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                                 explore_uneven=True)
@@ -163,12 +174,12 @@ def make_subspaces(tensors,
     def register_storage(mapping):
         yield from make_storage(mapping,
                                 level=3,
-                                must_retain_tensors=weight_like_tensor,
+                                must_retain_tensors={weight_like_tensor},
                                 can_retain_tensors=set(),
                                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                                 explore_uneven=False)
 
-    other_ranks = all_ranks - fully_parallel_ranks - output_parallel_ranks - reduced_ranks
+    other_ranks = set(all_ranks) - fully_parallel_ranks - output_parallel_ranks - reduced_ranks
     def mac_temporal_fors(mapping):
         yield from make_temporal_fors_with_smallest_tile(mapping, other_ranks)
 

@@ -23,12 +23,13 @@ architecture:
       n_rd_ports: 0
       n_wr_ports: 0
     required_actions: ['read', 'write']
-  - !Container
-    name: Core
-    spatial: {meshX: 4}
+  # - !Container
+  #   name: Core
+  #   spatial: {meshX: 4}
   - !Component
     name: LocalBuffer
     class: SRAM 
+    spatial: {meshX: 4}
     attributes:
       depth: 1024
       width: 512
@@ -39,12 +40,13 @@ architecture:
       n_rd_ports: 0
       n_wr_ports: 0
     required_actions: ['read', 'write']
-  - !Container
-    name: PE
-    spatial: {meshX: 128, meshY: 128}
+  # - !Container
+  #   name: PE
+  #   spatial: {meshX: 128, meshY: 128}
   - !Component
     name: Register
     class: regfile
+    spatial: {meshX: 128, meshY: 128}
     attributes:
       depth: 1
       width: 24

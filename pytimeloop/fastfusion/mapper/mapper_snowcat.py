@@ -45,13 +45,13 @@ def mapper(
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
     equivalent_groups = EquivalentGroups.from_workload(workload, analyzer)
 
-    if "mapping_constraints" in spec:
-        dataflow_constraint = DataflowConstraint.parse(
-            spec["mapping_constraints"],
-            workload
-        )
-    else:
-        dataflow_constraint = DataflowConstraint.default(workload)
+    # if "mapping_constraints" in spec:
+    #     dataflow_constraint = DataflowConstraint.parse(
+    #         spec["mapping_constraints"],
+    #         workload
+    #     )
+    # else:
+    #     dataflow_constraint = DataflowConstraint.default(workload)
 
 
     if isinstance(tmp_path, Path):
@@ -60,6 +60,7 @@ def mapper(
     ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
+    print(energy_dict)
 
     if not ffmt:
         separated_einsums = None
@@ -83,7 +84,7 @@ def mapper(
         energy_dict=energy_dict,
         ffmt=ffmt,
         ffmt_refetch_weights=ffmt_refetch_weights,
-        dataflow_constraint=dataflow_constraint,
+        # dataflow_constraint=dataflow_constraint,
         metrics=metrics,
         tag_with=tag_with,
         four_level=four_level

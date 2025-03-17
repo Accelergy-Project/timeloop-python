@@ -86,7 +86,7 @@ def process_result(
     intermediates_to_find = set(intermediate_tensors)
     found_tensors = set()
     ranks_remaining = {k: v for k, v in einsum_shape.items()}
-    einsum_id = einsum_id_to_name[einsum_id]
+    einsum_name = einsum_id_to_name[einsum_id]
 
     def record_storage(node):
         for dspace in node["dspace"]:
@@ -136,7 +136,7 @@ def process_result(
         
     # If this Einsum is a copy op, consider only the movement from one backing
     # storage to another.
-    copy_einsum = einsum_id in copy_einsums
+    copy_einsum = einsum_name in copy_einsums
     if copy_einsum:
         all_storages = backing_storages
 
@@ -169,7 +169,7 @@ def process_result(
                 assert l.bound >= l2.bound, f"{l} {l2}"
     
     tagger_args = dict(
-        einsum_name=einsum_id,
+        einsum_name=einsum_name,
         backing_storages=backing_storages,
         input_tensors=input_tensors,
         output_tensors=output_tensors,
@@ -232,16 +232,16 @@ def process_result(
 
     if metrics.DEBUG in metrics:
         logstring.append(f"Results: {results}")
-        results[LOGSTRING] = {einsum_id: str(logstring)}
-        results[STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
-        results[TAGS] = {einsum_id: tiling_compatibility.tags}
-        results[MAPPING_HASH] = {einsum_id: hash((einsum_id, tiling_compatibility))}
-        results[IN_PROGRESS_STATS] = {einsum_id: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
-        results[TENSORS] = {einsum_id: backing_storages}
+        results[LOGSTRING] = {einsum_name: str(logstring)}
+        results[STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[TAGS] = {einsum_name: tiling_compatibility.tags}
+        results[MAPPING_HASH] = {einsum_name: hash((einsum_id, tiling_compatibility))}
+        results[IN_PROGRESS_STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[TENSORS] = {einsum_name: backing_storages}
 
-    results[MAPPING] = {einsum_id: tiling_full}
+    results[MAPPING] = {einsum_name: tiling_full}
     
-    if einsum_id in copy_einsums:
+    if einsum_name in copy_einsums:
         if null_copy_einsum:
             for k, v in list(results.items()):
                 results[k] = {} if k in DICT_COLUMNS else 0
