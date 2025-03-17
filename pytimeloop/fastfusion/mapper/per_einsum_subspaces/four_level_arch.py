@@ -150,18 +150,32 @@ def make_subspaces(tensors,
                                     add_split_at_tensors=set(),
                                     must_have_terminal_storage=True,
                                     apply_lrp_after_loop_idx=last_fused_loop_idx):
-                yield pm2
+
+                success = True
+                for i in range(last_fused_loop_idx + 1, len(pm2) - 1):
+                    n1, n2 = pm2[i], pm2[i+1]
+                    for ntype in ["temporal", "spatial"]:
+                        if n1["type"] == ntype and n2["type"] == ntype:
+                            if n1["rank"] < n2["rank"]:
+                                success = False
+                                break
+
+                if success:
+                    yield pm2
 
     def core_spatial_fors(mapping):
         ranks = fully_parallel_ranks | output_parallel_ranks
-        yield from make_spatial_fors(mapping, ranks, 4, min_loops=1)
+        yield from make_spatial_fors(mapping, ranks, 4, min_loops=1, unordered=True)
 
     input_output_ranks = \
         set(all_ranks) - output_parallel_ranks - reduced_ranks - fully_parallel_ranks
     def core_temporal_fors(mapping):
-        for pm in make_temporal_fors(mapping, fully_parallel_ranks, min_loops=1):
-            for pm2 in make_temporal_fors(pm, input_output_ranks, min_loops=1):
-                yield from make_temporal_fors(pm2, output_parallel_ranks, min_loops=1)
+        for pm in make_temporal_fors(mapping, fully_parallel_ranks,
+                                     min_loops=1, unordered=True):
+            for pm2 in make_temporal_fors(pm, input_output_ranks, min_loops=1,
+                                          unordered=True):
+                yield from make_temporal_fors(pm2, output_parallel_ranks,
+                                              min_loops=1, unordered=True)
 
     def llb_storage(mapping):
         yield from make_storage(mapping,
@@ -169,17 +183,22 @@ def make_subspaces(tensors,
                                 must_retain_tensors={output_tensor},
                                 can_retain_tensors=set(),
                                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-                                explore_uneven=True,
-                                apply_lrp_after_loop_idx=0)
+                                explore_uneven=False)
 
     def pe_spatial_fors(mapping):
-        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128, min_loops=1):
-            yield from make_spatial_fors(pm, reduced_ranks, 128, min_loops=1)
+        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128, min_loops=1, unordered=True):
+            yield from make_spatial_fors(pm, reduced_ranks, 128, min_loops=1, unordered=True)
 
     def pe_temporal_fors(mapping):
-        for pm in make_temporal_fors_with_smallest_tile(mapping, fully_parallel_ranks):
-            for pm2 in make_temporal_fors_with_smallest_tile(pm, output_parallel_ranks):
-                yield from make_temporal_fors_with_smallest_tile(pm2, reduced_ranks)
+        for pm in make_temporal_fors_with_smallest_tile(mapping,
+                                                        fully_parallel_ranks,
+                                                        unordered=True):
+            for pm2 in make_temporal_fors_with_smallest_tile(pm,
+                                                             output_parallel_ranks,
+                                                             unordered=True):
+                yield from make_temporal_fors_with_smallest_tile(pm2,
+                                                                 reduced_ranks,
+                                                                 unordered=True)
 
     def register_storage(mapping):
         yield from make_storage(mapping,
@@ -189,9 +208,10 @@ def make_subspaces(tensors,
                                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                                 explore_uneven=False)
 
-    other_ranks = set(all_ranks) - fully_parallel_ranks - output_parallel_ranks - reduced_ranks
     def mac_temporal_fors(mapping):
-        yield from make_temporal_fors_with_smallest_tile(mapping, other_ranks)
+        yield from make_temporal_fors_with_smallest_tile(mapping,
+                                                         input_output_ranks,
+                                                         unordered=True)
 
     def mac(mapping):
         mapping.add_compute(einsum_id, 2)

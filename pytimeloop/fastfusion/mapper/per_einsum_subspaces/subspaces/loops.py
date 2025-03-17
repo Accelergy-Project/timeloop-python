@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from itertools import permutations
+from itertools import combinations, permutations
 from pytimeloop.fastfusion.mapper.constraints import PerEinsumDataflowConstraint, WILDCARD
 from pytimeloop.fastfusion.mapper.per_einsum_subspaces.subspaces.linear_mapping import LinearMapping
 
@@ -7,11 +7,17 @@ from pytimeloop.fastfusion.mapper.per_einsum_subspaces.subspaces.linear_mapping 
 def make_spatial_fors(mapping: LinearMapping,
                       ranks,
                       max_factor,
-                      min_loops=0):
+                      min_loops=0,
+                      unordered=False):
     original = mapping.copy()
 
+    if unordered:
+        combinatorial_func = combinations
+    else:
+        combinatorial_func = permutations
+
     for r in range(min_loops, len(ranks) + 1):
-        for ordered_ranks in permutations(ranks, r=r):
+        for ordered_ranks in combinatorial_func(ranks, r=r):
             mapping = original.copy()
             for r in ordered_ranks:
                 mapping.add_spatial(
@@ -24,7 +30,8 @@ def make_temporal_fors(mapping: LinearMapping,
                        ranks,
                        dataflow_constraint: PerEinsumDataflowConstraint=None,
                        logfunc: Callable=None,
-                       min_loops=0):
+                       min_loops=0,
+                       unordered=False):
     if dataflow_constraint is None:
         top_ranks = []
         other_ranks = ranks
@@ -43,11 +50,16 @@ def make_temporal_fors(mapping: LinearMapping,
         else:
             raise NotImplementedError("Constraint not implemented")
 
+    if unordered:
+        combinatorial_func = combinations
+    else:
+        combinatorial_func = permutations
+
     original = mapping.copy()
     for i in range(len(top_ranks)+1):
         actual_min_loops = min(0, min_loops-i)
         for j in range(actual_min_loops, len(other_ranks) + 1):
-            for ordered_ranks in permutations(other_ranks, r=j):
+            for ordered_ranks in combinatorial_func(other_ranks, r=j):
                 mapping = original.copy()
                 for r in top_ranks[:i]:
                     mapping.add_temporal(r)
@@ -56,10 +68,18 @@ def make_temporal_fors(mapping: LinearMapping,
                 yield mapping
 
 
-def make_temporal_fors_with_smallest_tile(original: LinearMapping, ranks):
-    for ordered_ranks in permutations(ranks):
+def make_temporal_fors_with_smallest_tile(original: LinearMapping,
+                                          ranks,
+                                          unordered=False):
+    if not unordered:
+        for ordered_ranks in permutations(ranks):
+            mapping = original.copy()
+            for r in ordered_ranks:
+                mapping.add_temporal(r, tile_shape=1)
+            yield mapping
+    else:
         mapping = original.copy()
-        for r in ordered_ranks:
+        for r in ranks:
             mapping.add_temporal(r, tile_shape=1)
         yield mapping
 
@@ -70,4 +90,3 @@ def make_temporal_fors_in_order(original: LinearMapping, ranks):
         for r in ranks[:i]:
             mapping.add_temporal(r)
         yield mapping
-
