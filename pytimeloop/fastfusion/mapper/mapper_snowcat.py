@@ -60,7 +60,6 @@ def mapper(
     ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
-    print(energy_dict)
 
     if not ffmt:
         separated_einsums = None

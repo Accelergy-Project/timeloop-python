@@ -6,7 +6,7 @@ problem:
       - name: I
         dimensions: [ I_B, I_M, I_D ]
         projection: '[ BQ, MQ, DQ ]'
-      - name: WQ
+      - name: W_n_to_Q
         dimensions: [ WQ_H, WQ_E, WQ_D ]
         projection: '[ HQ, EQ, DQ ]'
       - name: Q
@@ -27,10 +27,10 @@ problem:
       - name: I
         dimensions: [ I_B, I_M, I_D ]
         projection: '[ BK, MK, DK ]'
-      - name: WK
+      - name: W_n_to_K
         dimensions: [ WK_H, WK_E, WK_D ]
         projection: '[ HK, EK, DK ]'
-      - name: K
+      - name: K_K_to_QK
         dimensions: [ K_B, K_M, K_H, K_E ]
         projection: '[ BK, MK, HK, EK ]'
         read_write: True
@@ -48,7 +48,7 @@ problem:
       - name: I
         dimensions: [ I_B, I_M, I_D ]
         projection: '[ BV, MV, DV ]'
-      - name: WV
+      - name: W_n_to_V
         dimensions: [ WV_H, WV_E, WV_D ]
         projection: '[ HV, EV, DV ]'
       - name: V
@@ -69,7 +69,7 @@ problem:
       - name: Q
         dimensions: [ Q_B, Q_M, Q_H, Q_E ]
         projection: '[ BQK, MQK, HQK, EQK ]'
-      - name: K
+      - name: K_K_to_QK
         dimensions: [ K_B, K_M, K_H, K_E ]
         projection: '[ BQK, PQK, HQK, EQK ]'
       - name: QK
@@ -111,7 +111,7 @@ problem:
       - name: AV
         dimensions: [ AV_B, AV_M, AV_H, AV_F ]
         projection: '[ BZ, MZ, HZ, FZ ]'
-      - name: WZ
+      - name: W_n_to_Z
         dimensions: [ WZ_H, WZ_F, WZ_G ]
         projection: '[ HZ, FZ, GZ ]'
       - name: Z

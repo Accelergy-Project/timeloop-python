@@ -6,10 +6,11 @@ from pytimeloop.fastfusion.mapper.per_einsum_subspaces.subspaces.linear_mapping 
 
 def make_spatial_fors(mapping: LinearMapping,
                       ranks,
-                      max_factor):
+                      max_factor,
+                      min_loops=0):
     original = mapping.copy()
 
-    for r in range(len(ranks) + 1):
+    for r in range(min_loops, len(ranks) + 1):
         for ordered_ranks in permutations(ranks, r=r):
             mapping = original.copy()
             for r in ordered_ranks:
@@ -22,7 +23,8 @@ def make_spatial_fors(mapping: LinearMapping,
 def make_temporal_fors(mapping: LinearMapping,
                        ranks,
                        dataflow_constraint: PerEinsumDataflowConstraint=None,
-                       logfunc: Callable=None):
+                       logfunc: Callable=None,
+                       min_loops=0):
     if dataflow_constraint is None:
         top_ranks = []
         other_ranks = ranks
@@ -43,7 +45,8 @@ def make_temporal_fors(mapping: LinearMapping,
 
     original = mapping.copy()
     for i in range(len(top_ranks)+1):
-        for j in range(len(other_ranks) + 1):
+        actual_min_loops = min(0, min_loops-i)
+        for j in range(actual_min_loops, len(other_ranks) + 1):
             for ordered_ranks in permutations(other_ranks, r=j):
                 mapping = original.copy()
                 for r in top_ranks[:i]:

@@ -52,6 +52,7 @@ def per_worker_exploration(
     local_task_spaces[0] = lambda : task_spaces[0](*task_space_args)
     result = defaultdict(list)
     for partial_mapping in dependent_product(local_task_spaces):
+        print(partial_mapping)
         _, compiled_results = compile_mapping(
             partial_mapping, workload, analyzer
         )
@@ -264,7 +265,7 @@ def per_einsum_mapper_snowcat(
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
 
-    for einsum_id, result in parallel(jobs, pbar="Generating Single-Einsum Mappings", return_as="generator"):
+    for einsum_id, result in parallel(jobs, pbar="Generating Single-Einsum Mappings", return_as="generator", n_jobs=1):
         d = data[einsum_id]
         for k, v in result.items():
             d[k[0]].append(v)

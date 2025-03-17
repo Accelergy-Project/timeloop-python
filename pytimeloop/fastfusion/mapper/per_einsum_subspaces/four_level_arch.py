@@ -100,6 +100,7 @@ def make_subspaces(tensors,
     }
     weight_like_tensor = EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[einsum_name]
     weight_like_tensor = workload.data_space_name_to_id()[weight_like_tensor]
+    output_tensor = next(iter(workload.tensors_written_by_einsum(einsum_id)))
 
     def off_chip_storage(mapping):
         off_chip_must_retain = tensors - intermediate_tensors
@@ -153,22 +154,27 @@ def make_subspaces(tensors,
 
     def core_spatial_fors(mapping):
         ranks = fully_parallel_ranks | output_parallel_ranks
-        yield from make_spatial_fors(mapping, ranks, 4)
+        yield from make_spatial_fors(mapping, ranks, 4, min_loops=1)
 
+    input_output_ranks = \
+        set(all_ranks) - output_parallel_ranks - reduced_ranks - fully_parallel_ranks
     def core_temporal_fors(mapping):
-        yield from make_temporal_fors(mapping, all_ranks)
+        for pm in make_temporal_fors(mapping, fully_parallel_ranks, min_loops=1):
+            for pm2 in make_temporal_fors(pm, input_output_ranks, min_loops=1):
+                yield from make_temporal_fors(pm2, output_parallel_ranks, min_loops=1)
 
     def llb_storage(mapping):
         yield from make_storage(mapping,
                                 level=2,
-                                must_retain_tensors=tensors - {weight_like_tensor},
+                                must_retain_tensors={output_tensor},
                                 can_retain_tensors=set(),
                                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-                                explore_uneven=True)
+                                explore_uneven=True,
+                                apply_lrp_after_loop_idx=0)
 
     def pe_spatial_fors(mapping):
-        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128):
-            yield from make_spatial_fors(pm, reduced_ranks, 128)
+        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128, min_loops=1):
+            yield from make_spatial_fors(pm, reduced_ranks, 128, min_loops=1)
 
     def pe_temporal_fors(mapping):
         for pm in make_temporal_fors_with_smallest_tile(mapping, fully_parallel_ranks):

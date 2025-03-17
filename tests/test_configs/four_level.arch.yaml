@@ -14,8 +14,8 @@ architecture:
     name: GlobalBuffer
     class: SRAM
     attributes:
-      depth: 16384
-      width: 512
+      depth: 262144
+      width: 4096
       block_size: 32
       word_bits: 8
       datawidth: 8
@@ -31,8 +31,8 @@ architecture:
     class: SRAM 
     spatial: {meshX: 4}
     attributes:
-      depth: 1024
-      width: 512
+      depth: 4096
+      width: 1024
       block_size: 32
       word_bits: 8
       datawidth: 8
@@ -49,8 +49,8 @@ architecture:
     spatial: {meshX: 128, meshY: 128}
     attributes:
       depth: 1
-      width: 24
-      block_size: 24
+      width: 8
+      block_size: 8
       word_bits: 8
       datawidth: 8
       n_rd_ports: 2
