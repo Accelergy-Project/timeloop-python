@@ -175,9 +175,10 @@ def make_subspaces(tensors,
                                                         unordered=True):
             for pm2 in make_temporal_fors(pm, input_output_ranks, min_loops=1,
                                           unordered=True):
-                yield from make_temporal_fors_with_smallest_tile(pm2,
-                                                                 output_parallel_ranks,
-                                                                 unordered=True)
+                yield from make_temporal_fors(pm2,
+                                              output_parallel_ranks,
+                                              min_loops=1,
+                                              unordered=True)
 
     def llb_storage(mapping):
         yield from make_storage(mapping,
