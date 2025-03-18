@@ -76,8 +76,11 @@ def explore_tile_shape(
                 break
 
         if skip == True:
-            shape_subspace.skip_current_rank_iteration()
-            continue
+            try:
+                shape_subspace.skip_current_rank_iteration()
+                continue
+            except StopIteration:
+                break
 
         invalid_spatial = False
         for level, fanout in result.fanout.items():
