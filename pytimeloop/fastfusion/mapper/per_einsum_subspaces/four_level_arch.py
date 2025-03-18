@@ -170,12 +170,14 @@ def make_subspaces(tensors,
     input_output_ranks = \
         set(all_ranks) - output_parallel_ranks - reduced_ranks - fully_parallel_ranks
     def core_temporal_fors(mapping):
-        for pm in make_temporal_fors(mapping, fully_parallel_ranks,
-                                     min_loops=1, unordered=True):
+        for pm in make_temporal_fors_with_smallest_tile(mapping,
+                                                        fully_parallel_ranks,
+                                                        unordered=True):
             for pm2 in make_temporal_fors(pm, input_output_ranks, min_loops=1,
                                           unordered=True):
-                yield from make_temporal_fors(pm2, output_parallel_ranks,
-                                              min_loops=1, unordered=True)
+                yield from make_temporal_fors_with_smallest_tile(pm2,
+                                                                 output_parallel_ranks,
+                                                                 unordered=True)
 
     def llb_storage(mapping):
         yield from make_storage(mapping,
@@ -190,15 +192,9 @@ def make_subspaces(tensors,
             yield from make_spatial_fors(pm, reduced_ranks, 128, min_loops=1, unordered=True)
 
     def pe_temporal_fors(mapping):
-        for pm in make_temporal_fors_with_smallest_tile(mapping,
-                                                        fully_parallel_ranks,
-                                                        unordered=True):
-            for pm2 in make_temporal_fors_with_smallest_tile(pm,
-                                                             output_parallel_ranks,
-                                                             unordered=True):
-                yield from make_temporal_fors_with_smallest_tile(pm2,
-                                                                 reduced_ranks,
-                                                                 unordered=True)
+        yield from make_temporal_fors_with_smallest_tile(mapping,
+                                                         reduced_ranks,
+                                                         unordered=True)
 
     def register_storage(mapping):
         yield from make_storage(mapping,
