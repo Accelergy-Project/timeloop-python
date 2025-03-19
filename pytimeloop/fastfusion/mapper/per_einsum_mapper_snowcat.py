@@ -63,7 +63,6 @@ def per_worker_exploration(
             max_capacity if prune else {},
             max_fanout if prune else {},
             tensors=tensors,
-            prune=prune,
         )
         # HACKY: Pop out the subspace object as the first in the iterator
         shape_subspace = next(tile_shape_explorer)
