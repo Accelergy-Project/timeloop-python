@@ -16,7 +16,7 @@ from pytimeloop.looptree.equivalent_ranks import EquivalentGroups, PairwiseEquiv
 from pytimeloop.fastfusion.mapper.constraints import *
 from pytimeloop.fastfusion.layerdeduplication import is_equivalent
 from pytimeloop.fastfusion.mapper.logging import make_queue_and_listener
-from pytimeloop.fastfusion.mapper.per_einsum_mapper_snowcat import per_einsum_mapper_snowcat
+from pytimeloop.fastfusion.mapper.per_einsum_mapper_snowcat import per_einsum_mapper_snowcat, get_hardware_levels
 from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
 from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS, TENSORS
 from pytimeloop.fastfusion.mapper.process_results import Metrics
@@ -36,6 +36,7 @@ def mapper(
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
     four_level=False,
+    prune=True,
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -56,7 +57,7 @@ def mapper(
 
     if isinstance(tmp_path, Path):
         tmp_path = str(tmp_path)
-    call_accelergy_verbose(spec, tmp_path)
+    # call_accelergy_verbose(spec, tmp_path)
     ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
@@ -86,7 +87,8 @@ def mapper(
         # dataflow_constraint=dataflow_constraint,
         metrics=metrics,
         tag_with=tag_with,
-        four_level=four_level
+        four_level=four_level,
+        prune=prune,
     )
 
     generated_data = {}
@@ -137,7 +139,9 @@ def mapper(
             dimension_id_to_name[x] for x in workload.einsum_ospace_dimensions(einsum_id)
         )
 
-    return data, equiv_ranks_dict, einsum2ranks
+    bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
+
+    return data, equiv_ranks_dict, einsum2ranks, bindings, max_fanout, max_capacity
 
 
 def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):

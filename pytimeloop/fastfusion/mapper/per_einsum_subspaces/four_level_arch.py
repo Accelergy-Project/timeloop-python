@@ -138,7 +138,9 @@ def make_subspaces(tensors,
 
     def fused_temporal_fors(mapping, unfused_tensors):
         for partial_mapping in make_temporal_fors(mapping,
-                                                  all_ranks):
+                                                  all_ranks,
+                                                  min_loops=0,
+                                                  ):
             yield partial_mapping, unfused_tensors
 
 
@@ -181,7 +183,7 @@ def make_subspaces(tensors,
 
     def core_spatial_fors(mapping):
         ranks = fully_parallel_ranks | output_parallel_ranks
-        yield from make_spatial_fors(mapping, ranks, 4, min_loops=1, unordered=True)
+        yield from make_spatial_fors(mapping, ranks, 4, unordered=True)
 
     input_output_ranks = \
         set(all_ranks) - output_parallel_ranks - reduced_ranks - fully_parallel_ranks
@@ -189,11 +191,10 @@ def make_subspaces(tensors,
         for pm in make_temporal_fors_with_smallest_tile(mapping,
                                                         fully_parallel_ranks,
                                                         unordered=True):
-            for pm2 in make_temporal_fors(pm, input_output_ranks, min_loops=1,
+            for pm2 in make_temporal_fors(pm, input_output_ranks,
                                           unordered=True):
                 yield from make_temporal_fors(pm2,
                                               output_parallel_ranks,
-                                              min_loops=1,
                                               unordered=True)
 
     def llb_storage(mapping):
@@ -205,8 +206,8 @@ def make_subspaces(tensors,
                                 explore_uneven=False)
 
     def pe_spatial_fors(mapping):
-        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128, min_loops=1, unordered=True):
-            yield from make_spatial_fors(pm, reduced_ranks, 128, min_loops=1, unordered=True)
+        for pm in make_spatial_fors(mapping, output_parallel_ranks, 128, unordered=True):
+            yield from make_spatial_fors(pm, reduced_ranks, 128, unordered=True)
 
     def pe_temporal_fors(mapping):
         yield from make_temporal_fors_with_smallest_tile(mapping,

@@ -293,6 +293,12 @@ class Tiling:
     def set_tensor_storage(self, tensor_name: str, storage: TensorStorage) -> "Tiling":
         tensors = fzs(t if t.tensor_name != tensor_name else storage for t in self.tensors)
         return self.update(tensors=tensors)
+    
+    def as_sorted_loopnest(self) -> tuple:
+        loops = list(self.loops)
+        for t in sorted(self.tensors, key=lambda t: t.above_loop_index, reverse=True):
+            loops.insert(t.above_loop_index, t)
+        return tuple(loops)
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):

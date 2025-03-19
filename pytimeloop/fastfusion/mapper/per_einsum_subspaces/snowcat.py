@@ -71,7 +71,7 @@ def make_subspaces(tensors,
                 # for i, node in enumerate(partial_mapping):
                 #     if node["type"] == "storage" and node["target"] == 1:
                 #         last_glb_index = i
-
+                prev = None
                 # for node in partial_mapping[last_glb_index:]:
                 #     if node["type"] != "temporal":
                 #         continue
@@ -79,6 +79,13 @@ def make_subspaces(tensors,
                 #         if prev["rank"] < node["rank"]:
                 #             success = False
                 #     prev = node
+                for i in range(last_fused_loop_idx + 1, len(pm2) - 1):
+                    n1, n2 = pm2[i], pm2[i+1]
+                    for ntype in ["temporal", "spatial"]:
+                        if n1["type"] == ntype and n2["type"] == ntype:
+                            if n1["rank"] < n2["rank"]:
+                                success = False
+                                break
                 if success:
                     yield pm2
         # for partial_mapping in make_storage(mapping,

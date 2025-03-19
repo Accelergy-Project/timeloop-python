@@ -46,6 +46,7 @@ def per_worker_exploration(
     tag_with,
     tensor_to_relevant_ranks,
     task_space_args,
+    prune,
 ):
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
     local_task_spaces = deepcopy(task_spaces)
@@ -59,15 +60,16 @@ def per_worker_exploration(
             partial_mapping,
             einsum_shape,
             compiled_results,
-            max_capacity,
-            max_fanout,
+            max_capacity if prune else {},
+            max_fanout if prune else {},
             tensors=tensors,
+            prune=prune,
         )
         # HACKY: Pop out the subspace object as the first in the iterator
         shape_subspace = next(tile_shape_explorer)
-
         count = 0
         for shape, res in tile_shape_explorer:
+            # assert len(intermediate_tensors) <= 1
             count += 1
             is_pareto, results, fulltiling = process_result(
                 res,
@@ -91,13 +93,16 @@ def per_worker_exploration(
                 output_tensors=output_tensors,
                 tag_with=tag_with,
                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
-                copy_einsums={"I"}
+                copy_einsums={"I"},
+                prune=prune,
             )
     return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
 
 def _per_einsum_mapper_snowcat(
     config,
-    spec,
+    bindings,
+    max_fanout,
+    max_capacity,
     explore_glb_uneven,
     einsum_id,
     energy_dict,
@@ -107,6 +112,7 @@ def _per_einsum_mapper_snowcat(
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
     four_level=False,
+    prune=True,
 ):
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -120,8 +126,6 @@ def _per_einsum_mapper_snowcat(
             | workload.tensors_written_by_einsum(einsum_id)
     intermediate_tensors = tensors & get_intermediate_tensors(workload)
     all_ranks = workload.einsum_ospace_dimensions(einsum_id)
-
-    bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
 
     all_ranks = workload.einsum_ospace_dimensions(einsum_id)
 
@@ -157,7 +161,7 @@ def _per_einsum_mapper_snowcat(
                                         workload,
                                         refetch_weights=ffmt_refetch_weights)
 
-    n_jobs=16
+    n_jobs = 32
     parallelized_spaces, task_spaces = \
         split_dependent_product(n_split_min=n_jobs, spaces=subspaces)
 
@@ -230,7 +234,8 @@ def _per_einsum_mapper_snowcat(
         input_tensors=input_tensors,
         output_tensors=output_tensors,
         tag_with=tag_with,
-        tensor_to_relevant_ranks=tensor_to_relevant_ranks
+        tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+        prune=prune,
     )
 
     return [delayed(per_worker_exploration)(task_space_args=pm, **worker_args) for pm in partial_mappings]
@@ -247,10 +252,14 @@ def per_einsum_mapper_snowcat(
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
     four_level=False,
+    prune=True,
 ):
+    bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
     jobs = list(j for einsum_id in einsums_to_explore for j in _per_einsum_mapper_snowcat(
             config,
-            spec,
+            bindings,
+            max_fanout,
+            max_capacity,
             explore_glb_uneven,
             einsum_id,
             energy_dict,
@@ -259,7 +268,8 @@ def per_einsum_mapper_snowcat(
             dataflow_constraint=dataflow_constraint,
             metrics=metrics,
             tag_with=tag_with,
-            four_level=four_level
+            four_level=four_level,
+            prune=prune,
         )
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
@@ -270,7 +280,7 @@ def per_einsum_mapper_snowcat(
             d[k[0]].append(v)
 
     def makesim(einsum_id, tiling, data):
-        return einsum_id, SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1))
+        return einsum_id, SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1 or not prune))
 
     data2 = defaultdict(list)
     jobs = []

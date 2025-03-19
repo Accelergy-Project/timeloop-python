@@ -231,18 +231,18 @@ class ShapeSubspaceIterator:
     def move_iterator(self, idx):
         val = next(self.choice_iterators[idx])
         # If none of the new pareto points are better than the previous pareto points, then we can stop
-        if self.paretos[idx] and self.prev_paretos[idx] and idx > self.n_fusion_relevant_loops: # Remove self.paretos[idx] and it'll stop if the first iteration of all inner loops fails.
-            if not any(check_add_to_pareto(r, self.prev_paretos[idx]) for r in self.paretos[idx]):
-                # print(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
-                # to_print = []
-                # to_print.append(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
-                # for r in self.paretos[idx]:
-                #     to_print.append(f'\tNEW: {r}')
-                # for r in self.prev_paretos[idx]:
-                #     to_print.append(f'\tOLD: {r}')
-                # print('\n'.join(to_print))
-                # self.would_have_skipped[idx] = True
-                raise StopIteration()
+        # if self.paretos[idx] and self.prev_paretos[idx] and idx > self.n_fusion_relevant_loops: # Remove self.paretos[idx] and it'll stop if the first iteration of all inner loops fails.
+        #     if not any(check_add_to_pareto(r, self.prev_paretos[idx]) for r in self.paretos[idx]):
+        #         # print(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
+        #         # to_print = []
+        #         # to_print.append(f'Skipping rank {idx}. Prev pareto size: {len(self.prev_paretos[idx])}, new pareto size: {len(self.paretos[idx])}')
+        #         # for r in self.paretos[idx]:
+        #         #     to_print.append(f'\tNEW: {r}')
+        #         # for r in self.prev_paretos[idx]:
+        #         #     to_print.append(f'\tOLD: {r}')
+        #         # print('\n'.join(to_print))
+        #         # self.would_have_skipped[idx] = True
+        #         raise StopIteration()
         self.choice[idx] = val
         self.is_first_choice[idx] = False
         self.is_done = False

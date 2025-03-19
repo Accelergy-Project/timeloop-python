@@ -35,6 +35,9 @@ DICT_COLUMNS = set(
     [LOGSTRING, MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH, TAGS]
 )
 
+CHECK_CORRECTNESS = False
+
+
 _resource_name_nloops_reg = re.compile(r"RESOURCE_(.+?)(?:_LEFT)?_LEVEL_(-?\d+)")
 
 
@@ -381,7 +384,6 @@ def merge_cross(
     #         if capacity is not None:
     #             df = df[df[colname] <= capacity]
     #         del df[colname]
-    CHECK_CORRECTNESS = 0
     
     df.drop(columns=dropcols, inplace=True)
     if not CHECK_CORRECTNESS:
@@ -500,7 +502,6 @@ class Pareto:
                     capacity = resource2capacity.get(name)
                     if capacity is not None:
                         self.data = self.data[self.data[c] <= capacity]
-                        needs_pareto = True
                         if nloops == n:
                             del self.data[c]
                 else:

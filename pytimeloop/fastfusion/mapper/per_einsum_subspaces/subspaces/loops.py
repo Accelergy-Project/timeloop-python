@@ -7,7 +7,7 @@ from pytimeloop.fastfusion.mapper.per_einsum_subspaces.subspaces.linear_mapping 
 def make_spatial_fors(mapping: LinearMapping,
                       ranks,
                       max_factor,
-                      min_loops=0,
+                      min_loops=None,
                       unordered=False):
     original = mapping.copy()
 
@@ -15,6 +15,9 @@ def make_spatial_fors(mapping: LinearMapping,
         combinatorial_func = combinations
     else:
         combinatorial_func = permutations
+
+    if min_loops is None:
+        min_loops = len(ranks)
 
     for r in range(min_loops, len(ranks) + 1):
         for ordered_ranks in combinatorial_func(ranks, r=r):
@@ -30,7 +33,7 @@ def make_temporal_fors(mapping: LinearMapping,
                        ranks,
                        dataflow_constraint: PerEinsumDataflowConstraint=None,
                        logfunc: Callable=None,
-                       min_loops=0,
+                       min_loops=None,
                        unordered=False):
     if dataflow_constraint is None:
         top_ranks = []
@@ -55,6 +58,9 @@ def make_temporal_fors(mapping: LinearMapping,
     else:
         combinatorial_func = permutations
 
+    if min_loops is None:
+        min_loops = len(ranks)
+
     original = mapping.copy()
     for i in range(len(top_ranks)+1):
         actual_min_loops = min(0, min_loops-i)
@@ -74,6 +80,8 @@ def make_temporal_fors_with_smallest_tile(original: LinearMapping,
     if not unordered:
         for ordered_ranks in permutations(ranks):
             mapping = original.copy()
+            if len(ordered_ranks) != len(ranks):
+                continue
             for r in ordered_ranks:
                 mapping.add_temporal(r, tile_shape=1)
             yield mapping
@@ -87,6 +95,7 @@ def make_temporal_fors_with_smallest_tile(original: LinearMapping,
 def make_temporal_fors_in_order(original: LinearMapping, ranks):
     for i in range(len(ranks)+1):
         mapping = original.copy()
+        
         for r in ranks[:i]:
             mapping.add_temporal(r)
         yield mapping

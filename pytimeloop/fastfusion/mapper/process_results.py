@@ -63,6 +63,7 @@ def process_result(
     metrics=Metrics.all_metrics(),
     tag_with: tuple[callable] = (),
     copy_einsums: set[str] = (),
+    prune=True,
 ):
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
@@ -139,7 +140,7 @@ def process_result(
     copy_einsum = einsum_name in copy_einsums
     if copy_einsum:
         all_storages = backing_storages
-
+        
     # If this Einsum is a copy op and the source and destination locations are
     # the same, then it is a null operation. Assume that the input tensors are
     # the output tensors. We don't want to double count, so get rid of the input
@@ -229,7 +230,7 @@ def process_result(
 
     if Metrics.OP_INTENSITY in metrics:
         results["Op_Intensity"] = result.op_intensity[1]
-
+        
     if metrics.DEBUG in metrics:
         logstring.append(f"Results: {results}")
         results[LOGSTRING] = {einsum_name: str(logstring)}
@@ -250,18 +251,18 @@ def process_result(
     key = (tiling_compatibility, fzs(results.keys()))
 
     is_pareto = True
-    for prev_stats in compatibility_to_df[key]:
-        keys = [k for k in results if k not in DICT_COLUMNS]
-        if (
-            fzs(prev_stats.keys()) == fzs(results.keys())
-            and all(prev_stats[k] <= results[k] for k in keys)
-            and any(prev_stats[k] < results[k] for k in keys)
-        ):
-            is_pareto = False
-            break
-    # TO DO: Index into the DF with both tiling compatibility and
-    # the result keys
+    if prune:
+        for prev_stats in compatibility_to_df[key]:
+            keys = [k for k in results if k not in DICT_COLUMNS]
+            if (
+                fzs(prev_stats.keys()) == fzs(results.keys())
+                and all(prev_stats[k] <= results[k] for k in keys)
+                and any(prev_stats[k] < results[k] for k in keys)
+            ):
+                is_pareto = False
+                break
     if is_pareto:
         compatibility_to_df[key].append(results)
     results_return = {k: v for k, v in results.items() if k != LOGSTRING}
+    # print(f"Results: {tiling_full.as_sorted_loopnest()}")
     return is_pareto, results_return, logstring
