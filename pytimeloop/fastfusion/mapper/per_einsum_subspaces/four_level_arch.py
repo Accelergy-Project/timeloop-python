@@ -34,45 +34,60 @@ leftover for loop
 """
 
 EINSUM_ID_TO_FULLY_PARALLEL_RANKS = {
-    # "I": set(),
+    "I": {"BI", "MI", "DI"},
     "Q": set(),
     "K": set(),
     "V": set(),
     "QK": {"HQK"},
     "AV": {"HAV"},
-    "Z": set()
+    "Z": set(),
+    "FFA": set(),
+    "FFB": set(),
 }
 
 EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS = {
-    # "I": set(),
+    "I": set(),
     "Q": {"HQ", "EQ"},
     "K": {"HK", "EK"},
     "V": {"HV", "EV"},
     "QK": {"PQK"},
     "AV": {"FAV"},
-    "Z": {"GZ"}
+    "Z": {"GZ"},
+    "FFA": {"CFFA"},
+    "FFB": {"CFFB"},
 }
 
 EINSUM_ID_TO_REDUCED_RANKS = {
-    # "I": set(),
+    "I": set(),
     "Q": {"DQ"},
     "K": {"DK"},
     "V": {"DV"},
     "QK": {"EQK"},
     "AV": {"PAV"},
-    "Z": {"HZ", "FZ"}
+    "Z": {"HZ", "FZ"},
+    "FFA": {"GFFA"},
+    "FFB": {"JFFB"},
 }
 
 EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
-    # "I": set(),
+    "I": "I_n_to_I",
     "Q": "W_n_to_Q",
     "K": "W_n_to_K",
     "V": "W_n_to_V",
     "QK": "K_K_to_QK",
     "AV": "V_V_to_AV",
-    "Z": "W_n_to_Z"
+    "Z": "W_n_to_Z",
+    "FFA": "W_n_to_FFA",
+    "FFB": "W_n_to_FFB",
 }
 
+for i in range(1, 32):
+    matmul_name = f"Matmul{i}"
+    m, k, n = f"M{i}", f"K{i}", f"N{i}"
+    EINSUM_ID_TO_FULLY_PARALLEL_RANKS[matmul_name] = set()
+    EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[matmul_name] = {n}
+    EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
+    EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"Filter{i}"
 
 def make_subspaces(tensors,
                    intermediate_tensors,
@@ -86,6 +101,8 @@ def make_subspaces(tensors,
     weight_like_tensor: tensor that will be stationary in systolic array
     """
     einsum_name = workload.einsum_id_to_name()[einsum_id]
+    if einsum_name == "Matmul2":
+        print("AHH")
     fully_parallel_ranks = {
         workload.dimension_name_to_id()[r]
         for r in EINSUM_ID_TO_FULLY_PARALLEL_RANKS[einsum_name]
@@ -156,10 +173,9 @@ def make_subspaces(tensors,
                     n1, n2 = pm2[i], pm2[i+1]
                     for ntype in ["temporal", "spatial"]:
                         if n1["type"] == ntype and n2["type"] == ntype:
-                            if n1["rank"] < n2["rank"]:
+                            if n1["rank"] <= n2["rank"]:
                                 success = False
                                 break
-
                 if success:
                     yield pm2
 
