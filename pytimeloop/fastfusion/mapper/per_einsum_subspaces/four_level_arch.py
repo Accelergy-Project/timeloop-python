@@ -101,8 +101,6 @@ def make_subspaces(tensors,
     weight_like_tensor: tensor that will be stationary in systolic array
     """
     einsum_name = workload.einsum_id_to_name()[einsum_id]
-    if einsum_name == "Matmul2":
-        print("AHH")
     fully_parallel_ranks = {
         workload.dimension_name_to_id()[r]
         for r in EINSUM_ID_TO_FULLY_PARALLEL_RANKS[einsum_name]

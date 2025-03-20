@@ -52,6 +52,7 @@ def per_worker_exploration(
     local_task_spaces = deepcopy(task_spaces)
     local_task_spaces[0] = lambda : task_spaces[0](*task_space_args)
     result = defaultdict(list)
+    n_mappings = 0
     for partial_mapping in dependent_product(local_task_spaces):
         _, compiled_results = compile_mapping(
             partial_mapping, workload, analyzer
@@ -60,16 +61,18 @@ def per_worker_exploration(
             partial_mapping,
             einsum_shape,
             compiled_results,
-            max_capacity if prune else {},
-            max_fanout if prune else {},
+            max_capacity,# if prune else {},
+            max_fanout, # This should be {} if we don't prune BUT we don't have mechanisms
+            # to catch invalid fanout later, so we need to keep it here to
+            # prevent invalid-fanout mappings from propagating
             tensors=tensors,
+            prune=prune,
         )
         # HACKY: Pop out the subspace object as the first in the iterator
         shape_subspace = next(tile_shape_explorer)
-        count = 0
-        for shape, res in tile_shape_explorer:
+        for shape, res, valid in tile_shape_explorer:
             # assert len(intermediate_tensors) <= 1
-            count += 1
+            n_mappings += 1
             is_pareto, results, fulltiling = process_result(
                 res,
                 shape,
@@ -94,8 +97,12 @@ def per_worker_exploration(
                 tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                 copy_einsums={"I"},
                 prune=prune,
+                valid=valid,
             )
-    return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}
+            
+    if prune:
+        return einsum_id, {k: makepareto(pd.DataFrame(v).fillna(0)) for k, v in result.items()}, n_mappings
+    return einsum_id, {k: pd.DataFrame(v).fillna(0) for k, v in result.items()}, n_mappings
 
 def _per_einsum_mapper_snowcat(
     config,
@@ -273,8 +280,10 @@ def per_einsum_mapper_snowcat(
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}
 
-    for einsum_id, result in parallel(jobs, pbar="Generating Single-Einsum Mappings", return_as="generator"):
+    n_mappings = 0
+    for einsum_id, result, n_mappings_this_job in parallel(jobs, pbar="Generating Single-Einsum Mappings", return_as="generator"):
         d = data[einsum_id]
+        n_mappings += n_mappings_this_job
         for k, v in result.items():
             d[k[0]].append(v)
 
@@ -294,4 +303,4 @@ def per_einsum_mapper_snowcat(
     for einsum_id, sim in parallel(jobs, pbar="Generating SIMs", return_as="generator"):
         data2[einsum_id].append(sim)
     
-    return data2
+    return data2, n_mappings

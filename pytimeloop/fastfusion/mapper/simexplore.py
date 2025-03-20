@@ -10,7 +10,7 @@ from joblib import delayed
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
 
 from pytimeloop.fastfusion.sim import SIM, Loop, Tiling
-from pytimeloop.fastfusion.pareto import Pareto
+from pytimeloop.fastfusion.pareto import VALID, Pareto
 from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
 
@@ -156,9 +156,16 @@ def fuse_sims(
                         continue
                     changed = True
                     full_equivalent_ranks[r].add(r3)
+
+    for sim_list in sims.values():
+        for s in sim_list:
+            if VALID in s.mapping.data:
+                s.mapping.data = s.mapping.data[s.mapping.data[VALID] == 1]
     
     nmappings = []
     nbuckets = []
+    
+    n_evaluations = 0
 
     sims = list(sims.items())
 
@@ -276,6 +283,8 @@ def fuse_sims(
                     if a.tiling.tags.are_compatible_with(b.tiling.tags):
                         found = True
                         combined.append(a.merge_next(b, live_tensors, delay=DELAY))
+                        if not DELAY:
+                            n_evaluations += len(a.mapping.data) * len(b.mapping.data)
                         if DO_PRINT:
                             s = f"\t{a.tiling} <--> {b.tiling}"
                             s += f" --> {combined[-1].tiling}"
@@ -336,6 +345,7 @@ def fuse_sims(
             )
             for c, mapping in zip(combined, mappings):
                 c.mapping = mapping
+                n_evaluations += len(mapping.data)
         print_time("Mapping merging")
 
         # ======================================================================
@@ -371,4 +381,4 @@ def fuse_sims(
 
     if return_nmappings_nbuckets:
         return data, nmappings, nbuckets
-    return data
+    return data, n_evaluations

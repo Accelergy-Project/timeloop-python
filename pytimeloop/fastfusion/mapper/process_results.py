@@ -14,6 +14,7 @@ from pytimeloop.fastfusion.pareto import (
     TENSORS,
     IN_PROGRESS_STATS,
     TAGS,
+    VALID,
 )
 from pytimeloop.fastfusion.sim import Tags, TensorStorage, Tiling, Loop
 
@@ -31,6 +32,7 @@ class Metrics(Flag):
     OFF_CHIP_ACCESSES = auto()
     OP_INTENSITY = auto()
     DEBUG = auto()
+    VALID = auto()
 
     @classmethod
     def all_metrics(cls):
@@ -64,7 +66,11 @@ def process_result(
     tag_with: tuple[callable] = (),
     copy_einsums: set[str] = (),
     prune=True,
+    valid=True,
 ):
+    if not prune:
+        metrics = metrics | Metrics.VALID
+    
     actions = gather_actions(
         result, {"type": "fused", "nodes": mapping}, workload, bindings, is_path=True
     )
@@ -231,6 +237,9 @@ def process_result(
     if Metrics.OP_INTENSITY in metrics:
         results["Op_Intensity"] = result.op_intensity[1]
         
+    if Metrics.VALID in metrics:
+        results[VALID] = valid
+        
     if metrics.DEBUG in metrics:
         logstring.append(f"Results: {results}")
         results[LOGSTRING] = {einsum_name: str(logstring)}
@@ -241,7 +250,7 @@ def process_result(
         results[TENSORS] = {einsum_name: backing_storages}
 
     results[MAPPING] = {einsum_name: tiling_full}
-    
+
     if einsum_name in copy_einsums:
         if null_copy_einsum:
             for k, v in list(results.items()):

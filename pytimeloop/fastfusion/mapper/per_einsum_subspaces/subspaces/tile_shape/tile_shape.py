@@ -14,7 +14,8 @@ def explore_tile_shape(
     max_capacity,
     max_fanout,
     tensors,
-    only_count=False
+    only_count=False,
+    prune=True
 ):
     ranks = []
     tile_constraints = []
@@ -65,7 +66,7 @@ def explore_tile_shape(
         result.reads_to_parent = call_with_arg(compiled_result.reads_to_parent, shape)
         result.op_intensity = call_with_arg(compiled_result.op_intensity, shape)
 
-        skip = False
+        skip, valid = False, True
 
         total_capacity = defaultdict(lambda: 0)
         for (level, _), capacity in result.occupancy.items():
@@ -73,25 +74,23 @@ def explore_tile_shape(
         for level, capacity in total_capacity.items():
             if level in max_capacity and capacity > max_capacity[level]:
                 skip = True
+                valid = False
                 break
 
-        if skip == True:
+        if skip and prune:
             try:
                 shape_subspace.skip_current_rank_iteration()
                 continue
             except StopIteration:
                 break
 
-        invalid_spatial = False
         for level, fanout in result.fanout.items():
             if level in max_fanout:
-                invalid_spatial = invalid_spatial or (
-                    reduce(mul, fanout, 1) > reduce(mul, max_fanout[level], 1)
-                )
+                valid = valid and reduce(mul, fanout, 1) <= reduce(mul, max_fanout[level], 1)
 
-        if not invalid_spatial:
-            num_valid_tile_shapes += 1
-            yield shape, result
+        if valid or not prune:
+            num_valid_tile_shapes += valid
+            yield shape, result, valid
             
     return num_tile_shapes, num_valid_tile_shapes
 

@@ -146,8 +146,6 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any],
                     n.this_level.append(tensor)
         if stats is not None:
             root.add_stats(stats[einsum_id])
-        # for k, v in partial_stats[einsum_id].items():
-        #     last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
         prev_tilings.append(tiling)
         
     # Start at the root. Iterate through each leaf. Recursively:

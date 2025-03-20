@@ -76,7 +76,7 @@ def mapper(
     logger.info(f"Found {len(grouped_similar_einsums)} unique Einsums\n"
                 + f"\tConverter: {grouped_similar_einsums}")
 
-    data = per_einsum_mapper_snowcat(
+    data, n_mappings = per_einsum_mapper_snowcat(
         einsums_to_explore=list(grouped_similar_einsums.keys()),
         config=config,
         explore_glb_uneven=explore_glb_uneven,
@@ -141,7 +141,7 @@ def mapper(
 
     bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
 
-    return data, equiv_ranks_dict, einsum2ranks, bindings, max_fanout, max_capacity
+    return data, equiv_ranks_dict, einsum2ranks, bindings, max_fanout, max_capacity, n_mappings
 
 
 def generate_data(from_einsum: int, to_einsum: int, data, rank_renaming, tensor_renaming):
