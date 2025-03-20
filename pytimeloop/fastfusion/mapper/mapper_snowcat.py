@@ -57,7 +57,7 @@ def mapper(
 
     if isinstance(tmp_path, Path):
         tmp_path = str(tmp_path)
-    # call_accelergy_verbose(spec, tmp_path)
+    call_accelergy_verbose(spec, tmp_path)
     ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
