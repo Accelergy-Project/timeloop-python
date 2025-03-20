@@ -663,7 +663,7 @@ def fuse_sims_simulated_anneal(
     
     mappings = list(itertools.chain(*pops))
     mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True)[0] for m in mappings])
-    return mappings
+    return mappings, aggregate_evaluations[-1]
 
 
 def fuse_sims_ga_mcts(
