@@ -641,8 +641,8 @@ def fuse_sims_simulated_anneal(
             # population = [copy.deepcopy(best_mapping) for _ in range(population_size_per_thread)]
         return population, score_evaluations
 
-    population_size = 1000
-    n_rounds = 10000
+    population_size = 100
+    n_rounds = 1000000
     population = [Mapping(sims) for _ in range(ceil(population_size / n_threads))]
     results = parallel([delayed(anneal_population)(i, population, mapspace_globals, 0.07, 8, n_rounds) for i in range(n_threads)])
     pops, score_evaluations = zip(*results)
@@ -663,7 +663,7 @@ def fuse_sims_simulated_anneal(
     
     mappings = list(itertools.chain(*pops))
     mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True)[0] for m in mappings])
-    return mappings, aggregate_evaluations[-1]
+    return mappings, (aggregate_evaluations, aggregate_score)
 
 
 def fuse_sims_ga_mcts(
@@ -753,7 +753,7 @@ def fuse_sims(
             for col in objective_function_cols:
                 if col not in sim.mapping.data.columns:
                     sim.mapping.data[col] = 0
-            sim.mapping.data = sim.mapping.data[objective_function_cols + [MAPPING, VALID]]
+            sim.mapping.data = sim.mapping.data[objective_function_cols + keepcols]
 
     mapspace_globals = MapsapceGlobals(
         sims,
@@ -763,11 +763,11 @@ def fuse_sims(
         objective_function_cols,
     )
     
-    n_threads = 64
+    n_threads = 16
     
     while n_threads > 1:
         try:
-            return n(
+            return fuse_sims_simulated_anneal(
                 sims,
                 mapspace_globals,
                 n_threads=n_threads,

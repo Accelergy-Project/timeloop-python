@@ -381,4 +381,4 @@ def fuse_sims(
 
     if return_nmappings_nbuckets:
         return data, nmappings, nbuckets
-    return data, n_evaluations
+    return data, (n_evaluations, 0)
