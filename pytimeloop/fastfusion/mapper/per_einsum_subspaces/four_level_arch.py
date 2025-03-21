@@ -81,13 +81,21 @@ EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
     "FFB": "W_n_to_FFB",
 }
 
-for i in range(1, 32):
+for i in range(1, 64):
     matmul_name = f"Matmul{i}"
     m, k, n = f"M{i}", f"K{i}", f"N{i}"
     EINSUM_ID_TO_FULLY_PARALLEL_RANKS[matmul_name] = set()
     EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[matmul_name] = {n}
     EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
     EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"Filter{i}"
+
+for i in range(1, 64):
+    matmul_name = f"MatmulB{i}"
+    m, k, n = f"MB{i}", f"KB{i}", f"NB{i}"
+    EINSUM_ID_TO_FULLY_PARALLEL_RANKS[matmul_name] = set()
+    EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[matmul_name] = {n}
+    EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
+    EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"FilterB{i}"
 
 def make_subspaces(tensors,
                    intermediate_tensors,
