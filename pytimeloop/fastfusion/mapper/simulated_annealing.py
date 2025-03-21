@@ -582,6 +582,7 @@ class Mapping:
 def fuse_sims_simulated_anneal(
     sims: dict[str, list[SIM]],
     mapspace_globals: MapsapceGlobals,
+    n_threads: int,
 ):
     t0 = time.time()
     
@@ -641,10 +642,9 @@ def fuse_sims_simulated_anneal(
         return population, score_evaluations
 
     population_size = 1000
-    num_threads = 16
     n_rounds = 10000
-    population = [Mapping(sims) for _ in range(ceil(population_size / num_threads))]
-    results = parallel([delayed(anneal_population)(i, population, mapspace_globals, 0.07, 8, n_rounds) for i in range(num_threads)])
+    population = [Mapping(sims) for _ in range(ceil(population_size / n_threads))]
+    results = parallel([delayed(anneal_population)(i, population, mapspace_globals, 0.07, 8, n_rounds) for i in range(n_threads)])
     pops, score_evaluations = zip(*results)
     aggregate_score = []
     aggregate_evaluations = []
@@ -669,6 +669,7 @@ def fuse_sims_simulated_anneal(
 def fuse_sims_ga_mcts(
     sims: dict[str, list[SIM]],
     mapspace_globals: MapsapceGlobals,
+    n_threads: int,
 ):
     t0 = time.time()
     
@@ -723,10 +724,9 @@ def fuse_sims_ga_mcts(
         return population
 
     population_size_per_thread = 1
-    num_threads = 8
     n_rounds = 1000
     population = [Mapping(sims) for _ in range(population_size_per_thread)]
-    pops = parallel([delayed(anneal_population)(population, mapspace_globals, 0.07, 8, n_rounds) for _ in range(num_threads)])
+    pops = parallel([delayed(anneal_population)(population, mapspace_globals, 0.07, 8, n_rounds) for _ in range(n_threads)])
     mappings = list(itertools.chain(*pops))
     mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True) for m in mappings])
     return mappings
@@ -763,7 +763,17 @@ def fuse_sims(
         objective_function_cols,
     )
     
-    return fuse_sims_simulated_anneal(
-        sims,
-        mapspace_globals
-    )
+    n_threads = 64
+    
+    while n_threads > 1:
+        try:
+            return n(
+                sims,
+                mapspace_globals,
+                n_threads=n_threads,
+            )
+        except OSError as e:
+            if n_threads == 1:
+                raise OSError("Failed to fuse sims with 1 thread") from e
+            print(f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}")
+            n_threads //= 2
