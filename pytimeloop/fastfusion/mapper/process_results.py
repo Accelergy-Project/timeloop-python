@@ -187,9 +187,9 @@ def process_result(
     
     tags = []
     for t in tag_with:
-        result = t(**tagger_args)
-        assert isinstance(result, tuple), "Tagger must return a tuple"
-        tags.extend(result)
+        tag = t(**tagger_args)
+        assert isinstance(tag, tuple), "Tagger must return a tuple"
+        tags.extend(tag)
 
     tiling_compatibility = Tiling(
         loops=tuple(full_tiling[:n_fused_loops]),
