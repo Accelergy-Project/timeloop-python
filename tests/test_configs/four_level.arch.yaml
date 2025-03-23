@@ -16,12 +16,7 @@ architecture:
     attributes:
       depth: 262144
       width: 4096
-      block_size: 32
-      word_bits: 8
       datawidth: 8
-      n_rdwr_ports: 2
-      n_rd_ports: 0
-      n_wr_ports: 0
     required_actions: ['read', 'write']
   # - !Container
   #   name: Core
@@ -33,12 +28,7 @@ architecture:
     attributes:
       depth: 4096
       width: 1024
-      block_size: 32
-      word_bits: 8
       datawidth: 8
-      n_rdwr_ports: 2
-      n_rd_ports: 0
-      n_wr_ports: 0
     required_actions: ['read', 'write']
   # - !Container
   #   name: PE
@@ -50,11 +40,7 @@ architecture:
     attributes:
       depth: 1
       width: 8
-      block_size: 8
-      word_bits: 8
       datawidth: 8
-      n_rd_ports: 2
-      n_rdrw_ports: 1
     required_actions: ['read', 'write']
   - !Component
     name: MACC
