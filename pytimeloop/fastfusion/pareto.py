@@ -273,7 +273,7 @@ def check_correctness(data: pd.DataFrame, live_tensors: set[int]):
 
     def fail(index):
         draw_looptree(data.iloc[index], live_tensors)
-        all_tensors = set(t for tn in r[MAPPING].values() for t in tn.tensors)
+        all_tensors = set(t for tn in r[MAPPING].values() for t in tn.storage)
         all_tensors = TensorStorage.get_backing_stores(all_tensors)
         for t in sorted(all_tensors):
             print(f"{t.__repr__()},")
@@ -522,6 +522,9 @@ class Pareto:
 
     def make_pareto(self):
         self.data = makepareto(self.data)
+        
+    def has_reservations(self):
+        return any(col2nameloop(c) is not None for c in self.data.columns)
 
 
 import unittest

@@ -44,7 +44,7 @@ class InterchangeableSet:
         compatibility = {
             c.drop_dead(live_tensors)
             for c in self.compatibility
-            if c.tensors & live_tensors
+            if c.storage & live_tensors
         }
         return Compatibility.vertical_combine(compatibility)
 
@@ -74,7 +74,7 @@ class InterchangeableSet:
     def drop_dead(self, live_tensors: set[str]):
         # Live: Connected to a live einsum OR tiled fused with a live einsum
         live, dead = set(), self.compatibility
-        next_live = {c for c in dead if c.tensors & live_tensors}
+        next_live = {c for c in dead if c.storage & live_tensors}
         while next_live:
             live |= next_live
             next_live = {c for c in dead if c.co_tiled_with(next_live)}
@@ -99,7 +99,7 @@ class InterchangeableSet:
 
     @property
     def tensors(self) -> set[str]:
-        return set.union(*(set(c.tensors) for c in self.compatibility))
+        return set.union(*(set(c.storage) for c in self.compatibility))
 
     @staticmethod
     def vertical_combine(
@@ -232,7 +232,7 @@ class TestInterchangeableSet(unittest.TestCase):
         self.assertEqual(len(new_fs.compatibility), 2)
         self.assertIn(comp1, new_fs.compatibility)
         self.assertIn(comp2, new_fs.compatibility)
-        self.assertEqual(new_fs.tensors, {"Q", "V"})
+        self.assertEqual(new_fs.storage, {"Q", "V"})
 
     def test_compatibile_with(self):
         def get_tiling(rank_size: int):

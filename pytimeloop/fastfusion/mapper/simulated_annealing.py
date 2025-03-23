@@ -71,9 +71,9 @@ class MapsapceGlobals:
         self.tensor_names = set().union(*(s[0].tensor_names for s in sims.values()))
         self.resource2capacity = resource2capacity
         self.objective_function_cols = objective_function_cols
-        self.memory2possible_loops_above = self._create_memory2possible_loops_above()
-        self.memory2possible_loops_above_set = {
-            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.memory2possible_loops_above.items()
+        self.storage2possible_loops_above = self._create_storage2possible_loops_above()
+        self.storage2possible_loops_above_set = {
+            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.storage2possible_loops_above.items()
         }
         self.tensor2memories = self._create_tensor2memories()
         self.full_equivalent_ranks = self._create_full_equivalent_ranks(
@@ -96,18 +96,18 @@ class MapsapceGlobals:
                 einsum_tiling_2_sims[e][t] = s
         return einsum_tiling_2_sims
         
-    def _create_memory2possible_loops_above(self):
-        memory2possible_loops_above = {}
+    def _create_storage2possible_loops_above(self):
+        storage2possible_loops_above = {}
         for einsum_name, sim_list in self.sims.items():
-            memory2possible_loops_above[einsum_name] = defaultdict(set)
+            storage2possible_loops_above[einsum_name] = defaultdict(set)
             for sim in sim_list:
-                for memory in sim.tiling.tensors:
-                    memory2possible_loops_above[einsum_name][memory] |= set(
-                        sim.tiling.loops[: memory.above_loop_index]
+                for storage in sim.tiling.storage:
+                    storage2possible_loops_above[einsum_name][storage] |= set(
+                        sim.tiling.loops[: storage.above_loop_index]
                     )
         return {
             e: {s: list(l) for s, l in d.items()}
-            for e, d in memory2possible_loops_above.items()
+            for e, d in storage2possible_loops_above.items()
         }
 
     def _create_tensor2memories(self):
@@ -119,8 +119,8 @@ class MapsapceGlobals:
                 if t not in sim_list[0].tensor_names:
                     continue
                 for sim in sim_list:
-                    memory = sim.tiling.get_tensor_storage(t)
-                    cur_memories.add(memory)
+                    storage = sim.tiling.get_tensor_storage(t)
+                    cur_memories.add(storage)
                 possible_memories.append(cur_memories)
             tensor2memories[t] = list(set.intersection(*possible_memories))
         return tensor2memories
@@ -192,7 +192,7 @@ class Mapping:
         try: 
             for einsum in self.einsum_names:
                 tiling = self.einsum2tiling[einsum]
-                n_loops = max(t.above_loop_index for t in tiling.tensors)
+                n_loops = max(t.above_loop_index for t in tiling.storage)
 
                 # If there's too many loops then drop the extra ones
                 if n_loops < len(tiling.loops):
@@ -200,20 +200,20 @@ class Mapping:
 
                 # If there's not enough loops then add some
                 if n_loops > len(tiling.loops):
-                    for tensor in tiling.tensors:
+                    for tensor in tiling.storage:
                         for loop in range(len(tiling.loops), tensor.above_loop_index):
                             self.mutate_loop(mapspace_globals, tensor, loop, einsum)
                             self.force_loop_match(mapspace_globals, loop, einsum)
                 assert n_loops == len(self.einsum2tiling[einsum].loops)
                 
                 tiling = self.einsum2tiling[einsum]
-                tensors = tiling.tensors
+                tensors = tiling.storage
                 for i in range(len(tiling.loops)):
                     tensors = list(t for t in tensors if t.above_loop_index > i)
                     if not tensors:
                         continue
                     possible_loops = set.intersection(
-                        *(mapspace_globals.memory2possible_loops_above_set[einsum][t] for t in tensors)
+                        *(mapspace_globals.storage2possible_loops_above_set[einsum][t] for t in tensors)
                     )
                     if not possible_loops:
                         raise FailedMutation(f"No possible loops above {i} for {einsum}")
@@ -256,19 +256,19 @@ class Mapping:
     def mutate_loop(
         self,
         mapspace_globals: MapsapceGlobals,
-        memory: TensorStorage=None,
+        storage: TensorStorage=None,
         index: int=None,
         einsum_name: str=None,
     ):
-        if memory is None:
-            memories = set().union(*(t.tensors for t in self.einsum2tiling.values()))
-            memory = random.choice(list(memories))
-            if memory.above_loop_index == 0:
-                raise FailedMutation(f"No loops above {memory} to mutate")
+        if storage is None:
+            memories = set().union(*(t.storage for t in self.einsum2tiling.values()))
+            storage = random.choice(list(memories))
+            if storage.above_loop_index == 0:
+                raise FailedMutation(f"No loops above {storage} to mutate")
         if index is None:
-            index = random.randint(0, memory.above_loop_index - 1)
+            index = random.randint(0, storage.above_loop_index - 1)
         if einsum_name is None:
-            possible_einsums = [e for e, t in self.einsum2tiling.items() if memory in t.tensors]
+            possible_einsums = [e for e, t in self.einsum2tiling.items() if storage in t.storage]
             assert possible_einsums
             einsum_name = random.choice(possible_einsums)
 
@@ -279,7 +279,7 @@ class Mapping:
         if len(tiling.loops) <= index:
             choice = "Randomizing"
 
-        candidates = mapspace_globals.memory2possible_loops_above[einsum_name][memory]
+        candidates = mapspace_globals.storage2possible_loops_above[einsum_name][storage]
         if choice == "Randomizing":
             new_loop = random.choice(candidates)
         else:
@@ -347,17 +347,17 @@ class Mapping:
                 tiling2 = tiling2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
             self.einsum2tiling[einsum_name2] = tiling2
 
-    def mutate_backing_memory(self, mapspace_globals: MapsapceGlobals):
+    def mutate_backing_storage(self, mapspace_globals: MapsapceGlobals):
         tensor = random.choice(list(mapspace_globals.tensor_names))
-        memory = random.choice(mapspace_globals.tensor2memories[tensor])
+        storage = random.choice(mapspace_globals.tensor2memories[tensor])
         for t in self.einsum2tiling.values():
-            if memory in t.tensors:
+            if storage in t.storage:
                 raise FailedMutation(
-                    f"Moving tensor {tensor} to memory {memory} failed"
+                    f"Moving tensor {tensor} to storage {storage} failed"
                 )
-        self.history.append(f"Moving tensor {tensor} to memory {memory}")
+        self.history.append(f"Moving tensor {tensor} to storage {storage}")
         for einsum, tiling in self.einsum2tiling.items():
-            self.einsum2tiling[einsum] = tiling.set_tensor_storage(tensor, memory)
+            self.einsum2tiling[einsum] = tiling.set_tensor_storage(tensor, storage)
         self.fix_loops(mapspace_globals)
 
     def mutate_order(self, mapspace_globals: MapsapceGlobals):
@@ -421,7 +421,7 @@ class Mapping:
         self.einsum2intra_choice[einsum_name] = intra_choice
     
     def get_mutation_functions(self):
-        return [self.mutate_loop, self.mutate_backing_memory, self.mutate_order, self.mutate_intra_mapping]
+        return [self.mutate_loop, self.mutate_backing_storage, self.mutate_order, self.mutate_intra_mapping]
 
     def mcts_loops_intra(self, mapspace_globals: MapsapceGlobals):
         # For each one, generate a setter function and a list of
@@ -634,7 +634,7 @@ def fuse_sims_simulated_anneal(
             best_score = min(m.prev_score for m in population)
             porp_in_10pct = sum(m.prev_score < best_score * 1.1 for m in population) / len(population)
             t = time.time() - t0
-            if i % 100 == 0:
+            if i % 10000 == 0:
                 print(f"Thread {thread} iteration {i}/{n_rounds} ({t:.2f}s) ({n_evaluations} evaluations): {best_score:.2e}, {porp_in_10pct * 100:.2f}% within 10%")
             score_evaluations.append((best_score, n_evaluations))
             # best_mapping = min(population, key=lambda m: m.prev_score)

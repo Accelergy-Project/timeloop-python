@@ -40,7 +40,7 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, 
         d = data[trace.name]
         index = points.point_inds[0]
         display(mapping2svg(d.iloc[index]))
-        backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.tensors)
+        backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.storage)
         backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
         for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")
@@ -60,7 +60,7 @@ def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, 
             svg = mapping2svg(d.iloc[index])
             with open(f"plots/{trace.name}.svg", "w") as f:
                 f.write(svg.data)
-        backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.tensors)
+        backing_tensors = set(t for tn in d.iloc[index][MAPPING].values() for t in tn.storage)
         backing_tensors = TensorStorage.get_backing_stores(backing_tensors)
         for t in sorted(backing_tensors):
             print(f"{t.__repr__()},")

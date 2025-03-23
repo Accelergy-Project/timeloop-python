@@ -7,7 +7,7 @@ LAYERNORM_INVALID = "LAYERNORM_INVALID"
 
 def get_layernorm_tag_mha(
         einsum_name: str, 
-        backing_storages: set[TensorStorage], 
+        backing_storage: set[TensorStorage], 
         input_tensors: set[str],
         output_tensors: set[str],
         tiling: Tiling,
@@ -20,10 +20,10 @@ def get_layernorm_tag_mha(
 
     normalized_tensor = "Z_Z_to_FFA"
 
-    for t in backing_storages:
+    for t in backing_storage:
         if t.tensor_name != normalized_tensor:
             continue
-        if t.storage_name != 1:
+        if t.memory_name != 1:
             continue
 
         normalized_tensor_namex = t.above_loop_index

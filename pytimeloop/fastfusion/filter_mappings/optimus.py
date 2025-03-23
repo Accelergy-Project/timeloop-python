@@ -12,18 +12,18 @@ def is_even(tiling: Tiling, tensor_to_relevant_ranks, skip_tensors=None):
     # Highest index of all storage nodes of a given hardware level.
     # This is the "canonical" even storage node, which is where storage
     # nodes for even exploration is nominally placed without LRP.
-    storage2highestidx = defaultdict(lambda: 0)
+    storage2highestindex = defaultdict(lambda: 0)
     for ts in tiling.storage:
         if any(t in ts.tensor_name for t in skip_tensors):
             continue
-        storage2highestidx[ts.memory_name] = max(
-            storage2highestidx[ts.memory_name], ts.above_loop_index
+        storage2highestindex[ts.memory_name] = max(
+            storage2highestindex[ts.memory_name], ts.above_loop_index
         )
 
     for ts in tiling.storage:
         if any(t in ts.tensor_name for t in skip_tensors):
             continue
-        highest_idx = storage2highestidx[ts.memory_name]
+        highest_idx = storage2highestindex[ts.memory_name]
         lowest_idx = ts.above_loop_index
         # If any relevant rank separates a tensor's storage node from the
         # "canonical" even storage node, then the tiling is uneven
@@ -34,7 +34,10 @@ def is_even(tiling: Tiling, tensor_to_relevant_ranks, skip_tensors=None):
             return False
     return True
 
-def get_ffmt_tag_mha(
+OPTIMUS_INVALID = "OTMS_INVALID"
+OPTIMUS_VALID = "OPTIMUS_VALID"
+
+def get_optimus_tag(
         einsum_name: str, 
         backing_storage: set[TensorStorage], 
         input_tensors: set[str],
@@ -43,6 +46,75 @@ def get_ffmt_tag_mha(
         rank_name_to_shared_name: dict[str, str],
         tensor_to_relevant_ranks,
     ):
+    # Tag includes:
+    # - Number of fused loops. Must be equal for all fused Einsums
+    # - All fused tensors must be backed under the same number of loops
+    # - Weights stored at the same loop index for all fused operations.
+    #   They are also all stored:
+    #   - Above all fused loops
+    #   - Below all fused loops. May be further below if there are relevant
+    #   loops below
+    intermediates = input_tensors | output_tensors
+    fused_storage = [t for t in backing_storage if t.memory_name != 0]
+
+    # All fused tensors must be backed under the same number of loops
+    n_fused_loops = set(t.above_loop_index for t in fused_storage)
+    if len(n_fused_loops) != 1:
+        return (OPTIMUS_INVALID,)
+    n_fused_loops = n_fused_loops.pop()
+    
+    # Unfused is vaild
+    if n_fused_loops == 0:
+        return (OPTIMUS_VALID,)
+    
+    # Weights must be stored either above all or below all fused loops
+    weight_first_non_backing_storages = []
+    for t in tiling.storage:
+        if t.tensor_name not in intermediates and t not in backing_storage:
+            weight_first_non_backing_storages.append(t)
+    weight_non_backing_above_index = set(t.above_loop_index for t in weight_first_non_backing_storages)
+    weights_above = all(w == 0 for w in weight_non_backing_above_index)
+    weights_below = all(w >= n_fused_loops for w in weight_non_backing_above_index)
+    
+    if not (weights_above or weights_below):
+        return (OPTIMUS_INVALID,)
+    
+    return (
+        OPTIMUS_VALID,
+        f"OPTIMUS_N_FUSED_LOOPS={n_fused_loops}",
+        f"OPTIMUS_WEIGHTS_ABOVE={weights_above}",
+    )
+    
+    # Fused groups of tensors are executed sequentially Within a fused group,
+    # you fuse everything While we're exploring SIMs, look at live tensors. They
+    # should either be all fused or all not fused. We can't have both.
+    
+    # Our Optimus implementation:
+    # - Assume that they have Pareto pruning at every step. This is equivalent
+    #   to their dynamic programming. We can generously extend their dynamic
+    #   programming to more dataflows by assuming that their dynamic programming
+    #   would save, for each Einsum, the mapping for each possible inter-layer
+    #   mapping. This is generous because we are giving them our compatibility
+    #   comparison metrics.
+    # 
+    # - They can not lookeahead filter
+    # - They iterate through every pair of mappings for every Einsum to check
+    #   for compatibility, rather than hashing comparison metrics.
+    # - They don't have lifetime metrics. This means:
+    #   - When they put Einsum(s) together, they must re-evaluate the memory of
+    #     the partial mapping. Therefore, for the Nth Einsum, the evaluation
+    #     cost is N
+    #   - If two partial mappings have any reservations, they can't be compared.
+    # - No same-shape layer optimization
+    
+    # We're giving them our intra-layer mapper ability to stop increasing tile
+    # size when buffer capacity is exceeded. This is generous because they give
+    # no information on the intra-layer mapper.
+
+    # Q for Michael: I think we should have the same-shape optimization on for
+    # us for GPT but not matmuls. Matmuls feels unfair because we set it up with
+    # many repeated shapes.
+    
     B, H, M, F, P, G, E, D, C, J = (x + einsum_name for x in "BHMFPGEDCJ")
     EINSUM_NAME_TO_REDUCED_RANK_OUTPUT_RANK = {
         "Q":   [D, E],
@@ -59,12 +131,8 @@ def get_ffmt_tag_mha(
     if "Matmul" in einsum_name:
         min_weight_idx, max_weight_idx, max_non_weight_idx = float('inf'), 0, 0
         max_weight_idx = 0
-        # if not is_even(tiling, tensor_to_relevant_ranks, skip_tensors=["Filter"]):
-        #     return (FFMT_INVALID,)
         if unfused:
-            if is_even(tiling, tensor_to_relevant_ranks, skip_tensors=["Filter"]):
-                return (FFMT_VALID,)
-            return (FFMT_INVALID,)
+            return (FFMT_VALID,)
         untiled_fused = all(t.above_loop_index == 0 for t in backing_storage)
         if untiled_fused:
             return (FFMT_VALID, )
@@ -76,20 +144,6 @@ def get_ffmt_tag_mha(
                 max_weight_idx = max(max_weight_idx, t.above_loop_index)
             else:
                 max_non_weight_idx = max(max_non_weight_idx, t.above_loop_index)
-                
-        # If there are 2 tensors backed in 1, they should both be above loop index 1
-        # if sum(t.memory_name == 1 for t in backing_storage) == 2:
-        #     for t in backing_storage:
-        #         if t.memory_name == 1:
-        #             if t.above_loop_index != 1:
-        #                 return (FFMT_INVALID, )
-        # if sum(t.memory_name == 1 for t in backing_storage) == 1:
-        #     if einsum_name == "Matmul3":
-        #         print(f'Matmul 3!')
-        #     for t in backing_storage:
-        #         if t.memory_name == 1:
-        #             if t.above_loop_index != 2:
-        #                 return (FFMT_INVALID,)
         
         weight_untiled = (
             min_weight_idx == 0

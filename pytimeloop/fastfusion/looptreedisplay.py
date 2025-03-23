@@ -43,9 +43,9 @@ class Node(ABC):
         return dot
 
 class LoopNode(Node):
-    def __init__(self, name: str, children: list[Node] | Node, storages_below: list[str]):
+    def __init__(self, name: str, children: list[Node] | Node, storage_below: list[str]):
         super().__init__(name, children)
-        self.storages_below = storages_below
+        self.storage_below = storage_below
 
     def _merge_right(self, node: Node) -> list[Node]:
         if self.name != node.name or not isinstance(node, LoopNode):
@@ -57,26 +57,26 @@ class LoopNode(Node):
         else:
             self.children += self.children.pop(-1)._merge_right(node.children[0])
 
-        self.storages_below += node.storages_below
+        self.storage_below += node.storage_below
         return [self]
     
     def get_label(self):
         return "\n".join(
             [str(self.name)] + 
-            [str(s) for s in self.storages_below]
+            [str(s) for s in self.storage_below]
         )
     
     def __str__(self):
-        return super().__str__(f"{self.name} ({self.storages_below})")
+        return super().__str__(f"{self.name} ({self.storage_below})")
     
     def _rename(self, rank_renaming: dict[str, str], tensor_renaming: dict[str, str]):
         super()._rename(rank_renaming, tensor_renaming)
-        self.storages_below = [t.rename(rank_renaming, tensor_renaming) for t in self.storages_below]
+        self.storage_below = [t.rename(rank_renaming, tensor_renaming) for t in self.storage_below]
         return self
 
 class Root(LoopNode):
-    def __init__(self, name: str, children: list[Node] | Node, storages_below: list[str] = []):
-        super().__init__(name, children, storages_below)
+    def __init__(self, name: str, children: list[Node] | Node, storage_below: list[str] = []):
+        super().__init__(name, children, storage_below)
     
     def merge_right(self, root: "Root") -> "Root":
         self, root = copy.deepcopy(self), copy.deepcopy(root)

@@ -68,8 +68,8 @@ class Node:
                 reservations[k] = max(reservations[k], v)
         for t in self.this_level:
             if isinstance(t, TensorStorage):
-                reservations[str(t.memory_name)] += t.tile_size
-        return dict(reservations)
+                reservations[t.memory_name] += t.tile_size
+        return reservations
     
     def get_all_storage(self, _entry: bool = True, start_at: int = 0) -> list[TensorStorage]:
         if start_at <= 0:
@@ -146,6 +146,8 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any],
                     n.this_level.append(tensor)
         if stats is not None:
             root.add_stats(stats[einsum_id])
+        # for k, v in partial_stats[einsum_id].items():
+        #     last_level.append(f"_PARTIAL {k}: {expfmt(v)}")
         prev_tilings.append(tiling)
         
     # Start at the root. Iterate through each leaf. Recursively:

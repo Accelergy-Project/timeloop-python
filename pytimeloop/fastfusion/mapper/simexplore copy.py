@@ -10,7 +10,7 @@ from joblib import delayed
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
 
 from pytimeloop.fastfusion.sim import SIM, Loop, Tiling
-from pytimeloop.fastfusion.pareto import VALID, Pareto
+from pytimeloop.fastfusion.pareto import RESERVED_COLUMNS, Pareto, MAPPING, CHECK_CORRECTNESS, col2nameloop
 from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
 
@@ -137,6 +137,58 @@ class GroupOfSIMsHolder:
         return self.sims[i]
 
 
+def prune_sims_by_unfused_better(sims: dict[str, list[SIM]]):
+    tensor2total_benefit = {}
+    unfusable_tensors = set()
+    
+    df = next(iter(sims.values()))[0].mapping.data
+    objective_cols = [c for c in df.columns if c not in RESERVED_COLUMNS and col2nameloop(c) is None]
+    
+    for einsum_id, sim_list in sims.items():
+        tensors = sim_list[0].tensor_names
+        no_fusion = None
+        for sim in sim_list:
+            tiling = sim.tiling
+            if all(t.memory_id == 0 for t in tiling.storage):
+                no_fusion = sim
+                break
+            
+        if no_fusion is None:
+            unfusable_tensors |= set(tensors)
+            continue
+        
+        for tensor in tensors:
+            for sim in sim_list:
+                tiling = sim.tiling
+                found = True
+                for t in tiling.storage:
+                    # No other tensors can be fused
+                    if t.name != tensor and t.memory_id == 0:
+                        found = False
+                    # This tensor must be fused
+                    if t.name == tensor and t.memory_id != 0:
+                        found = False
+                    # There can be no loops
+                    if t.loops:
+                        found = False
+                
+                if not found:
+                    continue
+        
+                # Grab the minimum 
+        
+        # Find a tiling that fuses ONLY that tensor
+        
+
+# Generate, for each Einsum, a dict of (storage N, storage N-1) -> Benefit where
+# the benefit is the change in objective functions if we back a tensor in storage N
+# instead of memory N-1.
+
+# Sum up the benefits for each tensor. Then, look at mappings that store the
+# tensor in memory N-1. Compare it to all mappings that store the tensor in memory N.
+# If the benefit does not make it better than these other mappings, remove it.
+
+
 def fuse_sims(
     sims: dict[str, list[SIM]],
     pairwise_equivalent_ranks: PairwiseEquivalentRanks,
@@ -144,9 +196,17 @@ def fuse_sims(
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
     lookahead_filter: bool = True,
-    optimus_fused_group_constraint: bool=False,
-    optimus_optimizations_only: bool=False,
 ):
+    if not CHECK_CORRECTNESS:
+        id2mapping = []
+        for k, v in sims.items():
+            for s in v:
+                df = s.mapping.data
+                for r in df[MAPPING]:
+                    for k, v in r.items():
+                        r[k] = len(id2mapping)
+                        id2mapping.append(v)
+    
     full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
     changed = True
     while changed:
@@ -158,19 +218,11 @@ def fuse_sims(
                         continue
                     changed = True
                     full_equivalent_ranks[r].add(r3)
-
-    for sim_list in sims.values():
-        for s in sim_list:
-            if VALID in s.mapping.data:
-                s.mapping.data = s.mapping.data[s.mapping.data[VALID] == 1]
     
     nmappings = []
     nbuckets = []
-    
-    n_evaluations = 0
 
     sims = list(sims.items())
-    n_sims = len(sims)
 
     for einsum_id, s in sims:
         print(f"SIM {einsum_id} tensors: {s[0].tensor_names}")
@@ -219,7 +271,7 @@ def fuse_sims(
     n_iterations = 0
     total_iterations = len(sims)
 
-    def grab_sim_holder() -> tuple[dict[Tiling, list[SIM]], str, set[str]]:
+    def grab_sim_holder():
         nonlocal n_iterations
         n_iterations += 1
         holder = sims.pop(0)
@@ -228,7 +280,6 @@ def fuse_sims(
     if sims:
         left, left_einsum, left_tensors = grab_sim_holder()
 
-    partial_mapping_size = 1
     while sims:
         # ======================================================================
         # Grab new Einsum from the right. Record logging data and find still
@@ -239,8 +290,6 @@ def fuse_sims(
         right, right_einsum, right_tensors = grab_sim_holder()
         right_ranks = einsum2ranks[right_einsum]
         print(f"\nEinsum {right_einsum} ({n_iterations}/{total_iterations})")
-        
-        partial_mapping_size += 1
 
         live_tensors = set.union(set(), *[s.tensor_names for s in sims])
         shared_tensors = set(left_tensors) & set(right_tensors)
@@ -256,14 +305,8 @@ def fuse_sims(
             shared_tensors,
             pbar=f"Consolidate {left_einsum}",
         )
-        if optimus_fused_group_constraint:
-            left = [s for s in left if len(set(l.memory_name for l in s.tiling.storage if l.tensor_name in live_tensors)) <= 1]
-
         print_time(f"Consolidating")
-        
-        # Optimus can't combine SIMs that have reserved data
-        left = SIM.combine_combineable(left, live_tensors | right_tensors, combine_reservations=not optimus_optimizations_only)
-
+        left = SIM.combine_combineable(left, live_tensors | right_tensors)
         print_time(f"Combining")
         # Group left and right into buckets
         left = SIM.group_left(left, right_tensors, drop_tags=True)
@@ -282,12 +325,6 @@ def fuse_sims(
         DO_PRINT = False
         DELAY = not debugger_active()
 
-        # Optimus doesn't do compatibility-based bagging. Compares every mapping to every other mapping.
-        if optimus_optimizations_only:
-            n_left_mappings = sum(len(s.mapping.data) for k in left.values() for s in k)
-            n_right_mappings = sum(len(s.mapping.data) for k in right.values() for s in k)
-            n_evaluations += partial_mapping_size * n_left_mappings * n_right_mappings
-
         # ======================================================================
         # Merge the left and right buckets.
         # ======================================================================
@@ -301,8 +338,6 @@ def fuse_sims(
                     if a.tiling.tags.are_compatible_with(b.tiling.tags):
                         found = True
                         combined.append(a.merge_next(b, live_tensors, delay=DELAY))
-                        if not DELAY and not optimus_optimizations_only:
-                            n_evaluations += len(a.mapping.data) * len(b.mapping.data)
                         if DO_PRINT:
                             s = f"\t{a.tiling} <--> {b.tiling}"
                             s += f" --> {combined[-1].tiling}"
@@ -324,9 +359,7 @@ def fuse_sims(
         # Look ahead to the next Einsum and see if any of our buckets will not
         # be able to merge with it. If so, we can drop them immediately.
         # ======================================================================
-        # Optimus can't look ahead to future Einsums to see if we'll have
-        # compatibilty problems
-        if sims and lookahead_filter and not optimus_optimizations_only:
+        if sims and lookahead_filter:
             prev_len = len(combined)
             next_right_tensors = sims[0].tensor_names
             next_right_ranks = einsum2ranks[sims[0].einsum_id]
@@ -365,7 +398,6 @@ def fuse_sims(
             )
             for c, mapping in zip(combined, mappings):
                 c.mapping = mapping
-                n_evaluations += len(mapping.data)
         print_time("Mapping merging")
 
         # ======================================================================
@@ -395,10 +427,14 @@ def fuse_sims(
     s_final = SIM.combine_combineable(left, set(), drop_tags=True)
     assert len(s_final) == 1
     data = s_final[0].mapping.data
-    # check_correctness(data, set())
-
+    
+    if not CHECK_CORRECTNESS:
+        for r in data[MAPPING]:
+            for k, v in r.items():
+                r[k] = id2mapping[v]
+        
     print_total_time()
 
     if return_nmappings_nbuckets:
         return data, nmappings, nbuckets
-    return data, (n_evaluations, 0)
+    return data

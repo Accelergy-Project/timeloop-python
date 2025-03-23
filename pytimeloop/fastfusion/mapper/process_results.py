@@ -88,8 +88,8 @@ def process_result(
     )
 
     cur_idx = 0
-    backing_storages = []
-    all_storages = []
+    backing_storage = []
+    all_storage = []
     intermediates_to_find = set(intermediate_tensors)
     found_tensors = set()
     ranks_remaining = {k: v for k, v in einsum_shape.items()}
@@ -97,18 +97,18 @@ def process_result(
 
     def record_storage(node):
         for dspace in node["dspace"]:
-            storage = TensorStorage(
+            store = TensorStorage(
                 tensor_id_to_name[dspace],
                 len(full_tiling),
                 node["target"],
                 int(result.occupancy[(node["target"], dspace)]),
             )
-            all_storages.append(storage)
-            if storage.tensor_name in intermediates_to_find:
-                intermediates_to_find.remove(storage.tensor_name)
-            if storage.tensor_name not in found_tensors:
-                found_tensors.add(storage.tensor_name)
-                backing_storages.append(storage)
+            all_storage.append(store)
+            if store.tensor_name in intermediates_to_find:
+                intermediates_to_find.remove(store.tensor_name)
+            if store.tensor_name not in found_tensors:
+                found_tensors.add(store.tensor_name)
+                backing_storage.append(store)
                 
         if Metrics.DEBUG in metrics:
             logstring.append(f"Strg({node['dspace']} in {node['target']})")
@@ -145,29 +145,29 @@ def process_result(
     # storage to another.
     copy_einsum = einsum_name in copy_einsums
     if copy_einsum:
-        all_storages = backing_storages
+        all_storage = backing_storage
         
     # If this Einsum is a copy op and the source and destination locations are
     # the same, then it is a null operation. Assume that the input tensors are
     # the output tensors. We don't want to double count, so get rid of the input
     # tensor occupancies. Note that we would like to keep the output tensor
     # occupancies in case their reservatinos get propagated to later Einsums. 
-    null_copy_einsum = copy_einsum and len(set(t.storage_name for t in backing_storages)) == 1
+    null_copy_einsum = copy_einsum and len(set(t.memory_name for t in backing_storage)) == 1
     if null_copy_einsum:
-        for i, r in enumerate(backing_storages):
+        for i, r in enumerate(backing_storage):
             if r.tensor_name in input_tensors:
-                backing_storages[i] = TensorStorage(
+                backing_storage[i] = TensorStorage(
                     tensor_name=r.tensor_name,
                     above_loop_index=r.above_loop_index,
-                    storage_name=r.storage_name,
+                    memory_name=r.memory_name,
                     tile_size=0,
                 )
 
 
-    n_fused_loops = max(t.above_loop_index for t in backing_storages)
+    n_fused_loops = max(t.above_loop_index for t in backing_storage)
     tiling_full = Tiling(
         loops=tuple(full_tiling),
-        tensors=fzs(all_storages),
+        storage=fzs(all_storage),
     )
     
     for i, l in enumerate(tiling_full.loops):
@@ -177,7 +177,7 @@ def process_result(
     
     tagger_args = dict(
         einsum_name=einsum_name,
-        backing_storages=backing_storages,
+        backing_storage=backing_storage,
         input_tensors=input_tensors,
         output_tensors=output_tensors,
         tiling=tiling_full,
@@ -193,7 +193,7 @@ def process_result(
 
     tiling_compatibility = Tiling(
         loops=tuple(full_tiling[:n_fused_loops]),
-        tensors=fzs(backing_storages),
+        storage=fzs(backing_storage),
         tags=Tags(fzs(tags)),
     )
 
@@ -221,10 +221,10 @@ def process_result(
     # when we free the tensors & we know all operations for which the tensor must
     # be backed.
     if not copy_einsum:
-        for r in all_storages:
+        for r in all_storage:
             r: TensorStorage
-            if r not in backing_storages:
-                key = nameloop2col(r.storage_name, min(r.above_loop_index, n_fused_loops))
+            if r not in backing_storage:
+                key = nameloop2col(r.memory_name, min(r.above_loop_index, n_fused_loops))
                 results.setdefault(key, 0)
                 results[key] += r.tile_size
 
@@ -247,7 +247,7 @@ def process_result(
         results[TAGS] = {einsum_name: tiling_compatibility.tags}
         results[MAPPING_HASH] = {einsum_name: hash((einsum_id, tiling_compatibility))}
         results[IN_PROGRESS_STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
-        results[TENSORS] = {einsum_name: backing_storages}
+        results[TENSORS] = {einsum_name: backing_storage}
 
     results[MAPPING] = {einsum_name: tiling_full}
 

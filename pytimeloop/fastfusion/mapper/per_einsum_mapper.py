@@ -98,17 +98,17 @@ def mapper_place_fusion_level(
             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
             explore_uneven=explore_pe_uneven,
         ):
-            found_storages = set()
+            found_storage = set()
             fail = False
             for i, p in enumerate(partial_mapping):
                 if p["type"] == "storage":
-                    for t in set(p["dspace"]) - found_storages:
+                    for t in set(p["dspace"]) - found_storage:
                         for p2 in partial_mapping[:i]:
                             if p2["type"] in ["temporal", "spatial"] and p2["rank"] not in tensor_to_relevant_ranks[t]:
                                 fail = True
                                 break
-                    found_storages |= set(p["dspace"])
-                if len(found_storages) < len(tensors) or i == 0:
+                    found_storage |= set(p["dspace"])
+                if len(found_storage) < len(tensors) or i == 0:
                     continue
                 prev = partial_mapping[i - 1]
                 for t in ["spatial"]: # "temporal", TEMPORAL DOESN"T WORK. WEIRD INTERACTIONS WITH LOOP RELEVANCE PRINCIPLE
@@ -250,12 +250,12 @@ def get_top_loop_jobs(
                         all_ranks,
                         max_factor=pe_array_constraint.array_shape
                     ):
-                        # found_storages = set()
+                        # found_storage = set()
                         # fail = False
                         # for i, p in enumerate(partial_mapping):
                         #     if p["type"] == "storage":
-                        #         found_storages |= set(p["dspace"])
-                        #     if len(found_storages) < len(tensors) or i == 0:
+                        #         found_storage |= set(p["dspace"])
+                        #     if len(found_storage) < len(tensors) or i == 0:
                         #         continue
                         #     prev = partial_mapping[i - 1]
                         #     for t in ["temporal", "spatial"]:
