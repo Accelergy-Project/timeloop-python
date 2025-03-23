@@ -3,8 +3,8 @@ from copy import deepcopy
 import logging.handlers
 from pathlib import Path
 import logging
+import os
 logger = logging.getLogger(__name__)
-
 from ruamel.yaml import YAML
 
 yaml = YAML(typ="safe")
@@ -57,7 +57,12 @@ def mapper(
 
     if isinstance(tmp_path, Path):
         tmp_path = str(tmp_path)
-    call_accelergy_verbose(spec, tmp_path)
+    
+    try:
+        call_accelergy_verbose(spec, tmp_path, extra_args=[f" > {tmp_path}/accelergy.log 2>&1"])
+    except Exception as e:
+        logger.error(f"Error running Accelergy: {e}. Log in {tmp_path}/accelergy.log")
+        raise
     ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()
