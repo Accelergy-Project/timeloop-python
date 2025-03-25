@@ -73,7 +73,8 @@ def parallel(
         one_job_if_debugging: bool = True, 
         pbar: str = None,
         return_as: str = None,
-        chunk: bool = True
+        chunk: bool = True,
+        delete_job_after: bool = False
     ):
 
     args = {}
@@ -102,7 +103,7 @@ def parallel(
     # jobs, and so on. Jobs get smaller near the end to reduce the impact of
     # long pole jobs.
     
-    if chunk:
+    if chunk and not delete_job_after:
         def job_chunk(chunk_of_jobs):
             # print(list(j[0](*j[1], **j[2]) for j in chunk_of_jobs[::-1])[0][0])
             return list(j[0](*j[1], **j[2]) for j in chunk_of_jobs[::-1])
@@ -126,9 +127,18 @@ def parallel(
                     yield from job
             return yield_jobs()
         return list(itertools.chain(*Parallel(n_jobs=n_jobs, **args)(jobs)))
+    
+    total_jobs = len(jobs)
+    
+    if delete_job_after:
+        def job_delete_iterator(jobs):
+            jobs = list(reversed(jobs))
+            while jobs:
+                yield jobs.pop()
+        jobs = job_delete_iterator(jobs)
 
     if pbar:
-        return Parallel(n_jobs=n_jobs, **args)(tqdm(jobs, total=len(jobs), desc=pbar, leave=True))
+        return Parallel(n_jobs=n_jobs, **args)(tqdm(jobs, total=total_jobs, desc=pbar, leave=True))
     return Parallel(n_jobs=n_jobs, **args)(jobs)
 
 if __name__ == "__main__":
