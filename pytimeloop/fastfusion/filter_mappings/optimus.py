@@ -57,9 +57,10 @@ def get_optimus_tag(
     intermediates = input_tensors | output_tensors
     fused_storage = [t for t in backing_storage if t.memory_name != 0]
 
+
     # All fused tensors must be backed under the same number of loops
-    n_fused_loops = set(t.above_loop_index for t in fused_storage)
-    if len(n_fused_loops) != 1:
+    n_fused_loops = set(t.above_loop_index for t in fused_storage) or {0}
+    if len(n_fused_loops) > 1:
         return (OPTIMUS_INVALID,)
     n_fused_loops = n_fused_loops.pop()
     

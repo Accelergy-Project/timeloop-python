@@ -288,19 +288,21 @@ def per_einsum_mapper_snowcat(
             d[k[0]].append(v)
 
     def makesim(einsum_id, tiling, data):
-        return einsum_id, SIM(tiling, Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1 or not prune))
+        return einsum_id, SIM(tiling, makepareto(data))
+    
+    def makepareto(data):
+        return Pareto(pd.concat(data).fillna(0), skip_pareto=len(data) == 1 or not prune)
 
-    data2 = defaultdict(list)
     jobs = []
     for einsum_id, tilings in data.items():
-        for tiling, data in tilings.items():
-            if len(data) == 1:
-                data2[einsum_id].append(SIM(tiling, Pareto(data[0], skip_pareto=True)))
-            else:
-                jobs.append(delayed(makesim)(einsum_id, tiling, data))
-    # jobs = [delayed(makesim)(einsum_id, tiling, data) for einsum_id, tilings in data.items() for tiling, data in tilings.items()]
+        for tiling, dfs in tilings.items():
+            jobs.append(delayed(makesim)(einsum_id, tiling, dfs))
 
-    for einsum_id, sim in parallel(jobs, pbar="Generating SIMs", return_as="generator"):
-        data2[einsum_id].append(sim)
-    
-    return data2, n_mappings
+    # Free memory by:
+    # - Deleting data dict, replace with new fresh dict
+    # - Delete jobs after running
+    data = defaultdict(list)
+    for einsum_id, sim in parallel(jobs, pbar="Generating SIMs", return_as="generator", delete_job_after=True):
+        data[einsum_id].append(sim)
+
+    return dict(data), n_mappings
