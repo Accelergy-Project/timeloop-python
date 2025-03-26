@@ -630,11 +630,11 @@ def fuse_sims_simulated_anneal(
             # population = parallel([delayed(mutate)(m, mapspace_globals, accept_function) for m in population])
             for j, mapping in enumerate(population):
                 population[j], evaluations = mutate(mapping, mapspace_globals, accept_function)
-                n_evaluations += evaluations
+                n_evaluations += evaluations * len(mapspace_globals.einsum_names)
             best_score = min(m.prev_score for m in population)
             porp_in_10pct = sum(m.prev_score < best_score * 1.1 for m in population) / len(population)
             t = time.time() - t0
-            if i % 10000 == 0:
+            if i % (n_rounds // 10) == 0:
                 print(f"Thread {thread} iteration {i}/{n_rounds} ({t:.2f}s) ({n_evaluations} evaluations): {best_score:.2e}, {porp_in_10pct * 100:.2f}% within 10%")
             score_evaluations.append((best_score, n_evaluations))
             # best_mapping = min(population, key=lambda m: m.prev_score)
@@ -657,12 +657,15 @@ def fuse_sims_simulated_anneal(
                 aggregate_score[i] = min(aggregate_score[i], s)
                 aggregate_evaluations[i] += e
                 
-    for score, evaluations in zip(aggregate_score, aggregate_evaluations):
+    zipped = list(zip(aggregate_score, aggregate_evaluations))
+    print(f'Evaluations, Score')
+    for i in range(0, len(zipped), len(zipped) // 10):
+        score, evaluations = zipped[i]
         print(f"{evaluations}, {score}")
-    
-    
+
     mappings = list(itertools.chain(*pops))
     mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True)[0] for m in mappings])
+    mappings.sort_values(by=mapspace_globals.objective_function_cols, inplace=True)
     return mappings, (aggregate_evaluations, aggregate_score)
 
 
@@ -765,7 +768,7 @@ def fuse_sims(
     
     n_threads = 16
     
-    while n_threads > 1:
+    while n_threads >= 1:
         try:
             return fuse_sims_simulated_anneal(
                 sims,
