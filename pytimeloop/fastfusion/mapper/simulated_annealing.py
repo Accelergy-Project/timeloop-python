@@ -642,7 +642,7 @@ def fuse_sims_simulated_anneal(
         return population, score_evaluations
 
     population_size = 100
-    n_rounds = 1000000
+    n_rounds = 100000
     population = [Mapping(sims) for _ in range(ceil(population_size / n_threads))]
     results = parallel([delayed(anneal_population)(i, population, mapspace_globals, 0.07, 8, n_rounds) for i in range(n_threads)])
     pops, score_evaluations = zip(*results)
