@@ -36,6 +36,20 @@ def is_even(tiling: Tiling, tensor_to_relevant_ranks, skip_tensors=None):
 
 OPTIMUS_INVALID = "OTMS_INVALID"
 OPTIMUS_VALID = "OPTIMUS_VALID"
+OPTIMUS_N_FUSED_LOOPS_CACHE = {}
+def get_optimus_n_fused_loops(n):
+    if n in OPTIMUS_N_FUSED_LOOPS_CACHE:
+        return OPTIMUS_N_FUSED_LOOPS_CACHE[n]
+    OPTIMUS_N_FUSED_LOOPS_CACHE[n] = f"OPTIMUS_N_FUSED_LOOPS={n}"
+    return OPTIMUS_N_FUSED_LOOPS_CACHE[n]
+
+OPTIMUS_WEIGHTS_ABOVE = "OPTIMUS_WEIGHTS_ABOVE"
+OPTIMUS_WEIGHTS_BELOW = "OPTIMUS_WEIGHTS_BELOW"
+def get_optimus_weights_above(weights_above):
+    if weights_above:
+        return f"OPTIMUS_WEIGHTS_ABOVE"
+    return f"OPTIMUS_WEIGHTS_BELOW"
+
 
 def get_optimus_tag(
         einsum_name: str, 
@@ -54,7 +68,7 @@ def get_optimus_tag(
     #   - Above all fused loops
     #   - Below all fused loops. May be further below if there are relevant
     #   loops below
-    intermediates = input_tensors | output_tensors
+    unfused_tensors = set(t.tensor_name for t in tiling.storage if t.memory_name == 0)
     fused_storage = [t for t in backing_storage if t.memory_name != 0]
 
 
@@ -71,7 +85,7 @@ def get_optimus_tag(
     # Weights must be stored either above all or below all fused loops
     weight_first_non_backing_storages = []
     for t in tiling.storage:
-        if t.tensor_name not in intermediates and t not in backing_storage:
+        if t.tensor_name not in unfused_tensors and t not in backing_storage:
             weight_first_non_backing_storages.append(t)
     weight_non_backing_above_index = set(t.above_loop_index for t in weight_first_non_backing_storages)
     weights_above = all(w == 0 for w in weight_non_backing_above_index)
@@ -82,8 +96,8 @@ def get_optimus_tag(
     
     return (
         OPTIMUS_VALID,
-        f"OPTIMUS_N_FUSED_LOOPS={n_fused_loops}",
-        f"OPTIMUS_WEIGHTS_ABOVE={weights_above}",
+        get_optimus_n_fused_loops(n_fused_loops),
+        get_optimus_weights_above(weights_above),
     )
     
     # Fused groups of tensors are executed sequentially Within a fused group,
