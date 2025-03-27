@@ -57,6 +57,7 @@ def mapper(
 
     if isinstance(tmp_path, Path):
         tmp_path = str(tmp_path)
+        print(f'Calling Accelergy in {tmp_path}')
     
     try:
         call_accelergy_verbose(spec, tmp_path, extra_args=[f" > {tmp_path}/accelergy.log 2>&1"])
@@ -144,7 +145,7 @@ def mapper(
             dimension_id_to_name[x] for x in workload.einsum_ospace_dimensions(einsum_id)
         )
 
-    bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
+    bindings, max_fanout, max_capacity, _ = get_hardware_levels(spec.architecture)
 
     return data, equiv_ranks_dict, einsum2ranks, bindings, max_fanout, max_capacity, n_mappings
 

@@ -12,15 +12,12 @@ import plotly.express as px
 from pytimeloop.fastfusion.sim import Loop, TensorStorage, Tiling
 from pytimeloop.fastfusion.util import expfmt
 from pytimeloop.fastfusion.plot.looptree import tilings2svg
-from pytimeloop.fastfusion.pareto import MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH
+from pytimeloop.fastfusion.pareto import MAPPING, STATS, TENSORS, IN_PROGRESS_STATS, MAPPING_HASH, PER_COMPONENT_ACCESSES_ENERGY
 
 import pandas as pd
 
 def mapping2svg(mapping: pd.Series):
-    return SVG(tilings2svg(mapping[MAPPING], mapping.get(STATS, None)))
-
-def mapping2svg(mapping: pd.Series):
-    return SVG(tilings2svg(mapping[MAPPING], mapping.get(STATS, None)))
+    return SVG(tilings2svg(mapping[MAPPING], mapping.get(STATS, None), mapping.get(PER_COMPONENT_ACCESSES_ENERGY, None)))
 
 def diplay_mappings_on_fig(fig: plotly.graph_objs.FigureWidget, data: dict[str, pd.DataFrame], mapping_svg: bool):
     # fig = go.FigureWidget(fig)

@@ -309,6 +309,7 @@ def get_hardware_levels(arch):
     bindings = {}
     fanout = {}
     max_capacity = {}
+    words_per_read = {}
     for node in arch["nodes"]:
         bindings_id = len(bindings)
         bindings[bindings_id] = node["name"]
@@ -322,7 +323,8 @@ def get_hardware_levels(arch):
                 max_capacity[bindings_id] = (
                     attribute.width * attribute.depth / attribute.datawidth
                 )
-    return bindings, fanout, max_capacity
+            words_per_read[bindings_id] = width // datawidth
+    return bindings, fanout, max_capacity, words_per_read
 
 
 def count(it):

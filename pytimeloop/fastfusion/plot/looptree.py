@@ -99,7 +99,9 @@ class Node:
 
 def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], 
                      skip_backing_tensors_in_right_branch: Iterable[str] = (), 
-                     still_live_tensors: set[str] = (), skip_merge: bool = False) -> Node:
+                     still_live_tensors: set[str] = (), skip_merge: bool = False,
+                     per_component_energy: dict[dict[str, float]] = None
+                     ) -> Node:
     prev_tilings = []
     root = Node()
     einsum_ids = list(mappings.keys())
@@ -134,6 +136,9 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any],
         # Add the tensors
         n.children.append(Node()) # Leaf node
         n.children[-1].this_level.append(f"Einsum {einsum_id}")
+        if per_component_energy is not None:
+            for k, v in per_component_energy[einsum_id].items():
+                n.children[-1].this_level.append(f"{k} energy: {expfmt(v)}")
         id2tensor = defaultdict(set)
         for t in sorted(tiling.storage) + tensors_lifetimes[einsum_id]:
             id2tensor[t.tensor_name].add(t)
@@ -197,8 +202,8 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any],
         
     return root
 
-def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], ):
-    root = tilings2looptree(mappings, stats)
+def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], per_component_energy: dict[dict[str, float]] = None):
+    root = tilings2looptree(mappings, stats, per_component_energy=per_component_energy)
     graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
     root.to_pydot(graph)
     return graph.create_svg()

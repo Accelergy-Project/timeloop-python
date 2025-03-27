@@ -4,22 +4,24 @@ from combinatorics.integer import integer_factorizations_to_n_parts
 
 
 def parse_constraint(constraint_str: str):
-    parser = re.compile('^(>=|>|<|<=|==)\s*(\d)')
+    parser = re.compile('^(>=|>|<|<=|==)\s*(\d+)')
     match = parser.match(constraint_str)
     if match is None:
         raise RuntimeError(f'Cannot parse constraint {constraint_str}')
     comparison, limit = match.groups()
     limit = int(limit)
+    if limit == 128:
+        comparison = "=="
     if comparison == '>=':
-        return lambda x: x >= limit
+        return lambda x: x >= limit, lambda x: x >= limit
     elif comparison == '>':
-        return lambda x: x > limit
+        return lambda x: x > limit, lambda x: x > limit
     elif comparison == '<=':
-        return lambda x: x <= limit
+        return lambda x: x <= limit, None
     elif comparison == '<':
-        return lambda x: x < limit
+        return lambda x: x < limit, None
     elif comparison == '==':
-        return lambda x: x == limit
+        return lambda x: x == limit, lambda x: x >= limit
     else:
         raise RuntimeError(f'Unknown comparison operator {comparison}')
 
@@ -33,27 +35,37 @@ class ShapeSubspace:
                  n_fusion_relevant_loops: int=None):
         self.rank_shapes = rank_shapes
         self.ranks = ranks
-        if tile_constraints is None:
-            self.tile_constraints = [[]]*len(self.ranks)
-        else:
-            self.tile_constraints = [
-                [parse_constraint(c) for c in rank_constraints]
-                for rank_constraints in tile_constraints
-            ]
-        if factor_constraints is None:
-            self.factor_constraints = [[]]*len(self.ranks)
-        else:
-            self.factor_constraints = [
-                [parse_constraint(c) for c in rank_constraints]
-                for rank_constraints in factor_constraints
-            ]
-
+        
         self.position_to_last = {}
         self.n_fusion_relevant_loops = n_fusion_relevant_loops
-        self.fill_position_to_next()
+        self.fill_position_to_last()
         # print(f'Made shape subspace with tile constraints {self.tile_constraints} and factor constraints {self.factor_constraints}')
+        
+        self.tile_constraints = [[] for _ in self.ranks]
+        self.factor_constraints = [[] for _ in self.ranks]
 
-    def fill_position_to_next(self):
+        if tile_constraints is not None:
+            for i, constraints in enumerate(tile_constraints):
+                for constraint in constraints:
+                    constraint, upward_prop_constraint = parse_constraint(constraint)
+                    self.tile_constraints[i].append(constraint)
+                    if upward_prop_constraint is not None:
+                        last = self.position_to_last[i]
+                        while last is not None:
+                            self.tile_constraints[last].append(upward_prop_constraint)
+                            last = self.position_to_last[last]
+        if factor_constraints is not None:
+            for i, constraints in enumerate(factor_constraints):
+                for constraint in constraints:
+                    constraint, upward_prop_constraint = parse_constraint(constraint)
+                    self.factor_constraints[i].append(constraint)
+                    if upward_prop_constraint is not None:
+                        last = self.position_to_last[i]
+                        while last is not None:
+                            self.tile_constraints[last].append(upward_prop_constraint)
+                            last = self.position_to_last[last]
+
+    def fill_position_to_last(self):
         self.rank_to_last = {}
         for i, r in enumerate(self.ranks):
             if r in self.rank_to_last:
@@ -206,10 +218,7 @@ class ShapeSubspaceIterator:
             try:
                 self.restart_iterator(i)
             except StopIteration as e:
-                self.is_done = True
-                return
-
-            self.is_first_choice[i] = True
+                pass
         self.prev_idx = len(self.choice_iterators) - 1
 
     def restart_iterator(self, idx):
@@ -222,11 +231,16 @@ class ShapeSubspaceIterator:
             iter(self.choice_generators[idx](shape,
                                              self.tile_constraints[idx],
                                              self.factor_constraints[idx]))
-        self.choice[idx] = next(self.choice_iterators[idx])
         self.is_first_choice[idx] = True
-        self.paretos[idx] = []
         self.prev_paretos[idx] = None
         self.would_have_skipped[idx] = False
+        self.paretos[idx] = []
+        try:
+            self.choice[idx] = next(self.choice_iterators[idx])
+        except StopIteration as e:
+            self.choice[idx] = 1
+            self.choice_iterators[idx] = iter([])
+            raise StopIteration()
 
     def move_iterator(self, idx):
         val = next(self.choice_iterators[idx])

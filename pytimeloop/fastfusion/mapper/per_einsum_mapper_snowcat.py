@@ -260,7 +260,13 @@ def per_einsum_mapper_snowcat(
     four_level=False,
     prune=True,
 ):
-    bindings, max_fanout, max_capacity = get_hardware_levels(spec.architecture)
+    bindings, max_fanout, max_capacity, words_per_read = get_hardware_levels(spec.architecture)
+    energy_dict = deepcopy(energy_dict)
+    words_per_read = {bindings[k]: v for k, v in words_per_read.items()}
+    for k, v in energy_dict.items():
+        if k[0] in words_per_read:
+            energy_dict[k] /= words_per_read[k[0]]
+
     jobs = list(j for einsum_id in einsums_to_explore for j in _per_einsum_mapper_snowcat(
             config,
             bindings,

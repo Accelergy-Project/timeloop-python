@@ -33,6 +33,7 @@ class Metrics(Flag):
     OP_INTENSITY = auto()
     DEBUG = auto()
     VALID = auto()
+    PER_COMPONENT_ACCESSES_ENERGY = auto()
 
     @classmethod
     def all_metrics(cls):
@@ -216,6 +217,13 @@ def process_result(
         
     if Metrics.DEBUG in metrics:
         logstring.append(f"{result.fanout}")
+        
+    if Metrics.PER_COMPONENT_ACCESSES_ENERGY in metrics:
+        per_component_energy = {
+            comp_action: (counts, energy_dict[comp_action] * counts)
+            for comp_action, counts in actions.items()
+        }
+        results["Per-Component Energy"] = {einsum_name: per_component_energy}
 
     # Only record non-backing reservations. We'll reserve backing storage later
     # when we free the tensors & we know all operations for which the tensor must
