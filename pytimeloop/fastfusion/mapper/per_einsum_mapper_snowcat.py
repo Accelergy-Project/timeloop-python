@@ -34,6 +34,7 @@ def per_worker_exploration(
     intermediate_tensors,
     bindings,
     energy_dict,
+    bandwidth_dict,
     equivalent_groups,
     explore_glb_uneven,
     metrics,
@@ -83,6 +84,7 @@ def per_worker_exploration(
                 bindings,
                 workload,
                 energy_dict,
+                bandwidth_dict,
                 equivalent_groups,
                 explore_fusion_uneven=explore_glb_uneven,
                 einsum_shape=einsum_shape,
@@ -112,6 +114,7 @@ def _per_einsum_mapper_snowcat(
     explore_glb_uneven,
     einsum_id,
     energy_dict,
+    bandwidth_dict,
     ffmt=False,
     ffmt_refetch_weights=True,
     dataflow_constraint=None,
@@ -230,6 +233,7 @@ def _per_einsum_mapper_snowcat(
         intermediate_tensors=intermediate_tensors,
         bindings=bindings,
         energy_dict=energy_dict,
+        bandwidth_dict=bandwidth_dict,
         equivalent_groups=equivalent_groups,
         explore_glb_uneven=explore_glb_uneven,
         metrics=metrics,
@@ -262,6 +266,7 @@ def per_einsum_mapper_snowcat(
 ):
     bindings, max_fanout, max_capacity, words_per_read = get_hardware_levels(spec.architecture)
     energy_dict = deepcopy(energy_dict)
+    bandwidth_dict = words_per_read
     words_per_read = {bindings[k]: v for k, v in words_per_read.items()}
     for k, v in energy_dict.items():
         if k[0] in words_per_read:
@@ -275,6 +280,7 @@ def per_einsum_mapper_snowcat(
             explore_glb_uneven,
             einsum_id,
             energy_dict,
+            bandwidth_dict,
             ffmt=ffmt,
             ffmt_refetch_weights=ffmt_refetch_weights,
             dataflow_constraint=dataflow_constraint,

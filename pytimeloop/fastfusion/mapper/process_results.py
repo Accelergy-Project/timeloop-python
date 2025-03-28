@@ -1,7 +1,7 @@
 from collections import defaultdict
 from enum import auto, Flag
 from functools import reduce
-from operator import or_
+from operator import or_, mul
 
 from pytimeloop.fastfusion.pareto import (
     LOGSTRING,
@@ -52,6 +52,7 @@ def process_result(
     bindings,
     workload,
     energy_dict,
+    bandwidth_dict,
     equiv_groups: EquivalentGroups,
     explore_fusion_uneven,
     einsum_shape,
@@ -83,6 +84,19 @@ def process_result(
         accesses[k] += v
     for k, v in writes.items():
         accesses[k] += v
+
+    memory_latency = max(
+        (
+            sum(read_count
+                for (this_level, _, _), read_count in reads.items()
+                if this_level == level)
+            +
+            sum(write_count
+                for (this_level, _, _), write_count in writes.items()
+                if this_level == level)
+        ) / (bandwidth * reduce(mul, result.fanout[level], 1))
+        for level, bandwidth in bandwidth_dict.items()
+    )
 
     energy = sum(
         energy_dict[comp_action] * counts for comp_action, counts in actions.items()
@@ -201,7 +215,10 @@ def process_result(
     results = {}
 
     if Metrics.LATENCY in metrics:
-        results["Latency"] = result.temporal_steps[einsum_id]
+        results["Latency"] = max(
+            result.temporal_steps[einsum_id],
+            memory_latency
+        )
 
     if Metrics.ENERGY in metrics:
         results["Energy"] = energy
