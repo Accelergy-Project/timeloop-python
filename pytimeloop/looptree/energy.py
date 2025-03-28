@@ -12,7 +12,8 @@ def gather_actions(looptree_results, mapping, workload, bindings, is_path=False)
 
     einsum_name_to_id = workload.einsum_name_to_id()
 
-    einsums_with_complete_mapping = get_einsums_with_complete_mappings(mapping['nodes'], workload, is_path)
+    einsums_with_complete_mapping = \
+        get_einsums_with_complete_mappings(mapping['nodes'], workload, is_path)
     einsums_with_complete_mapping = {
         e if isinstance(e, int) else einsum_name_to_id[e]
         for e in einsums_with_complete_mapping
@@ -94,7 +95,7 @@ def gather_ops(ops, einsums_with_complete_mapping):
         if einsum_id not in einsums_with_complete_mapping:
             continue
         if isinstance(v, isl.PwQPolynomial):
-            total += get_sum_of_pw_qpolynomial(v).to_python()
+            total += get_sum_of_pw_qpolynomial(v)
         elif isinstance(v, Number):
             total += v
         else:

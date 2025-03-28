@@ -6,7 +6,7 @@ from pytimeloop.looptree.run import run_looptree
 from tests.util import TEST_TMP_DIR
 
 
-class TestCompleteRun(unittest.TestCase):
+class TestLatency(unittest.TestCase):
     def test_fused_sequential(self):
         BINDINGS = {
             0: 'MainMemory',
@@ -29,14 +29,3 @@ class TestCompleteRun(unittest.TestCase):
         )
 
         self.assertEqual(54, stats.latency)
-
-        ENERGY_REFS = {
-            ('MainMemory', 'read'): 118784,
-            ('MainMemory', 'write'): 147456,
-            ('GlobalBuffer', 'read'): 124842.654,
-            ('GlobalBuffer', 'write'): 89549.356,
-            ('MACC', 'compute'): 304.2
-        }
-
-        for k, v in stats.energy.items():
-            self.assertAlmostEqual(ENERGY_REFS[k], v, 1)

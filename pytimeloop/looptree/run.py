@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 import islpy as isl
@@ -7,12 +8,22 @@ from bindings.looptree import LooptreeModelApp, LooptreeWorkload
 
 from pytimeloop.file import gather_yaml_configs
 
+from pytimeloop.looptree.capacity import compute_capacity_usage
 from pytimeloop.looptree.des import deserialize_looptree_output
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
-from pytimeloop.looptree.latency import compute_latency
+from pytimeloop.looptree.latency import get_latency
 
 from pytimeloop.timeloopfe.v4fused import Specification
 from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+
+
+@dataclass
+class LoopTreeStatistics:
+    latency: float
+    energy: float
+    actions: dict
+    memory_latency: dict
+    capacity_usage: dict
 
 
 def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
@@ -39,8 +50,22 @@ def run_looptree(config_dir, paths, tmp_path, bindings, call_accelergy):
     actions = gather_actions(result, spec.mapping, workload, bindings)
     energy = compute_energy_from_actions(actions, spec.ERT)
 
-    latency = compute_latency(spec.mapping.nodes,
-                              result.temporal_steps,
-                              workload)
+    latency, comp_latency, mem_latency = get_latency(result,
+                                                     spec.mapping,
+                                                     workload,
+                                                     spec.architecture,
+                                                     bindings)
 
-    return latency, energy
+    capacity_usage = compute_capacity_usage(spec.mapping.nodes,
+                                            result.occupancy,
+                                            workload)
+    component_capacity_usage = {}
+    for level, component in bindings.items():
+        if level in capacity_usage:
+            component_capacity_usage[component] = capacity_usage[level]
+
+    return LoopTreeStatistics(latency,
+                              energy,
+                              actions,
+                              mem_latency,
+                              capacity_usage=component_capacity_usage)
