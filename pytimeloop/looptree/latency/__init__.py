@@ -1,1 +1,1 @@
-from .latency import compute_latency
+from .latency import get_latency

@@ -1,35 +1,84 @@
 from collections import defaultdict
 
 from pytimeloop.isl.singular import get_value_from_singular_qpolynomial
+from pytimeloop.looptree.accesses import (
+    reads_and_writes_from_fill_by_parent,
+    reads_and_writes_from_fill_by_peer
+)
 from pytimeloop.looptree.latency.processors import LATENCY_PROCESSORS
+from pytimeloop.looptree.des import LooptreeOutput
 
 from bindings.looptree import SpatialTag
 
 
-def get_latency(actions, mapping, temporal_steps, workload, arch):
-    comp_latency = compute_latency(mapping, temporal_steps, workload)
-    mem_latency = memory_latency(actions, arch)
-    return max(comp_latency, max(mem_latency.values()))
+def get_latency(looptree_results: LooptreeOutput,
+                mapping,
+                workload,
+                arch,
+                bindings):
+    comp_latency = compute_latency(mapping,
+                                   looptree_results.temporal_steps,
+                                   workload)
+    mem_latency = memory_latency(looptree_results,
+                                 arch,
+                                 mapping,
+                                 workload,
+                                 bindings)
+    overall_latency = max(comp_latency, max(mem_latency.values()))
+    return overall_latency, comp_latency, mem_latency
 
 
 def compute_latency(mapping, temporal_steps, workload):
     return get_value_from_singular_qpolynomial(
-        _compute_latency(mapping, 0, temporal_steps, workload)[1]
+        _compute_latency(mapping.nodes, 0, temporal_steps, workload)[1]
     ).to_python()
 
 
-def memory_latency(actions, arch):
+def memory_latency(looptree_results: LooptreeOutput,
+                   arch,
+                   mapping,
+                   workload,
+                   bindings):
+    reads, writes = reads_and_writes_from_fill_by_parent(
+        looptree_results.fills,
+        looptree_results.reads_to_parent,
+        mapping,
+        workload,
+        per_unit=True
+    )
+
+    peer_reads, peer_writes = reads_and_writes_from_fill_by_peer(
+        looptree_results.reads_to_peer,
+        mapping,
+        workload,
+        per_unit=True
+    )
+
     component_to_read_writes = defaultdict(lambda: [None, None])
-    for (component, action), count in actions.items():
-        if action == 'read':
-            component_to_read_writes[component][0] = count
-        elif action == 'write':
-            component_to_read_writes[component][1] = count
+    for level, component in bindings.items():
+        read_count = sum(reads[key] for key in reads if key[0] == level)
+        read_count += sum(peer_reads[key]
+                          for key in peer_reads if key[0] == level)
+        write_count = sum(writes[key] for key in writes if key[0] == level)
+        write_count += sum(peer_writes[key]
+                           for key in peer_writes if key[0] == level)
+        if component not in component_to_read_writes:
+            component_to_read_writes[component][0] = read_count
+            component_to_read_writes[component][1] = write_count
+        else:
+            component_to_read_writes[component][0] += read_count
+            component_to_read_writes[component][1] += write_count
 
     component_latency = {}
     bandwidths = get_bandwidth(arch)
     for component, (reads, writes) in component_to_read_writes.items():
         read_bw, write_bw, shared_bw = bandwidths[component]
+
+        # For numerical stability
+        read_bw += 1e-8
+        write_bw += 1e-8
+        shared_bw += 1e-8
+
         # All shared bw for writing
         write_latency = writes / (write_bw + shared_bw)
         read_latency = reads / read_bw
@@ -58,6 +107,8 @@ def get_bandwidth(arch):
         n_rd_ports = attributes.get('n_rd_ports', 0)
         n_wr_ports = attributes.get('n_wr_ports', 0)
         n_rdwr_ports = attributes.get('n_rdwr_ports', 0)
+        if n_rd_ports + n_wr_ports + n_rdwr_ports < 1:
+            n_rdwr_ports = 1
 
         width = attributes['width']
         datawidth = attributes['datawidth']
