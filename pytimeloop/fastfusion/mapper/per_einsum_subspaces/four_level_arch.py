@@ -216,9 +216,12 @@ def make_subspaces(tensors,
             yield from make_spatial_fors(pm, reduced_ranks, 128, unordered=True)
 
     def pe_temporal_fors(mapping):
-        yield from make_temporal_fors_with_smallest_tile(mapping,
-                                                         reduced_ranks,
-                                                         unordered=True)
+        for pm in make_temporal_fors_with_smallest_tile(mapping,
+                                                        output_parallel_ranks,
+                                                        unordered=True):
+            yield from make_temporal_fors_with_smallest_tile(pm,
+                                                            reduced_ranks,
+                                                            unordered=True)
 
     def register_storage(mapping):
         yield from make_storage(mapping,
@@ -234,7 +237,7 @@ def make_subspaces(tensors,
                                                          unordered=True)
 
     def mac(mapping):
-        mapping.add_compute(einsum_id, 2)
+        mapping.add_compute(einsum_id, 4)
         yield mapping
 
     return [
