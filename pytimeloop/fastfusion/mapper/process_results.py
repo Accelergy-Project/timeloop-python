@@ -85,15 +85,14 @@ def process_result(
     for k, v in writes.items():
         accesses[k] += v
         
+    level2fanout = {}
     global first_print
-    fanout = 1
-    if level not in result.fanout:
-        if not first_print:
-            print(f"Fanout not found in result.fanout. Fanout: {result.fanout}")
-            first_print = True
-        fanout = 1
-    else:
-        fanout = result.fanout[level]
+    for level in bandwidth_dict:
+        if level not in result.fanout:
+            if not first_print:
+                print(f"Fanout not found in result.fanout. Fanout: {result.fanout}")
+                first_print = True
+        level2fanout[level] = result.fanout.get(level, 1)
 
     memory_latency = max(
         (
@@ -104,7 +103,7 @@ def process_result(
             sum(write_count
                 for (this_level, _, _), write_count in writes.items()
                 if this_level == level)
-        ) / (bandwidth * reduce(mul, fanout, 1))
+        ) / (bandwidth * reduce(mul, level2fanout[level], 1))
         for level, bandwidth in bandwidth_dict.items()
     )
 
