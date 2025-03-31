@@ -70,10 +70,22 @@ void BindEngine(py::module& m) {
            "Construct and spec Engine.")
       .def("spec", &model::Engine::Spec)
       .def("pre_evaluation_check", &model::Engine::PreEvaluationCheck)
-      .def("evaluate", &model::Engine::Evaluate, py::arg("mapping"),
-           py::arg("workload"), py::arg("sparse_optimizations"),
-           py::arg("break_on_failure") = true,
-           py::keep_alive<1, 2>(), py::keep_alive<1, 3>(), py::keep_alive<1, 4>())
+      .def(
+        "evaluate",
+        py::overload_cast<
+          Mapping&,
+          problem::Workload&,
+          sparse::SparseOptimizationInfo*,
+          bool
+        >(&model::Engine::Evaluate),
+        py::arg("mapping"),
+        py::arg("workload"),
+        py::arg("sparse_optimizations"),
+        py::arg("break_on_failure") = true,
+        py::keep_alive<1, 2>(),
+        py::keep_alive<1, 3>(),
+        py::keep_alive<1, 4>()
+      )
       .def("is_evaluated", &model::Engine::IsEvaluated)
       .def("utilization", &model::Engine::Utilization)
       .def("energy", &model::Engine::Energy)
