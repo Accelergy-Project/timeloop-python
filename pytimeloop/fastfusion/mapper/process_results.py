@@ -41,7 +41,7 @@ class Metrics(Flag):
 
 
 # DEBUG_VISUALIZATION = Metrics.ALL_TENSORS | METRICS.PARTIAL_STATS
-
+first_print = False
 def process_result(
     result,
     shape,
@@ -84,6 +84,16 @@ def process_result(
         accesses[k] += v
     for k, v in writes.items():
         accesses[k] += v
+        
+    global first_print
+    fanout = 1
+    if level not in result.fanout:
+        if not first_print:
+            print(f"Fanout not found in result.fanout. Fanout: {result.fanout}")
+            first_print = True
+        fanout = 1
+    else:
+        fanout = result.fanout[level]
 
     memory_latency = max(
         (
@@ -94,7 +104,7 @@ def process_result(
             sum(write_count
                 for (this_level, _, _), write_count in writes.items()
                 if this_level == level)
-        ) / (bandwidth * reduce(mul, result.fanout[level], 1))
+        ) / (bandwidth * reduce(mul, fanout, 1))
         for level, bandwidth in bandwidth_dict.items()
     )
 
