@@ -123,6 +123,7 @@ def _per_einsum_mapper_snowcat(
     four_level=False,
     prune=True,
     dataflow=None,
+    fuse=True,
 ):
     workload = LooptreeWorkload.parse_cfg(config.root["problem"])
     analyzer = LooptreeWorkloadDependencyAnalyzer(workload)
@@ -162,7 +163,8 @@ def _per_einsum_mapper_snowcat(
             tensor_to_relevant_ranks,
             einsum_id,
             workload,
-            dataflow=dataflow
+            dataflow=dataflow,
+            fuse=fuse,
         )
     else:
         subspaces = make_ffmt_subspaces(tensors,
@@ -266,6 +268,7 @@ def per_einsum_mapper_snowcat(
     four_level=False,
     prune=True,
     dataflow=None,
+    fuse=True,
 ):
     bindings, max_fanout, max_capacity, words_per_read = get_hardware_levels(spec.architecture)
     energy_dict = deepcopy(energy_dict)
@@ -292,6 +295,7 @@ def per_einsum_mapper_snowcat(
             four_level=four_level,
             prune=prune,
             dataflow=dataflow,
+            fuse=fuse,
         )
     )
     data = {einsum_id: defaultdict(list) for einsum_id in einsums_to_explore}

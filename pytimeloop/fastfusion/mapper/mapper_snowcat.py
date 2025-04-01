@@ -38,6 +38,7 @@ def mapper(
     four_level=False,
     prune=True,
     dataflow=None,
+    fuse=True,
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -96,7 +97,8 @@ def mapper(
         tag_with=tag_with,
         four_level=four_level,
         prune=prune,
-        dataflow=dataflow
+        dataflow=dataflow,
+        fuse=fuse,
     )
 
     generated_data = {}

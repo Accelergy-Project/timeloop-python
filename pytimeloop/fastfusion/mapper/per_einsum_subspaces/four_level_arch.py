@@ -103,19 +103,12 @@ for i in range(1, 64):
     EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"Filter{i}"
 
 for i in range(1, 64):
-    matmul_name = f"Matmul{i}"
-    m, k, n = f"M{i}", f"K{i}", f"N{i}"
-    EINSUM_ID_TO_FULLY_PARALLEL_RANKS[matmul_name] = set()
-    EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[matmul_name] = {n}
-    EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
-    EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"Filter{i}"
-
-for i in range(1, 64):
     matmul_name = f"MatmulB{i}"
     m, k, n = f"MB{i}", f"KB{i}", f"NB{i}"
     EINSUM_ID_TO_FULLY_PARALLEL_RANKS[matmul_name] = set()
     EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[matmul_name] = {n}
     EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
+    EINSUM_ID_TO_INPUT_OUTPUT_RANKS[matmul_name] = {m}
     EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"FilterB{i}"
 
 def make_subspaces(tensors,
@@ -123,7 +116,9 @@ def make_subspaces(tensors,
                    tensor_to_relevant_ranks,
                    einsum_id,
                    workload,
-                   dataflow=None):
+                   dataflow=None,
+                   fuse=True,
+                   ):
     """
     fully_parallel_ranks: in all tensors
     output_parallel_ranks: not in input
@@ -196,10 +191,11 @@ def make_subspaces(tensors,
     def glb_storage(mapping, unfused_tensors):
         glb_fused_tensors = intermediate_tensors - unfused_tensors
         last_fused_loop_idx = get_last_fused_loop_idx(mapping, intermediate_tensors)
+        must_retain_tensors = intermediate_tensors if fuse else tensors
         # last_fused_loop_idx = None
         for partial_mapping in make_storage(mapping,
                                             level=1,
-                                            must_retain_tensors=intermediate_tensors,
+                                            must_retain_tensors=must_retain_tensors,
                                             can_retain_tensors=set(),
                                             must_fully_reuse_tensors=glb_fused_tensors,
                                             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
