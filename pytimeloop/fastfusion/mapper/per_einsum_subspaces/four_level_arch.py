@@ -38,8 +38,8 @@ EINSUM_ID_TO_FULLY_PARALLEL_RANKS = {
     "Q": set(),
     "K": set(),
     "V": set(),
-    "QK": {"HQK"},
-    "AV": {"HAV"},
+    "QK": {"HQK", "BQK"},
+    "AV": {"HAV", "BAV"},
     "Z": set(),
     "FFA": set(),
     "FFB": set(),
@@ -69,6 +69,18 @@ EINSUM_ID_TO_REDUCED_RANKS = {
     "FFB": {"JFFB"},
 }
 
+EINSUM_ID_TO_INPUT_OUTPUT_RANKS = {
+    "I": set(),
+    "Q": {"MQ", "BQ"},
+    "K": {"MK", "BK"},
+    "V": {"MV", "BV"},
+    "QK": {"MQK"},
+    "AV": {"MAV"},
+    "Z": {"MZ", "BZ"},
+    "FFA": {"MFFA"},
+    "FFB": {"MFFB"}
+}
+
 EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
     "I": "I_n_to_I",
     "Q": "W_n_to_Q",
@@ -80,6 +92,15 @@ EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
     "FFA": "W_n_to_FFA",
     "FFB": "W_n_to_FFB",
 }
+
+for i in range(1, 64):
+    matmul_name = f"Matmul{i}"
+    m, k, n = f"M{i}", f"K{i}", f"N{i}"
+    EINSUM_ID_TO_FULLY_PARALLEL_RANKS[matmul_name] = set()
+    EINSUM_ID_TO_OUTPUT_PARALLEL_RANKS[matmul_name] = {n}
+    EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
+    EINSUM_ID_TO_INPUT_OUTPUT_RANKS[matmul_name] = {m}
+    EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"Filter{i}"
 
 for i in range(1, 64):
     matmul_name = f"Matmul{i}"
@@ -101,11 +122,13 @@ def make_subspaces(tensors,
                    intermediate_tensors,
                    tensor_to_relevant_ranks,
                    einsum_id,
-                   workload):
+                   workload,
+                   dataflow=None):
     """
     fully_parallel_ranks: in all tensors
     output_parallel_ranks: not in input
     reduced_ranks: not in output
+    input_output_ranks: not in weight
     weight_like_tensor: tensor that will be stationary in systolic array
     """
     einsum_name = workload.einsum_id_to_name()[einsum_id]
@@ -120,6 +143,10 @@ def make_subspaces(tensors,
     reduced_ranks = {
         workload.dimension_name_to_id()[r]
         for r in EINSUM_ID_TO_REDUCED_RANKS[einsum_name]
+    }
+    input_output_ranks = {
+        workload.dimension_name_to_id()[r]
+        for r in EINSUM_ID_TO_INPUT_OUTPUT_RANKS[einsum_name]
     }
     weight_like_tensor = EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[einsum_name]
     weight_like_tensor = workload.data_space_name_to_id()[weight_like_tensor]
@@ -141,14 +168,30 @@ def make_subspaces(tensors,
         )
 
     all_ranks = list(sorted(workload.einsum_ospace_dimensions(einsum_id)))
+    assert fully_parallel_ranks | output_parallel_ranks | reduced_ranks | input_output_ranks == set(all_ranks)
 
-    def fused_temporal_fors(mapping, unfused_tensors):
-        for partial_mapping in make_temporal_fors(mapping,
-                                                  all_ranks,
-                                                  min_loops=0,
-                                                  ):
-            yield partial_mapping, unfused_tensors
+    if dataflow is None:
+        def fused_temporal_fors(mapping, unfused_tensors):
+            for partial_mapping in make_temporal_fors(mapping,
+                                                      all_ranks,
+                                                      min_loops=0):
+                yield partial_mapping, unfused_tensors
+    else:
+        if dataflow == 'IS':
+            bottom_ranks = output_parallel_ranks
+        elif dataflow == 'OS':
+            bottom_ranks = reduced_ranks
+        elif dataflow == 'WS':
+            bottom_ranks = input_output_ranks
 
+        def fused_temporal_fors(mapping, unfused_tensors):
+            for pm in make_temporal_fors(mapping,
+                                         set(all_ranks)-bottom_ranks,
+                                         min_loops=0):
+                for pm2 in make_temporal_fors(pm,
+                                              bottom_ranks,
+                                              min_loops=0):
+                    yield pm2, unfused_tensors
 
     def glb_storage(mapping, unfused_tensors):
         glb_fused_tensors = intermediate_tensors - unfused_tensors
@@ -191,8 +234,6 @@ def make_subspaces(tensors,
         ranks = fully_parallel_ranks | output_parallel_ranks
         yield from make_spatial_fors(mapping, ranks, 4, unordered=True)
 
-    input_output_ranks = \
-        set(all_ranks) - output_parallel_ranks - reduced_ranks - fully_parallel_ranks
     def core_temporal_fors(mapping):
         for pm in make_temporal_fors_with_smallest_tile(mapping,
                                                         fully_parallel_ranks,

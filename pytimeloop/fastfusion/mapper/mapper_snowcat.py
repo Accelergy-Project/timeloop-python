@@ -37,6 +37,7 @@ def mapper(
     tag_with: tuple[callable] = (),
     four_level=False,
     prune=True,
+    dataflow=None,
 ):
     logger.info(f"Calling mapper for {spec}")
 
@@ -95,6 +96,7 @@ def mapper(
         tag_with=tag_with,
         four_level=four_level,
         prune=prune,
+        dataflow=dataflow
     )
 
     generated_data = {}
