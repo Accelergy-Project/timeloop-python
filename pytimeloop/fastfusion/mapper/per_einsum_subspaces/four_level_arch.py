@@ -77,8 +77,8 @@ EINSUM_ID_TO_INPUT_OUTPUT_RANKS = {
     "QK": {"MQK"},
     "AV": {"MAV"},
     "Z": {"MZ", "BZ"},
-    "FFA": {"MFFA"},
-    "FFB": {"MFFB"}
+    "FFA": {"MFFA", "BFFA"},
+    "FFB": {"MFFB", "BFFB"}
 }
 
 EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
@@ -148,8 +148,12 @@ def make_subspaces(tensors,
     output_tensor = next(iter(workload.tensors_written_by_einsum(einsum_id)))
 
     def off_chip_storage(mapping):
-        off_chip_must_retain = tensors - intermediate_tensors
-        off_chip_can_retain = intermediate_tensors
+        if fuse:
+            off_chip_must_retain = tensors - intermediate_tensors
+            off_chip_can_retain = intermediate_tensors
+        else:
+            off_chip_must_retain = tensors
+            off_chip_can_retain = set()
         yield from make_storage(
             mapping,
             level=0,
@@ -191,11 +195,10 @@ def make_subspaces(tensors,
     def glb_storage(mapping, unfused_tensors):
         glb_fused_tensors = intermediate_tensors - unfused_tensors
         last_fused_loop_idx = get_last_fused_loop_idx(mapping, intermediate_tensors)
-        must_retain_tensors = intermediate_tensors if fuse else tensors
         # last_fused_loop_idx = None
         for partial_mapping in make_storage(mapping,
                                             level=1,
-                                            must_retain_tensors=must_retain_tensors,
+                                            must_retain_tensors=intermediate_tensors,
                                             can_retain_tensors=set(),
                                             must_fully_reuse_tensors=glb_fused_tensors,
                                             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
