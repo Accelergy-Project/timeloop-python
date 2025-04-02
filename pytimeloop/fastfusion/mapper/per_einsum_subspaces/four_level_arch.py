@@ -235,9 +235,9 @@ def make_subspaces(tensors,
         glb_fused_tensors = intermediate_tensors - unfused_tensors
         last_fused_loop_idx = get_last_fused_loop_idx(mapping, intermediate_tensors)
         # last_fused_loop_idx = None
-        if 'Unpinned' in dataflow:
+        if dataflow is not None and 'Unpinned' in dataflow:
             min_index, max_index = None, stationary_index
-        elif 'Pinned' in dataflow:
+        elif dataflow is not None and 'Pinned' in dataflow:
             min_index, max_index = stationary_index, None
         for partial_mapping in make_storage(mapping,
                                             level=1,
