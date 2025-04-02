@@ -18,6 +18,9 @@ def make_storage(
     logfunc: Callable=None,
     return_retained_tensors: bool=False,
     apply_lrp_after_loop_idx: int=None,
+    force_at_end: bool=False,
+    min_index: int=None,
+    max_index: int=None,
 ):
     if logfunc is None:
         logfunc = lambda msg: None  # do nothing
@@ -37,6 +40,9 @@ def make_storage(
     original = mapping
 
     if not explore_uneven:
+        assert min_index is None, 'Only supported for uneven'
+        assert max_index is None, 'Only supported for uneven'
+        assert force_at_end == False, 'Only supported for uneven'
         for r in range(len(can_retain_tensors)+1):
             for also_retained_tensors in combinations(can_retain_tensors, r):
                 mapping = original.copy()
@@ -68,9 +74,15 @@ def make_storage(
             min_i = 0
         else:
             min_i = last_storage_idx + 1
+        if force_at_end:
+            min_i = len(mapping)
 
         any_irrelevant_loop = False
         for i in range(min_i, len(mapping)):
+            if min_index is not None and i < min_index:
+                continue
+            if max_index is not None and i > max_index:
+                continue
             node = mapping[i]
             if node["type"] == "temporal":
                 is_relevant = node["rank"] in relevant_ranks

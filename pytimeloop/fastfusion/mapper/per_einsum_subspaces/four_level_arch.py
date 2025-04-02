@@ -93,6 +93,18 @@ EINSUM_ID_TO_WEIGHT_LIKE_TENSOR = {
     "FFB": "W_n_to_FFB",
 }
 
+EINSUM_ID_TO_INPUT_TENSOR = {
+    "I": "I_n_to_I",
+    "Q": "I_I_to_Q_K_V",
+    "K": "I_I_to_Q_K_V",
+    "V": "I_I_to_Q_K_V",
+    "QK": "Q_Q_to_QK",
+    "AV": "QK_QK_to_AV",
+    "Z": "AV_AV_to_Z",
+    "FFA": "Z_Z_to_FFA",
+    "FFB": "FFA_FFA_to_FFB",
+}
+
 for i in range(1, 64):
     matmul_name = f"Matmul{i}"
     m, k, n = f"M{i}", f"K{i}", f"N{i}"
@@ -101,6 +113,7 @@ for i in range(1, 64):
     EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
     EINSUM_ID_TO_INPUT_OUTPUT_RANKS[matmul_name] = {m}
     EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"Filter{i}"
+    EINSUM_ID_TO_INPUT_TENSOR[matmul_name] = f"Fmap{i}"
 
 for i in range(1, 64):
     matmul_name = f"MatmulB{i}"
@@ -110,6 +123,7 @@ for i in range(1, 64):
     EINSUM_ID_TO_REDUCED_RANKS[matmul_name] = {k}
     EINSUM_ID_TO_INPUT_OUTPUT_RANKS[matmul_name] = {m}
     EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[matmul_name] = f"FilterB{i}"
+    EINSUM_ID_TO_INPUT_TENSOR[matmul_name] = f"FmapB{i}"
 
 def make_subspaces(tensors,
                    intermediate_tensors,
@@ -145,6 +159,8 @@ def make_subspaces(tensors,
     }
     weight_like_tensor = EINSUM_ID_TO_WEIGHT_LIKE_TENSOR[einsum_name]
     weight_like_tensor = workload.data_space_name_to_id()[weight_like_tensor]
+    input_tensor = EINSUM_ID_TO_INPUT_TENSOR[einsum_name]
+    input_tensor = workload.data_space_name_to_id()[input_tensor]
     output_tensor = next(iter(workload.tensors_written_by_einsum(einsum_id)))
 
     def off_chip_storage(mapping):
@@ -169,54 +185,85 @@ def make_subspaces(tensors,
     all_ranks = list(sorted(workload.einsum_ospace_dimensions(einsum_id)))
     assert fully_parallel_ranks | output_parallel_ranks | reduced_ranks | input_output_ranks == set(all_ranks)
 
+    if dataflow == 'IS':
+        bottom_ranks = output_parallel_ranks
+        stationary_tensors = {input_tensor}
+    elif dataflow == 'OS':
+        bottom_ranks = reduced_ranks
+        stationary_tensors = {output_tensor}
+    elif dataflow == 'WS':
+        bottom_ranks = input_output_ranks
+        stationary_tensors = {weight_like_tensor}
+    else:
+        stationary_tensors = set()
+
     if dataflow is None:
         def fused_temporal_fors(mapping, unfused_tensors):
             for partial_mapping in make_temporal_fors(mapping,
                                                       all_ranks,
                                                       min_loops=0):
-                yield partial_mapping, unfused_tensors
+                yield partial_mapping, unfused_tensors, 0
     else:
-        if dataflow == 'IS':
+        if 'IS' in dataflow:
             bottom_ranks = output_parallel_ranks
-        elif dataflow == 'OS':
+        elif 'OS' in dataflow:
             bottom_ranks = reduced_ranks
-        elif dataflow == 'WS':
+        elif 'WS' in dataflow:
             bottom_ranks = input_output_ranks
 
         def fused_temporal_fors(mapping, unfused_tensors):
             for pm in make_temporal_fors(mapping,
                                          set(all_ranks)-bottom_ranks,
                                          min_loops=0):
-                for pm2 in make_temporal_fors(pm,
-                                              bottom_ranks,
-                                              min_loops=0):
-                    yield pm2, unfused_tensors
+                for pm2 in make_storage(pm,
+                                        level=1,
+                                        must_retain_tensors=stationary_tensors,
+                                        can_retain_tensors=set(),
+                                        must_fully_reuse_tensors=set(),
+                                        tensor_to_relevant_ranks=tensor_to_relevant_ranks,
+                                        explore_uneven=True,
+                                        add_split_at_tensors=stationary_tensors & unfused_tensors,
+                                        must_have_terminal_storage=False,
+                                        force_at_end=True):
+                    stationary_index = len(pm2)
+                    for pm3 in make_temporal_fors(pm2,
+                                                bottom_ranks,
+                                                min_loops=0):
+                        yield pm3, unfused_tensors, stationary_index
 
-    def glb_storage(mapping, unfused_tensors):
+    def glb_storage(mapping, unfused_tensors, stationary_index):
         glb_fused_tensors = intermediate_tensors - unfused_tensors
         last_fused_loop_idx = get_last_fused_loop_idx(mapping, intermediate_tensors)
         # last_fused_loop_idx = None
+        if 'Unpinned' in dataflow:
+            min_index, max_index = None, stationary_index
+        elif 'Pinned' in dataflow:
+            min_index, max_index = stationary_index, None
         for partial_mapping in make_storage(mapping,
                                             level=1,
-                                            must_retain_tensors=intermediate_tensors,
+                                            must_retain_tensors=intermediate_tensors - stationary_tensors,
                                             can_retain_tensors=set(),
                                             must_fully_reuse_tensors=glb_fused_tensors,
                                             tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                                             explore_uneven=True,
                                             add_split_at_tensors=glb_fused_tensors,
                                             must_have_terminal_storage=False,
-                                            apply_lrp_after_loop_idx=last_fused_loop_idx):
+                                            apply_lrp_after_loop_idx=last_fused_loop_idx,
+                                            min_index=min_index,
+                                            max_index=max_index):
             last_fused_loop_idx = get_last_fused_loop_idx(partial_mapping, intermediate_tensors)
             for pm2 in make_storage(partial_mapping,
                                     level=1,
                                     must_retain_tensors=set(),
-                                    can_retain_tensors=tensors - intermediate_tensors,
+                                    can_retain_tensors=tensors - intermediate_tensors - stationary_tensors,
                                     must_fully_reuse_tensors=set(),
                                     tensor_to_relevant_ranks=tensor_to_relevant_ranks,
                                     explore_uneven=True,
                                     add_split_at_tensors=set(),
                                     must_have_terminal_storage=True,
-                                    apply_lrp_after_loop_idx=last_fused_loop_idx):
+                                    apply_lrp_after_loop_idx=last_fused_loop_idx,
+                                    min_index=min_index,
+                                    max_index=max_index):
 
                 success = True
                 for i in range(last_fused_loop_idx + 1, len(pm2) - 1):
