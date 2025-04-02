@@ -239,6 +239,8 @@ def make_subspaces(tensors,
             min_index, max_index = None, stationary_index
         elif dataflow is not None and 'Pinned' in dataflow:
             min_index, max_index = stationary_index, None
+        else:
+            min_index, max_index = None, None
         for partial_mapping in make_storage(mapping,
                                             level=1,
                                             must_retain_tensors=intermediate_tensors - stationary_tensors,
