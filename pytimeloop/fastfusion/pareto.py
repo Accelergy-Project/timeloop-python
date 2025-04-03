@@ -35,6 +35,10 @@ DICT_COLUMNS = set(
 )
 RESERVED_COLUMNS = set([VALID]) | DICT_COLUMNS
 
+TUPLABE_COLUMNS = set(
+    [MAPPING, TENSORS]
+)
+
 CHECK_CORRECTNESS = False
 
 
@@ -524,6 +528,24 @@ class Pareto:
         
     def has_reservations(self):
         return any(col2nameloop(c) is not None for c in self.data.columns)
+
+    
+    def tuplefy_data(self):
+        if self.data.empty:
+            return
+        from pytimeloop.fastfusion.sim import Tiling
+        for col in self.data.columns:
+            if col in TUPLABE_COLUMNS:
+                self.data[col] = self.data[col].apply(lambda x: {k: v.to_tuple() for k, v in x.items()})
+            
+    def detuplefy_data(self):
+        if self.data.empty:
+            return
+        from pytimeloop.fastfusion.sim import Tiling
+        for col in self.data.columns:
+            if col in TUPLABE_COLUMNS:
+                self.data[col] = self.data[col].apply(lambda x: {k: Tiling.from_dict_small(v) for k, v in x.items()})
+
 
 
 import unittest

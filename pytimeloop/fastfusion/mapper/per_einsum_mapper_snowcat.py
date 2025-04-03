@@ -74,7 +74,7 @@ def per_worker_exploration(
         for shape, res, valid in tile_shape_explorer:
             # assert len(intermediate_tensors) <= 1
             n_mappings += 1
-            is_pareto, results, fulltiling = process_result(
+            process_result(
                 res,
                 shape,
                 result,
@@ -174,7 +174,7 @@ def _per_einsum_mapper_snowcat(
                                         workload,
                                         refetch_weights=ffmt_refetch_weights)
 
-    n_jobs = 32
+    n_jobs = 1024
     parallelized_spaces, task_spaces = \
         split_dependent_product(n_split_min=n_jobs, spaces=subspaces)
 

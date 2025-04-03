@@ -7,7 +7,7 @@ class TagClass(fzs):
 
 class Tags(fzs):
     def __repr__(self):
-        return f"Tags({super().__repr__()})"
+        return f"Tags(({super().__repr__()}))"
     
     def __str__(self):
         return f"Tags({super().__repr__()})"
@@ -27,7 +27,13 @@ class Tags(fzs):
 
     def matches(self, tag2):
         return self == tag2
-
+    
+    def to_tuple(self):
+        return tuple(sorted(self))
+    
+    @staticmethod
+    def from_tuple(t: tuple):
+        return Tags(t)
 
 class TagMatch:
     def __init__(self, tags: Tags):

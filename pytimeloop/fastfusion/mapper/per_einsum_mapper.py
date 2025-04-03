@@ -145,7 +145,7 @@ def mapper_place_fusion_level(
                 for shape, res in tile_shape_explorer:
                     count += 1
                     # print(f'Running partial mapping: {partial_mapping} with shape: {shape}')
-                    is_pareto, results, fulltiling = process_result(
+                    process_result(
                         res,
                         shape,
                         data,

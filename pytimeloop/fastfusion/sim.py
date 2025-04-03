@@ -90,8 +90,22 @@ class Loop:
         )
 
     def update(self, **kwargs) -> "Loop":
-        dict_self = {k: v for k, v in self.__dict__.items() if k != "rank_name"}
         return Loop(**{**self.__dict__, **kwargs})
+        
+    def to_tuple(self):
+        return (
+            tuple(r for r in self.rank_names),
+            self.bound,
+            self.is_spatial,
+        )
+        
+    @staticmethod
+    def from_tuple(t: tuple) -> "Loop":
+        return Loop(
+            rank_names=fzs(r for r in t[0]),
+            bound=t[1],
+            is_spatial=t[2],
+        )
 
 
 @dataclass(frozen=True, order=True)
@@ -166,7 +180,23 @@ class TensorStorage:
             if a != "*" and b != "*" and a != b:
                 return False
         return True
+    
+    @staticmethod
+    def from_tuple(t: tuple) -> "TensorStorage":
+        return TensorStorage(
+            tensor_name=t[0],
+            memory_name=t[1],
+            above_loop_index=t[2],
+            tile_size=t[3],
+        )
 
+    def to_tuple(self):
+        return (
+            self.tensor_name,
+            self.memory_name,
+            self.above_loop_index,
+            self.tile_size,
+        )
 
 @dataclass(frozen=True)
 class Tiling:
@@ -231,7 +261,11 @@ class Tiling:
         return self.__repr__()
 
     def __repr__(self):
-        return f"Tiling({self.loops.__repr__()}, {self.storage.__repr__()}, {self.tags.__repr__()})"
+        return f"Tiling(loops={self.loops.__repr__()}, storage={self.storage.__repr__()}, tags={self.tags.__repr__()})"
+
+    @staticmethod
+    def from_repr(s: str) -> "Tiling":
+        return eval(s)
 
     def merge_next(self, n: "Tiling", live_tensors: set[str]) -> "Tiling":
         tensors = fzs(
@@ -322,6 +356,19 @@ class Tiling:
             loops.insert(t.above_loop_index, t)
         return tuple(loops)
 
+    def to_tuple(self):
+        return (
+            tuple(l.to_tuple() for l in self.loops),
+            tuple(t.to_tuple() for t in self.storage),
+            tuple(t.to_tuple() for t in self.tags),
+        )
+        
+    @staticmethod
+    def from_tuple(t: tuple) -> "Tiling":
+        loops = tuple(Loop.from_dict_small(l) for l in t[0])
+        storage = fzs(TensorStorage.from_dict_small(t) for t in t[1])
+        tags = Tags(fzs(t) for t in t[2])
+        return Tiling(loops, storage, tags)
 
 class SIM:
     def __init__(self, tiling: Tiling, mapping: Pareto):
@@ -597,7 +644,6 @@ class SIM:
         left_list = [s for k in left for s in left[k] if k in right_keys]
         right_list = [s for k in right for s in right[k] if k in left_keys]
         return left_list, right_list
-
 
 import unittest
 

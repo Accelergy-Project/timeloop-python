@@ -232,16 +232,6 @@ def process_result(
         if Metrics.DEBUG in metrics:
             logstring.append(f"Ac_{level}_{tensor}={count:.2e}")
         
-    if Metrics.DEBUG in metrics:
-        logstring.append(f"{result.fanout}")
-        
-    if Metrics.PER_COMPONENT_ACCESSES_ENERGY in metrics:
-        per_component_energy = {
-            comp_action: (counts, energy_dict[comp_action] * counts)
-            for comp_action, counts in actions.items()
-        }
-        results["Per-Component Energy"] = {einsum_name: per_component_energy}
-
     # Only record non-backing reservations. We'll reserve backing storage later
     # when we free the tensors & we know all operations for which the tensor must
     # be backed.
@@ -264,17 +254,6 @@ def process_result(
         
     if Metrics.VALID in metrics:
         results[VALID] = valid
-        
-    if metrics.DEBUG in metrics:
-        logstring.append(f"Results: {results}")
-        results[LOGSTRING] = {einsum_name: str(logstring)}
-        results[STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
-        results[TAGS] = {einsum_name: tiling_compatibility.tags}
-        results[MAPPING_HASH] = {einsum_name: hash((einsum_id, tiling_compatibility))}
-        results[IN_PROGRESS_STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
-        results[TENSORS] = {einsum_name: backing_storage}
-
-    results[MAPPING] = {einsum_name: tiling_full}
 
     if einsum_name in copy_einsums:
         if null_copy_einsum:
@@ -283,8 +262,6 @@ def process_result(
 
     
     key = (tiling_compatibility, fzs(results.keys()))
-
-    is_pareto = True
     if prune:
         for prev_stats in compatibility_to_df[key]:
             keys = [k for k in results if k not in DICT_COLUMNS]
@@ -293,10 +270,24 @@ def process_result(
                 and all(prev_stats[k] <= results[k] for k in keys)
                 and any(prev_stats[k] < results[k] for k in keys)
             ):
-                is_pareto = False
-                break
-    if is_pareto:
-        compatibility_to_df[key].append(results)
-    results_return = {k: v for k, v in results.items() if k != LOGSTRING}
-    # print(f"Results: {tiling_full.as_sorted_loopnest()}")
-    return is_pareto, results_return, logstring
+                return
+
+    if Metrics.DEBUG in metrics:
+        logstring.append(f"Results: {results}")
+        results[LOGSTRING] = {einsum_name: str(logstring)}
+        results[STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[TAGS] = {einsum_name: tiling_compatibility.tags}
+        results[MAPPING_HASH] = {einsum_name: hash((einsum_id, tiling_compatibility))}
+        results[IN_PROGRESS_STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
+        results[TENSORS] = {einsum_name: backing_storage}
+
+    results[MAPPING] = {einsum_name: tiling_full.to_tuple()}
+
+    if Metrics.PER_COMPONENT_ACCESSES_ENERGY in metrics:
+        per_component_energy = {
+            comp_action: (counts, energy_dict[comp_action] * counts)
+            for comp_action, counts in actions.items()
+        }
+        results["Per-Component Energy"] = {einsum_name: per_component_energy}
+
+    compatibility_to_df[key].append(results)
