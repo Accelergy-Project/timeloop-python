@@ -531,10 +531,12 @@ class Mapping:
             sim_list = mapspace_globals.sims[einsum_name]
             if prev_compatibility is None:
                 sim = random.choice(sim_list)
+                mapping.einsum2tiling[einsum_name] = sim.tiling
+                if len(einsum_names) == 1:
+                    break
                 prev_compatibility = mapspace_globals.tiling2rightcompatibility[einsum_name][sim.tiling]
                 live_tensors = mapspace_globals.get_live_tensors(*einsum_names[i+1:])
                 prev_compatibility = prev_compatibility.clear_dead_tensors(live_tensors=live_tensors)
-                mapping.einsum2tiling[einsum_name] = sim.tiling
                 continue
 
             tilings = []
@@ -575,7 +577,8 @@ def get_accept_function(temperature, cooling_rate, evaluations_tracker):
             return False
         if new_score <= prev_score:
             return True
-        if new_temp >= 0 and random.random() < exp((prev_score - new_score) / prev_score / new_temp):
+        scaleby = prev_score * new_temp
+        if scaleby >= 0 and random.random() < exp((prev_score - new_score) / scaleby):
             return True
         return False
     return accept
