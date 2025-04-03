@@ -13,7 +13,7 @@ N_PARALLEL_THREADS = 64
 
 class fzs(frozenset):
     def __repr__(self):
-        return f"fzs({', '.join(sorted(x.__repr__() for x in self))})"
+        return f"fzs(({', '.join(sorted(x.__repr__() for x in self))}))"
     
     def __str__(self):
         return self.__repr__()
@@ -73,7 +73,7 @@ def parallel(
         one_job_if_debugging: bool = True, 
         pbar: str = None,
         return_as: str = None,
-        chunk: bool = True,
+        chunk: bool = False,
         delete_job_after: bool = False
     ):
 
