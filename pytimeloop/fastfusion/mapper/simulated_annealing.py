@@ -578,7 +578,7 @@ def get_accept_function(temperature, cooling_rate, evaluations_tracker):
         if new_score <= prev_score:
             return True
         scaleby = prev_score * new_temp
-        if scaleby >= 0 and random.random() < exp((prev_score - new_score) / scaleby):
+        if scaleby > 0 and random.random() < exp((prev_score - new_score) / scaleby):
             return True
         return False
     return accept
