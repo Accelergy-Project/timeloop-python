@@ -262,6 +262,7 @@ class Mapping:
                 pass
         self.history = dummy_appender()
         self.n_crossovers = 0
+        self.n_mutations = 0
 
     def fix_loops(self, mapspace_globals: MapsapceGlobals):
         """ Ensure that all tilings have the correct number of loops """
@@ -640,6 +641,7 @@ def _fuse_sims(
             try:
                 mutation_function = random.choice(individual.get_mutation_functions())
                 mutation_function(mapspace_globals)
+                individual.n_mutations += 1
                 return individual
             except FailedMutation:
                 return prev_mapping
@@ -698,7 +700,7 @@ def _fuse_sims(
 
     extra_args = {}
     if algorithm == "genetic":
-        population_size = 10000 // n_threads
+        population_size = 1000 // n_threads
         callfunc = genetic_algorithm_population
     elif algorithm == "simulated_anneal":
         population_size = 100 // n_threads
@@ -707,9 +709,23 @@ def _fuse_sims(
         population_size = 1
         callfunc = random_sample_population
         extra_args["prune"] = "pruned" in algorithm
+        
+    # Randomly intialize the population
+    def get_random_mapping():
+        while True:
+            try:
+                mapping = Mapping.create_random_mapping(mapspace_globals)
+                score, evaluations = mapping.evaluate(mapspace_globals)
+                evaluations_tracker.add_evaluation(evaluations, score)
+                if score == float("inf"):
+                    raise FailedMutation("Random mapping failed")
+                return mapping
+            except FailedMutation:
+                pass
+            
+    population = [get_random_mapping() for _ in range(population_size)]
 
     n_rounds = 9999999999999999999999999
-    population = [Mapping(sims) for _ in range(ceil(population_size / n_threads))]
     results = callfunc(population, mapspace_globals, n_rounds)
     eval_results = []
     for m in results:
