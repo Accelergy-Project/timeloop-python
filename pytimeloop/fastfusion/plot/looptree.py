@@ -3,7 +3,7 @@ import pydot
 from typing import Any, Iterable
 from pytimeloop.fastfusion.sim import Tiling, TensorStorage, Loop
 from pytimeloop.fastfusion.util import expfmt
-from pytimeloop.fastfusion.pareto import IN_PROGRESS_STATS
+from pytimeloop.fastfusion.pareto import IN_PROGRESS_STATS, col2nameloop
 
 PYDOT_NODE_DEFAULTS = {
     "shape": "box",
@@ -11,6 +11,9 @@ PYDOT_NODE_DEFAULTS = {
     # "margin": "0.0",
     "margin": "0.1,0.0",
 }
+
+def get_einsum_key(name):
+    return f"Einsum {name}"
 
 class Node:
     def __init__(self, this_level: Iterable[Any] = (), children: Iterable["Node"] = ()):
@@ -96,11 +99,21 @@ class Node:
     
     def get_shared_tensors(self, other: "Node", start_at: int=0) -> set[TensorStorage]:
         return set(self.get_all_storage(start_at=start_at)) & set(other.get_all_storage(start_at=start_at))
+    
+    def find_node_with(self, key: Any) -> "Node":
+        if key in self.this_level:
+            return self
+        for c in self.children:
+            found = c.find_node_with(key)
+            if found:
+                return found
+        return None
 
-def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any], 
+def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any]=None,
                      skip_backing_tensors_in_right_branch: Iterable[str] = (), 
                      still_live_tensors: set[str] = (), skip_merge: bool = False,
-                     per_component_energy: dict[dict[str, float]] = None
+                     per_component_energy: dict[dict[str, float]] = None,
+                     add_reservations: dict[str, Any] = None,
                      ) -> Node:
     prev_tilings = []
     root = Node()
@@ -135,7 +148,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any],
 
         # Add the tensors
         n.children.append(Node()) # Leaf node
-        n.children[-1].this_level.append(f"Einsum {einsum_id}")
+        n.children[-1].this_level.append(get_einsum_key(einsum_id))
         if per_component_energy is not None:
             for k, v in per_component_energy[einsum_id].items():
                 n.children[-1].this_level.append(f"{k} energy: {expfmt(v)}")
@@ -200,6 +213,18 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any],
                 i += 1
         n = n.children[-1] if n.children else None
         
+    if add_reservations is not None:
+        for einsum, reservations in add_reservations.items():
+            for resource, size in dict(reservations).items():
+                nameloop = col2nameloop(resource)
+                if nameloop is None:
+                    continue
+                name, _ = nameloop
+                node = root.find_node_with(get_einsum_key(einsum))
+                node.this_level.append(
+                    TensorStorage("Reservation", -1, name, size)
+                )
+
     return root
 
 def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], per_component_energy: dict[dict[str, float]] = None):

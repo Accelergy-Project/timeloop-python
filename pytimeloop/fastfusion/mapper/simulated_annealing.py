@@ -5,6 +5,7 @@ import itertools
 from math import ceil, exp, prod
 import math
 import random
+import threading
 import time
 
 import pandas as pd
@@ -13,7 +14,7 @@ from joblib import delayed
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
 
 from pytimeloop.fastfusion.sim import SIM, Loop, TensorStorage, Tiling
-from pytimeloop.fastfusion.pareto import MAPPING, Pareto, is_special_col, VALID
+from pytimeloop.fastfusion.pareto import MAPPING, Pareto, is_special_col, VALID, col2nameloop
 from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
 from pytimeloop.fastfusion.plot.looptree import (
@@ -76,25 +77,77 @@ class MapsapceGlobals:
             k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.storage2possible_loops_above.items()
         }
         self.tensor2memories = self._create_tensor2memories()
+        self.pairwise_equivalent_ranks = pairwise_equivalent_ranks
         self.full_equivalent_ranks = self._create_full_equivalent_ranks(
             pairwise_equivalent_ranks
         )
+        self.einsum2ranks = einsum2ranks
         self.rank_translations = self._create_rank_translations(einsum2ranks)
-        self.einsum_tiling_2_sims = self._create_einsum_tiling_2_sims()
+        self.einsum_tiling_2_sim = self._create_einsum_tiling_2_sim()
         self.einsum_rank_index_to_loops = self._create_einsum_rank_index_to_loops()
         self.einsum2tensors = {k: set(s[0].tensor_names) for k, s in sims.items()}
+        self.tiling2leftcompatibility, self.tiling2rightcompatibility, self.leftcompatibility2tiling, self.rightcompatibility2tiling = self._create_compatibility()
         
-    def _create_einsum_tiling_2_sims(self):
-        einsum_tiling_2_sims = {}
+    def get_live_tensors(self, *einsums: str):
+        return set.union(*(self.einsum2tensors[e] for e in einsums))
+        
+    def _create_compatibility(self):
+        tiling2leftcompatibility = {}
+        tiling2rightcompatibility = {}
+        def tilings2compatibility(tilings: list[Tiling], live_tensors: set[str], keep_tensors: set[str]):
+            return {
+                t: t.clear_dead_tensors(live_tensors=live_tensors, keep_tensors=keep_tensors)
+                for t in tilings
+            }
+            
+        for i, (einsum_name, sim_list) in enumerate(self.sims.items()):
+            if i > 0:
+                prev_live = self.get_live_tensors(*self.einsum_names[:i])
+                prev = self.get_live_tensors(self.einsum_names[i - 1])
+                tiling2leftcompatibility[einsum_name] = tilings2compatibility(
+                    [s.tiling for s in sim_list],
+                    prev_live,
+                    prev,
+                )
+            if i < len(self.sims) - 1:
+                next_live = self.get_live_tensors(*self.einsum_names[i + 1:])
+                next = self.get_live_tensors(self.einsum_names[i])
+                tiling2rightcompatibility[einsum_name] = tilings2compatibility(
+                    [s.tiling for s in sim_list],
+                    next_live,
+                    next,
+                )
+        
+        leftcompatibility2tiling = {}
+        rightcompatibility2tiling = {}
+        for einsum_name in self.einsum_names:
+            for src, dst in (
+                (tiling2leftcompatibility, leftcompatibility2tiling),
+                (tiling2rightcompatibility, rightcompatibility2tiling),
+            ):
+                if einsum_name not in src:
+                    continue
+                dst = dst.setdefault(einsum_name, {})
+                for k, v in src[einsum_name].items():
+                    dst.setdefault(v, []).append(k)
+        return (
+            tiling2leftcompatibility,
+            tiling2rightcompatibility,
+            leftcompatibility2tiling,
+            rightcompatibility2tiling,
+        )
+        
+    def _create_einsum_tiling_2_sim(self):
+        einsum_tiling_2_sim = {}
         for e, sim_list in self.sims.items():
             cur_sims = defaultdict(list)
             for sim in sim_list:
                 cur_sims[sim.tiling].append(sim)
-            einsum_tiling_2_sims[e] = {}
+            einsum_tiling_2_sim[e] = {}
             for t, s in cur_sims.items():
                 s = SIM.concat(s)
-                einsum_tiling_2_sims[e][t] = s
-        return einsum_tiling_2_sims
+                einsum_tiling_2_sim[e][t] = s
+        return einsum_tiling_2_sim
         
     def _create_storage2possible_loops_above(self):
         storage2possible_loops_above = {}
@@ -170,6 +223,25 @@ class MapsapceGlobals:
     def get_tensors(self, *einsums: str):
         return set.union(*(self.einsum2tensors[e] for e in einsums))
 
+
+    def get_possible_translations(self, t: Tiling, to_einsum: str):
+        pairwise_equivalent_ranks = self.pairwise_equivalent_ranks
+        full_equivalent_ranks = self.full_equivalent_ranks
+        right_ranks = self.einsum2ranks[to_einsum]
+        def translate_loop(l: Loop):
+            compatible_ranks = set.union(
+                *(full_equivalent_ranks[n] for n in l.rank_names)
+            ) & right_ranks
+            pairwise_compatible_ranks = set.union(
+                *(pairwise_equivalent_ranks[n] for n in l.rank_names)
+            ) & right_ranks
+            if len(pairwise_compatible_ranks) > 1:
+                return
+            for n in compatible_ranks:
+                yield Loop(fzs((n,)), l.bound, l.is_spatial)
+        for loops in itertools.product(*map(translate_loop, t.loops)):
+            yield Tiling(loops, t.storage, t.tags)
+
 class FailedMutation(Exception):
     pass
 
@@ -184,7 +256,12 @@ class Mapping:
             tensors = fzs(TensorStorage(t, 0, 0, 0) for t in tensor_names)
             self.einsum2tiling[einsum_name] = Tiling(tuple(), tensors)
         self.prev_score = float("inf")
-        self.history = []
+        # self.history = []
+        class dummy_appender:
+            def append(*args, **kwargs):
+                pass
+        self.history = dummy_appender()
+        self.n_crossovers = 0
 
     def fix_loops(self, mapspace_globals: MapsapceGlobals):
         """ Ensure that all tilings have the correct number of loops """
@@ -372,12 +449,13 @@ class Mapping:
 
     def evaluate(self, mapspace_globals: MapsapceGlobals, return_df=False) -> float:
         chosen_sims = []
-        chosen_mappings = []
+        chosen_mappings = {}
         n_evaluations = 1
         for einsum_name, t in self.einsum2tiling.items():
-            if t not in mapspace_globals.einsum_tiling_2_sims[einsum_name]:
+            if t not in mapspace_globals.einsum_tiling_2_sim[einsum_name]:
+                assert not return_df
                 return float("inf"), n_evaluations
-            chosen_sims.append(mapspace_globals.einsum_tiling_2_sims[einsum_name][t])
+            chosen_sims.append(mapspace_globals.einsum_tiling_2_sim[einsum_name][t])
             intra_mappings = chosen_sims[-1].mapping.data
             mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
             for i in range(10000): # Intra-layer search to find a valid mapping
@@ -387,27 +465,34 @@ class Mapping:
                 self.einsum2intra_choice[einsum_name] = random.randint(1, 1e12)
                 mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
             if VALID in mapping and not mapping[VALID]:
+                assert not return_df
                 return float("inf"), n_evaluations
-            chosen_mappings.append(mapping)
+            chosen_mappings[einsum_name] = mapping
 
-        mapping = {}
-        for c in chosen_mappings:
-            mapping.update(c[MAPPING])
+        # mapping = {}
+        # for c in chosen_mappings:
+        #     mapping.update(c[MAPPING])
         try:
-            tree = tilings2looptree(mapping, None)
+            # tree = tilings2looptree(mapping, None)
+            tree = tilings2looptree(
+                self.einsum2tiling,
+                add_reservations=chosen_mappings,
+            )
             # tree.validate_loops(mapspace_globals.einsum2ranks)
         except:
+            assert not return_df
             return float("inf"), n_evaluations
 
         reservations = tree.get_reservations()
         for resource, capacity in mapspace_globals.resource2capacity.items():
-            if capacity is not None and reservations[resource] > capacity:
+            if capacity is not None and reservations.get(resource, 0) > capacity:
+                assert not return_df
                 return float("inf"), n_evaluations
             
         obj_cols = mapspace_globals.objective_function_cols
-        self.prev_score = prod(sum(c[col] for c in chosen_mappings) for col in obj_cols)
+        self.prev_score = prod(sum(c[col] for c in chosen_mappings.values()) for col in obj_cols)
         if return_df:
-            d = {col: sum(c[col] for c in chosen_mappings) for col in obj_cols}
+            d = {col: sum(c[col] for c in chosen_mappings.values()) for col in obj_cols}
             d[MAPPING] = mapping
             for k, v in reservations.items():
                 d[f"RESOURCE_{k}_LEVEL_0"] = v
@@ -423,321 +508,242 @@ class Mapping:
     def get_mutation_functions(self):
         return [self.mutate_loop, self.mutate_backing_storage, self.mutate_order, self.mutate_intra_mapping]
 
-    def mcts_loops_intra(self, mapspace_globals: MapsapceGlobals):
-        # For each one, generate a setter function and a list of
-        # options
-        # Create a MCTS function using the setter and options
-        
-        # Assemble a list of matched loops
-        einsum_names = list(self.einsum2tiling.keys())
-        grouped_loops = {}
-        for i, einsum_name in enumerate(self.einsum2tiling):
-            tiling = self.einsum2tiling[einsum_name]
-            for j in range(len(tiling.loops)):
-                key = (einsum_name, j)
-                grouped_loops.setdefault(key, []).append(key)
-            if i == len(einsum_names) - 1:
+    def crossover(self, other: Mapping, mapspace_globals: MapsapceGlobals):
+        child = copy.deepcopy(other)
+        einsum_name = random.choice(child.einsum_names)
+        try:
+            child.einsum2tiling[einsum_name] = self.einsum2tiling[einsum_name]
+            child.einsum2intra_choice[einsum_name] = self.einsum2intra_choice[einsum_name]
+            for i in range(len(child.einsum2tiling[einsum_name].loops)):
+                child.match_loops(i, einsum_name, mapspace_globals)
+            child.fix_loops(mapspace_globals)
+            child.n_crossovers += 1
+        except FailedMutation:
+            return copy.deepcopy(other)
+        return child
+    
+    @staticmethod
+    def create_random_mapping(mapspace_globals: MapsapceGlobals):
+        mapping = Mapping(mapspace_globals.sims)
+        prev_compatibility: Tiling = None
+        einsum_names = list(mapping.einsum2tiling.keys())
+        for i, einsum_name in enumerate(einsum_names):
+            sim_list = mapspace_globals.sims[einsum_name]
+            if prev_compatibility is None:
+                sim = random.choice(sim_list)
+                prev_compatibility = mapspace_globals.tiling2rightcompatibility[einsum_name][sim.tiling]
+                live_tensors = mapspace_globals.get_live_tensors(*einsum_names[i+1:])
+                prev_compatibility = prev_compatibility.clear_dead_tensors(live_tensors=live_tensors)
+                mapping.einsum2tiling[einsum_name] = sim.tiling
                 continue
-            next_einsum_name = einsum_names[i + 1]
-            shared_loop_index = self.get_shared_loop_index(
-                mapspace_globals, einsum_name, next_einsum_name
-            )
-            for j in range(shared_loop_index + 1):
-                key = (einsum_name, j)
-                key2 = (next_einsum_name, j)
-                grouped_loops[key2] = grouped_loops[key]
-                del grouped_loops[key]
-                
-                
-        # Generate a list of options for each loop
-        options = {}
-        for einsum_name, index in grouped_loops:
-            rank = self.einsum2tiling[einsum_name].loops[index].rank_name
-            options[(einsum_name, index)] = [
-                r.bound for r in mapspace_globals.einsum_rank_index_to_loops[einsum_name][rank][index]
-            ]
-            
-        N_ITERATIONS = 1000
-            
-#  auto cur_score = child->ave_reward + C * std::sqrt(std::log(n_visit) / child->n_visit);
-            
-        # MCTS implementation
-        class MCTSNode:
-            def __init__(self, parent=None, action=None):
-                self.parent = parent
-                self.action = action  # (einsum_name, index, choice)
-                self.children = {}
-                self.visits = 0
-                self.value = 0
-                self.unexplored_actions = []
-                
-            def is_fully_expanded(self):
-                return len(self.unexplored_actions) == 0
-                
-            def select_child(self, c=1.414):
-                """Select child using UCB1 formula"""
-                return max(self.children.items(),
-                           key=lambda item: item[1].value / (item[1].visits or 1) +
-                           c * math.log((2 * (self.visits or 1))) ** 0.5 / (item[1].visits or 1))
-                
-            def expand(self):
-                action = self.unexplored_actions.pop()
-                self.children[action] = MCTSNode(parent=self, action=action)
-                return self.children[action]
-                
-            def update(self, reward):
-                self.visits += 1
-                self.value += reward
-        
-        def mcts_search(mapping, mapspace_globals, iterations=N_ITERATIONS):
-            # Create a copy of the mapping to work with
-            best_mapping = copy.deepcopy(mapping)
-            best_score, n_evaluations = mapping.evaluate(mapspace_globals)
-            
-            # Setup all possible actions
-            all_actions = []
-            for key, choice_list in options.items():
-                einsum_name, index = key
-                for choice in choice_list:
-                    all_actions.append((einsum_name, index, choice))
-            
-            # Also add intra-mapping choices
-            for einsum_name in mapping.einsum_names:
-                for i in range(10):  # Add some reasonable number of intra-mapping choices
-                    all_actions.append((einsum_name, "intra", i))
-            
-            # Define apply_action function
-            def apply_action(m, action):
-                if action[1] == "intra":
-                    einsum_name, _, choice = action
-                    m.einsum2intra_choice[einsum_name] = choice
-                else:
-                    einsum_name, index, choice = action
-                    # Use the setter function to update the loop bound
-                    for einsum_name2, index2 in grouped_loops[(einsum_name, index)]:
-                        tiling = m.einsum2tiling[einsum_name2]
-                        loop = tiling.loops[index2]
-                        m.einsum2tiling[einsum_name2] = tiling.set_loop(index2, loop.update(bound=choice))
-                return m
-            
-            # Define rollout function
-            def rollout(m, depth=5):
-                m_copy = copy.deepcopy(m)
-                for _ in range(depth):
-                    action = random.choice(all_actions)
-                    try:
-                        m_copy = apply_action(m_copy, action)
-                    except Exception:
-                        pass
-                
-                try:
-                    score = m_copy.evaluate(mapspace_globals)
-                    if score == float("inf"):
-                        return 0  # Invalid mapping
-                    return 1.0 / score  # Smaller score is better
-                except:
-                    return 0
-            
-            # MCTS main loop
-            root = MCTSNode()
-            root.unexplored_actions = list(all_actions)
-            
-            for _ in range(iterations):
-                # Selection
-                node = root
-                mapping_copy = copy.deepcopy(mapping)
-                
-                while not node.is_fully_expanded() and node.children:
-                    action, node = node.select_child()
-                    mapping_copy = apply_action(mapping_copy, action)
-                
-                # Expansion
-                if not node.is_fully_expanded():
-                    node = node.expand()
-                    mapping_copy = apply_action(mapping_copy, node.action)
-                
-                # Simulation
-                reward = rollout(mapping_copy)
-                
-                # Backpropagation
-                while node:
-                    node.update(reward)
-                    node = node.parent
-                
-                # Check if we found a better mapping
-                try:
-                    score = mapping_copy.evaluate(mapspace_globals)
-                    if score < best_score:
-                        best_score = score
-                        best_mapping = copy.deepcopy(mapping_copy)
-                except:
-                    pass
-            
-            return best_mapping
-            
-        # Run MCTS
-        self = mcts_search(self, mapspace_globals)
-        return self
 
-def fuse_sims_simulated_anneal(
+            tilings = []
+            compatiblity_options = mapspace_globals.leftcompatibility2tiling[einsum_name]
+            cur_tensors = mapspace_globals.get_tensors(einsum_name)
+            for translation in mapspace_globals.get_possible_translations(
+                prev_compatibility,
+                einsum_name
+            ):
+                translation = translation.clear_dead_tensors(live_tensors=cur_tensors, keep_loops=True)
+                if translation in compatiblity_options:
+                    tilings.extend(compatiblity_options[translation])
+            if not tilings:
+                raise FailedMutation(f"No tilings for {einsum_name} with {prev_compatibility}")
+            tiling = random.choice(tilings)
+            sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][tiling]
+            mapping.einsum2tiling[einsum_name] = tiling
+            mapping.einsum2intra_choice[einsum_name] = random.randint(0, 1e12)
+            if i == len(einsum_names) - 1:
+                break
+            
+            new_compatibility: Tiling = mapspace_globals.tiling2rightcompatibility[einsum_name][tiling]
+
+            # Combine prev_compatibility and new_compatibility
+            live_tensors = mapspace_globals.get_live_tensors(*einsum_names[i+1:])
+            prev_compatibility = prev_compatibility.merge_next(new_compatibility, live_tensors)
+        return mapping
+    
+def get_accept_function(temperature, cooling_rate, evaluations_tracker):
+    proportion = evaluations_tracker.evaluations / evaluations_tracker.max_evaluations
+    new_temp = (
+        temperature
+        * (1 - proportion)
+        / (1 + cooling_rate * proportion)
+    )
+    def accept(prev_score, new_score):
+        if new_score == float("inf"):
+            return False
+        if new_score <= prev_score:
+            return True
+        if new_temp >= 0 and random.random() < exp((prev_score - new_score) / prev_score / new_temp):
+            return True
+        return False
+    return accept
+
+def mutate(mapping: Mapping, mapspace_globals: MapsapceGlobals, accept_function: callable):
+    prev_mapping = copy.deepcopy(mapping)
+    prev_score = mapping.prev_score
+    n_evaluations = 1
+    try:
+        choice = random.choice(mapping.get_mutation_functions())
+        choice(mapspace_globals)
+    except FailedMutation:
+        return prev_mapping, n_evaluations
+    prev_score = mapping.prev_score
+    new_score, n_evaluations = mapping.evaluate(mapspace_globals)
+    if new_score == float("inf"):
+        return prev_mapping, n_evaluations
+    if accept_function(prev_score, new_score):
+        return mapping, n_evaluations
+    return prev_mapping, n_evaluations
+
+def _fuse_sims(
     sims: dict[str, list[SIM]],
     mapspace_globals: MapsapceGlobals,
     n_threads: int,
+    evaluations_tracker,
+    algorithm: str
 ):
-    t0 = time.time()
-    
-    def mutate(mapping: Mapping, mapspace_globals: MapsapceGlobals, accept_function: callable):
-        prev_mapping = copy.deepcopy(mapping)
-        prev_score = mapping.prev_score
-        n_evaluations = 1
-        try:
-            choice = random.choice(mapping.get_mutation_functions())
-            choice(mapspace_globals)
-        except FailedMutation:
-            return prev_mapping, n_evaluations
-        prev_score = mapping.prev_score
-        new_score, n_evaluations = mapping.evaluate(mapspace_globals)
-        if new_score == float("inf"):
-            return prev_mapping, n_evaluations
-        if accept_function(prev_score, new_score):
-            return mapping, n_evaluations
-        return prev_mapping, n_evaluations
-    
-    def get_accept_function(iteration, temperature, cooling_rate):
-        proportion = iteration / n_rounds
-        new_temp = (
-            temperature
-            * (1 - proportion)
-            / (1 + cooling_rate * proportion)
-        )
-        def accept(prev_score, new_score):
-            if new_score == float("inf"):
-                return False
-            if new_score <= prev_score:
-                return True
-            if random.random() < exp((prev_score - new_score) / prev_score / new_temp):
-                return True
-            return False
-        return accept
-    
-    t0 = time.time()
-    
-    def anneal_population(thread, population, mapspace_globals: MapsapceGlobals, temperature, cooling_rate, n_rounds):
-        n_evaluations = 0
-        score_evaluations = []
+    random.seed(time.time() + hash(threading.get_ident()))  # Seed with thread ID
+    evaluations_tracker.set_scale_by(len(mapspace_globals.einsum_names))
+    evaluations_tracker.print_period *= n_threads
+    evaluations_tracker.max_evaluations //= n_threads
+    def anneal_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
+        temperature = 0.07
+        cooling_rate = 8
         for i in range(n_rounds):
-            accept_function = get_accept_function(i, temperature, cooling_rate)
+            accept_function = get_accept_function(temperature, cooling_rate, evaluations_tracker)
             # population = parallel([delayed(mutate)(m, mapspace_globals, accept_function) for m in population])
             for j, mapping in enumerate(population):
                 population[j], evaluations = mutate(mapping, mapspace_globals, accept_function)
-                n_evaluations += evaluations * len(mapspace_globals.einsum_names)
-            best_score = min(m.prev_score for m in population)
-            porp_in_10pct = sum(m.prev_score < best_score * 1.1 for m in population) / len(population)
-            t = time.time() - t0
-            if i % (n_rounds // 10) == 0:
-                print(f"Thread {thread} iteration {i}/{n_rounds} ({t:.2f}s) ({n_evaluations} evaluations): {best_score:.2e}, {porp_in_10pct * 100:.2f}% within 10%")
-            score_evaluations.append((best_score, n_evaluations))
-            # best_mapping = min(population, key=lambda m: m.prev_score)
-            # population = [copy.deepcopy(best_mapping) for _ in range(population_size_per_thread)]
-        return population, score_evaluations
-
-    population_size = 100
-    n_rounds = 100000
-    population = [Mapping(sims) for _ in range(ceil(population_size / n_threads))]
-    results = parallel([delayed(anneal_population)(i, population, mapspace_globals, 0.07, 8, n_rounds) for i in range(n_threads)])
-    pops, score_evaluations = zip(*results)
-    aggregate_score = []
-    aggregate_evaluations = []
-    for se in score_evaluations:
-        if not aggregate_score:
-            aggregate_score = [s for s, _ in se]
-            aggregate_evaluations = [e for _, e in se]
-        else:
-            for i, (s, e) in enumerate(se):
-                aggregate_score[i] = min(aggregate_score[i], s)
-                aggregate_evaluations[i] += e
-                
-    zipped = list(zip(aggregate_score, aggregate_evaluations))
-    print(f'Evaluations, Score')
-    for i in range(0, len(zipped), len(zipped) // 10):
-        score, evaluations = zipped[i]
-        print(f"{evaluations}, {score}")
-
-    mappings = list(itertools.chain(*pops))
-    mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True)[0] for m in mappings])
-    mappings.sort_values(by=mapspace_globals.objective_function_cols, inplace=True)
-    return mappings, (aggregate_evaluations, aggregate_score)
-
-
-def fuse_sims_ga_mcts(
-    sims: dict[str, list[SIM]],
-    mapspace_globals: MapsapceGlobals,
-    n_threads: int,
-):
-    t0 = time.time()
+                if evaluations_tracker.add_evaluation(evaluations, population[j].prev_score):
+                    return population
     
-    def mutate(mapping: Mapping, mapspace_globals: MapsapceGlobals, accept_function: callable):
-        prev_mapping = copy.deepcopy(mapping)
-        prev_score = mapping.prev_score
-        try:
-            choice = random.choice(mapping.get_mutation_functions())
-            choice(mapspace_globals)
-        except FailedMutation:
-            return prev_mapping
-        prev_score = mapping.prev_score
-        new_score = mapping.evaluate(mapspace_globals)
-        if new_score == float("inf"):
-            return prev_mapping
-        if accept_function(prev_score, new_score):
-            return mapping
-        return prev_mapping
-    
-    def get_accept_function(iteration, temperature, cooling_rate):
-        proportion = iteration / n_rounds
-        new_temp = (
-            temperature
-            * (1 - proportion)
-            / (1 + cooling_rate * proportion)
-        )
-        def accept(prev_score, new_score):
-            if new_score == float("inf"):
-                return False
-            if new_score <= prev_score:
-                return True
-            if random.random() < exp((prev_score - new_score) / prev_score / new_temp):
-                return True
-            return False
-        return accept
-    
-    t0 = time.time()
-    def anneal_population(population, mapspace_globals: MapsapceGlobals, temperature, cooling_rate, n_rounds):
-        for i in range(n_rounds):
-            accept_function = get_accept_function(i, temperature, cooling_rate)
-            # population = parallel([delayed(mutate)(m, mapspace_globals, accept_function) for m in population])
-            for j, mapping in enumerate(population):
-                mapping = mutate(mapping, mapspace_globals, accept_function)
-                population[j] = mapping.mcts_loops_intra(mapspace_globals)
-            best_score = min(m.prev_score for m in population)
-            porp_in_10pct = sum(m.prev_score < best_score * 1.1 for m in population) / len(population)
-            t = time.time() - t0
-            if i % 100 == 0:
-                print(f"Iteration {i}/{n_rounds} ({t:.2f}s): {best_score:.2e}, {porp_in_10pct * 100:.2f}% within 10%")
-            # best_mapping = min(population, key=lambda m: m.prev_score)
-            # population = [copy.deepcopy(best_mapping) for _ in range(population_size_per_thread)]
+    def genetic_algorithm_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
+        population_size = len(population)
+        crossover_rate = 0.7
+        mutation_rate = 0.2
+
+        def crossover(parent1: Mapping, parent2: Mapping):
+            if random.random() > crossover_rate:
+                return copy.deepcopy(parent1)
+            return parent1.crossover(parent2, mapspace_globals)
+
+        def mutate_individual(individual):
+            individual = copy.deepcopy(individual)
+            prev_mapping = copy.deepcopy(individual)
+            if random.random() > mutation_rate:
+                return individual
+            try:
+                mutation_function = random.choice(individual.get_mutation_functions())
+                mutation_function(mapspace_globals)
+                return individual
+            except FailedMutation:
+                return prev_mapping
+
+        best_fitness = float("inf")
+        for generation in range(n_rounds):
+            # Evaluate fitness
+            fitness = [0] * len(population)
+            for i, individual in enumerate(population):
+                f, evaluations = individual.evaluate(mapspace_globals)
+                fitness[i] = f
+                best_fitness = min(best_fitness, f)
+                if evaluations_tracker.add_evaluation(evaluations, best_fitness):
+                    return population
+
+            best_score = min(fitness)
+            best_mapping = population[fitness.index(best_score)]
+
+            # Selection (roulette wheel selection)
+            total_fitness = sum(1.0 / (f + 1e-9) for f in fitness)
+            probabilities = [(1.0 / (f + 1e-9)) / total_fitness for f in fitness]
+            selected_indices = random.choices(range(len(population)), probabilities, k=population_size)
+
+            # Crossover
+            new_population = list(population[i] for i in selected_indices)
+            for i in range(0, population_size, 2):
+                parent1 = population[selected_indices[i]]
+                parent2 = population[selected_indices[(i + 1) % population_size]]
+                child1 = crossover(parent1, parent2)
+                child2 = crossover(parent2, parent1)
+                new_population.extend([child1, child2])
+
+            # Mutation
+            for i, individual in enumerate(new_population):
+                new_population[i] = mutate_individual(individual)
+
+            new_population.append(best_mapping) # Keep the best mapping around
+            population = new_population
+
         return population
+    
+    def random_sample_population(population, mapspace_globals: MapsapceGlobals, n_rounds, prune=False):
+        best_mapping = population[0]
+        for i in range(n_rounds):
+            try:
+                mapping = Mapping.create_random_mapping(mapspace_globals)
+            except FailedMutation:
+                if not prune:
+                    if evaluations_tracker.add_evaluation(1, float("inf")):
+                        return [best_mapping]
+                continue
+            score, evaluations = mapping.evaluate(mapspace_globals)
+            if evaluations_tracker.add_evaluation(evaluations, score):
+                return [best_mapping]
+        return [best_mapping]
 
-    population_size_per_thread = 1
-    n_rounds = 1000
-    population = [Mapping(sims) for _ in range(population_size_per_thread)]
-    pops = parallel([delayed(anneal_population)(population, mapspace_globals, 0.07, 8, n_rounds) for _ in range(n_threads)])
-    mappings = list(itertools.chain(*pops))
-    mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True) for m in mappings])
-    return mappings
+    extra_args = {}
+    if algorithm == "genetic":
+        population_size = 10000 // n_threads
+        callfunc = genetic_algorithm_population
+    elif algorithm == "simulated_anneal":
+        population_size = 100 // n_threads
+        callfunc = anneal_population
+    elif "random" in algorithm:
+        population_size = 1
+        callfunc = random_sample_population
+        extra_args["prune"] = "pruned" in algorithm
+
+    n_rounds = 9999999999999999999999999
+    population = [Mapping(sims) for _ in range(ceil(population_size / n_threads))]
+    results = callfunc(population, mapspace_globals, n_rounds)
+    eval_results = []
+    for m in results:
+        try:
+            eval_results.append(m.evaluate(mapspace_globals, return_df=True)[0])
+        except:
+            pass
+    return pd.concat(eval_results), evaluations_tracker
+    # pops, score_evaluations = zip(*results)
+    # aggregate_score = []
+    # aggregate_evaluations = []
+    # for se in score_evaluations:
+    #     if not aggregate_score:
+    #         aggregate_score = [s for s, _ in se]
+    #         aggregate_evaluations = [e for _, e in se]
+    #     else:
+    #         for i, (s, e) in enumerate(se):
+    #             aggregate_score[i] = min(aggregate_score[i], s)
+    #             aggregate_evaluations[i] += e
+
+    # zipped = list(zip(aggregate_score, aggregate_evaluations))
+    # print(f'Evaluations, Score')
+    # for i in range(0, len(zipped), len(zipped) // 10):
+    #     score, evaluations = zipped[i]
+    #     print(f"{evaluations}, {score}")
+
+    # mappings = list(itertools.chain(*pops))
+    # mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True)[0] for m in mappings])
+    # mappings.sort_values(by=mapspace_globals.objective_function_cols, inplace=True)
+    # return mappings, evaluations_tracker
 
 def fuse_sims(
     sims: dict[str, list[SIM]],
     pairwise_equivalent_ranks: PairwiseEquivalentRanks,
     einsum2ranks: dict[str, set[str]],
+    evaluations_tracker,
+    algorithm: str,
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
     lookahead_filter: bool = False,
@@ -747,16 +753,24 @@ def fuse_sims(
     cols = next(iter(sims.values()))[0].mapping.data.columns
     if objective_function_cols is None:
         objective_function_cols = [c for c in cols if not is_special_col(c)]
-    keepcols = [MAPPING]
+    keepcols = []
+    if MAPPING in cols:
+        keepcols.append(MAPPING)
     if VALID in cols:
         keepcols.append(VALID)
+
+    def detuplefy(s):
+        s.mapping.detuplefy_data()
+        return s
 
     for sim_list in sims.values():
         for sim in sim_list:
             for col in objective_function_cols:
                 if col not in sim.mapping.data.columns:
                     sim.mapping.data[col] = 0
-            sim.mapping.data = sim.mapping.data[objective_function_cols + keepcols]
+            reservations = [c for c in sim.mapping.data.columns if col2nameloop(c) is not None]
+            sim.mapping.data = sim.mapping.data[objective_function_cols + keepcols + reservations]
+            sim.mapping.detuplefy_data()
 
     mapspace_globals = MapsapceGlobals(
         sims,
@@ -766,17 +780,30 @@ def fuse_sims(
         objective_function_cols,
     )
     
-    n_threads = 16
+    n_threads = 32
     
     while n_threads >= 1:
         try:
-            return fuse_sims_simulated_anneal(
+            results_and_trackers = parallel([delayed(_fuse_sims)(
                 sims,
                 mapspace_globals,
                 n_threads=n_threads,
-            )
+                evaluations_tracker=copy.deepcopy(evaluations_tracker),
+                algorithm=algorithm,
+            ) for _ in range(n_threads)], n_jobs=n_threads)
+            results = pd.concat([r[0] for r in results_and_trackers])
+            for t in results_and_trackers:
+                evaluations_tracker.merge_with(t[1])
+            return results
         except OSError as e:
             if n_threads == 1:
                 raise OSError("Failed to fuse sims with 1 thread") from e
             print(f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}")
             n_threads //= 2
+            
+def fuse_sims_simulated_anneal(*args, **kwargs):
+    return fuse_sims(*args, **kwargs, algorithm="simulated_anneal")
+def fuse_sims_genetic(*args, **kwargs):
+    return fuse_sims(*args, **kwargs, algorithm="genetic")
+def fuse_sims_random(*args, **kwargs):
+    return fuse_sims(*args, **kwargs, algorithm="random")

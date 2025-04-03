@@ -146,6 +146,7 @@ def fuse_sims(
     lookahead_filter: bool = True,
     optimus_fused_group_constraint: bool=False,
     optimus_optimizations_only: bool=False,
+    evaluations_tracker=None,
 ):
     full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
     changed = True
@@ -398,7 +399,11 @@ def fuse_sims(
     # check_correctness(data, set())
 
     print_total_time()
+    if evaluations_tracker is not None:
+        edp = data["Latency"] * data["Energy"]
+        edp_min = edp.min()
+        evaluations_tracker.add_evaluation(n_evaluations, edp_min)
 
     if return_nmappings_nbuckets:
         return data, nmappings, nbuckets
-    return data, (n_evaluations, 0)
+    return data
