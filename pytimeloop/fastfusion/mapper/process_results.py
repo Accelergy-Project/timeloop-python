@@ -34,6 +34,7 @@ class Metrics(Flag):
     DEBUG = auto()
     VALID = auto()
     PER_COMPONENT_ACCESSES_ENERGY = auto()
+    MAPPING = auto()
 
     @classmethod
     def all_metrics(cls):
@@ -281,7 +282,8 @@ def process_result(
         results[IN_PROGRESS_STATS] = {einsum_name: {k: v for k, v in results.items() if k not in RESERVED_COLUMNS}}
         results[TENSORS] = {einsum_name: backing_storage}
 
-    results[MAPPING] = {einsum_name: tiling_full.to_tuple()}
+    if Metrics.MAPPING in metrics:
+        results[MAPPING] = {einsum_name: tiling_full.to_tuple()}
 
     if Metrics.PER_COMPONENT_ACCESSES_ENERGY in metrics:
         per_component_energy = {
