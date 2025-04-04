@@ -87,6 +87,22 @@ class MapsapceGlobals:
         self.einsum_rank_index_to_loops = self._create_einsum_rank_index_to_loops()
         self.einsum2tensors = {k: set(s[0].tensor_names) for k, s in sims.items()}
         self.tiling2leftcompatibility, self.tiling2rightcompatibility, self.leftcompatibility2tiling, self.rightcompatibility2tiling = self._create_compatibility()
+        self.einsum_tiling_2_valid, self.einsum_tiling_2_valid_porp = self._create_einsum_tiling_2_valid()
+        
+    def _create_einsum_tiling_2_valid(self):
+        einsum_tiling_2_valid = {}
+        einsum_tiling_2_valid_porp = {}
+        for einsum_name, sim_list in self.sims.items():
+            einsum_tiling_2_valid[einsum_name] = {}
+            einsum_tiling_2_valid_porp[einsum_name] = {}
+            for sim in sim_list:
+                sim.mapping.data.reset_index(drop=True, inplace=True)
+                valid_indices = list(sim.mapping.data.index[sim.mapping.data[VALID] == True])
+                valid_indices_porp = len(valid_indices) / len(sim.mapping.data)
+                einsum_tiling_2_valid[einsum_name][sim.tiling] = valid_indices
+                einsum_tiling_2_valid_porp[einsum_name][sim.tiling] = valid_indices_porp
+        return einsum_tiling_2_valid, einsum_tiling_2_valid_porp
+
         
     def get_live_tensors(self, *einsums: str):
         return set.union(*(self.einsum2tensors[e] for e in einsums))
@@ -468,8 +484,8 @@ class Mapping:
         chosen_mappings = {}
         n_evaluations = 1
         
-        # if self.n_changes == self.prev_eval_at_n_changes and not return_df:
-        #     return self.prev_eval_result, 1
+        if self.n_changes == self.prev_eval_at_n_changes and not return_df:
+            return self.prev_eval_result, 1
         self.prev_eval_at_n_changes = self.n_changes
         self.prev_eval_result = float("inf")
 
@@ -477,15 +493,28 @@ class Mapping:
             if t not in mapspace_globals.einsum_tiling_2_sim[einsum_name]:
                 assert not return_df
                 return float("inf"), n_evaluations
-            chosen_sims.append(mapspace_globals.einsum_tiling_2_sim[einsum_name][t])
-            intra_mappings = chosen_sims[-1].mapping.data
+            sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][t]
+            chosen_sims.append(sim)
+            intra_mappings = sim.mapping.data
             mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
-            for i in range(10000): # Intra-layer search to find a valid mapping
-                if VALID not in mapping or mapping[VALID]:
-                    break
-                n_evaluations += 1
-                self.einsum2intra_choice[einsum_name] = random.randint(1, 1e12)
-                mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
+            if not mapping[VALID]:
+                valid_indices = mapspace_globals.einsum_tiling_2_valid[einsum_name][t]
+                valid_porp = mapspace_globals.einsum_tiling_2_valid_porp[einsum_name][t]
+                if valid_porp == 0:
+                    n_evaluations += len(mapping)
+                    return float("inf"), n_evaluations
+                choice = valid_indices[self.einsum2intra_choice[einsum_name] % len(valid_indices)]
+                self.einsum2intra_choice[einsum_name] = choice
+                n_evaluations += 1 / valid_porp
+                mapping = intra_mappings.iloc[choice]
+            assert mapping[VALID]
+            
+            # for i in range(10000): # Intra-layer search to find a valid mapping
+            #     if VALID not in mapping or mapping[VALID]:
+            #         break
+            #     n_evaluations += 1
+            #     self.einsum2intra_choice[einsum_name] = random.randint(1, 1e12)
+            #     mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
             if VALID in mapping and not mapping[VALID]:
                 assert not return_df
                 return float("inf"), n_evaluations
