@@ -263,10 +263,16 @@ class Mapping:
         self.history = dummy_appender()
         self.n_crossovers = 0
         self.n_mutations = 0
+        
+        self.n_changes = 0
+        self.prev_eval_result = None
+        self.prev_eval_at_n_changes = -1
 
     def fix_loops(self, mapspace_globals: MapsapceGlobals):
         """ Ensure that all tilings have the correct number of loops """
+        self.n_changes += 1
         self.history.append("Fixing loops")
+
         try: 
             for einsum in self.einsum_names:
                 tiling = self.einsum2tiling[einsum]
@@ -305,10 +311,12 @@ class Mapping:
             self.history.append(f"Failed to fix loops")
             raise FailedMutation("Failed to fix loops")
 
+
     def match_loops(
         self, index: int, einsum_name: str, mapspace_globals: MapsapceGlobals
     ):
         """ Ensure that loops match across Einsums """
+        self.n_changes += 1
         tiling = self.einsum2tiling[einsum_name]
         for einsum_name2, tiling2 in self.einsum2tiling.items():
             if einsum_name2 == einsum_name:
@@ -331,6 +339,7 @@ class Mapping:
                 tiling2 = tiling2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
             self.einsum2tiling[einsum_name2] = tiling2
 
+
     def mutate_loop(
         self,
         mapspace_globals: MapsapceGlobals,
@@ -338,6 +347,7 @@ class Mapping:
         index: int=None,
         einsum_name: str=None,
     ):
+        self.n_changes += 1
         if storage is None:
             memories = set().union(*(t.storage for t in self.einsum2tiling.values()))
             storage = random.choice(list(memories))
@@ -408,6 +418,7 @@ class Mapping:
     def force_loop_match(
         self, mapspace_globals: MapsapceGlobals, index: int, einsum_name: str, 
     ):
+        self.n_changes += 1
         tiling = self.einsum2tiling[einsum_name]
         for einsum_name2, tiling2 in self.einsum2tiling.items():
             if einsum_name2 == einsum_name:
@@ -426,6 +437,7 @@ class Mapping:
             self.einsum2tiling[einsum_name2] = tiling2
 
     def mutate_backing_storage(self, mapspace_globals: MapsapceGlobals):
+        self.n_changes += 1
         tensor = random.choice(list(mapspace_globals.tensor_names))
         storage = random.choice(mapspace_globals.tensor2memories[tensor])
         for t in self.einsum2tiling.values():
@@ -440,6 +452,7 @@ class Mapping:
 
     def mutate_order(self, mapspace_globals: MapsapceGlobals):
         return
+        self.n_changes += 1
         e0, e1 = random.sample(self.einsum_names, 2)
         print(f"Switching {e0} and {e1}")
         self.einsum2tiling[e0], self.einsum2tiling[e1] = (
@@ -449,9 +462,17 @@ class Mapping:
         self.fix_loops(mapspace_globals)
 
     def evaluate(self, mapspace_globals: MapsapceGlobals, return_df=False) -> float:
+        if self.n_changes == self.prev_eval_at_n_changes and not return_df:
+            return self.prev_eval_result, 1
         chosen_sims = []
         chosen_mappings = {}
         n_evaluations = 1
+        
+        # if self.n_changes == self.prev_eval_at_n_changes and not return_df:
+        #     return self.prev_eval_result, 1
+        self.prev_eval_at_n_changes = self.n_changes
+        self.prev_eval_result = float("inf")
+
         for einsum_name, t in self.einsum2tiling.items():
             if t not in mapspace_globals.einsum_tiling_2_sim[einsum_name]:
                 assert not return_df
@@ -491,16 +512,19 @@ class Mapping:
                 return float("inf"), n_evaluations
             
         obj_cols = mapspace_globals.objective_function_cols
-        self.prev_score = prod(sum(c[col] for c in chosen_mappings.values()) for col in obj_cols)
+        score = prod(sum(c[col] for c in chosen_mappings.values()) for col in obj_cols)
         if return_df:
             d = {col: sum(c[col] for c in chosen_mappings.values()) for col in obj_cols}
             d[MAPPING] = mapping
             for k, v in reservations.items():
                 d[f"RESOURCE_{k}_LEVEL_0"] = v
+            self.prev_eval_result = score
             return pd.DataFrame([d]), n_evaluations
-        return self.prev_score, n_evaluations
+        self.prev_eval_result = score
+        return score, n_evaluations
     
     def mutate_intra_mapping(self, mapspace_globals: MapsapceGlobals):
+        self.n_changes += 1
         einsum_name = random.choice(self.einsum_names)
         intra_choice = random.randint(0, 1e12)
         self.history.append(f"Choosing intra-layer mapping {intra_choice} for {einsum_name}")
@@ -515,6 +539,7 @@ class Mapping:
         try:
             child.einsum2tiling[einsum_name] = self.einsum2tiling[einsum_name]
             child.einsum2intra_choice[einsum_name] = self.einsum2intra_choice[einsum_name]
+            child.n_changes += 1
             for i in range(len(child.einsum2tiling[einsum_name].loops)):
                 child.match_loops(i, einsum_name, mapspace_globals)
             child.fix_loops(mapspace_globals)
