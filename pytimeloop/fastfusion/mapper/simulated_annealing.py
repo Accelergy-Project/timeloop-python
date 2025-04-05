@@ -276,7 +276,6 @@ class Mapping:
             tensor_names = sim_list[0].tensor_names
             tensors = fzs(TensorStorage(t, 0, 0, 0) for t in tensor_names)
             self.set_einsum2tiling(einsum_name, Tiling(tuple(), tensors))
-        self.prev_score = float("inf")
         # self.history = []
         class dummy_appender:
             def append(*args, **kwargs):
@@ -286,7 +285,7 @@ class Mapping:
         self.n_mutations = 0
         
         self.n_changes = 0
-        self.prev_eval_result = None
+        self.prev_eval_result = float("inf")
         self.prev_eval_at_n_changes = -1
         
     def set_einsum2tiling(self, einsum_name: str, tiling: Tiling):
@@ -658,31 +657,31 @@ def get_accept_function(temperature, cooling_rate, evaluations_tracker):
         * (1 - proportion)
         / (1 + cooling_rate * proportion)
     )
-    def accept(prev_score, new_score):
+    # Assume prescient knowledge of the best score with which to scale by
+    def accept(prev_eval_result, new_score):
         if new_score == float("inf"):
             return False
-        if new_score <= prev_score:
+        if new_score <= prev_eval_result:
             return True
-        scaleby = prev_score * new_temp
-        if scaleby > 0 and random.random() < exp((prev_score - new_score) / scaleby):
+        scaleby = prev_eval_result * new_temp * evaluations_tracker.stop_at_score
+        if scaleby > 0 and random.random() < exp((prev_eval_result - new_score) / scaleby):
             return True
         return False
     return accept
 
 def mutate(mapping: Mapping, mapspace_globals: MapsapceGlobals, accept_function: callable):
     prev_mapping = copy.deepcopy(mapping)
-    prev_score = mapping.prev_score
+    prev_eval_result = mapping.prev_eval_result
     n_evaluations = 1
     try:
         choice = random.choice(mapping.get_mutation_functions())
         choice(mapspace_globals)
     except FailedMutation:
         return prev_mapping, n_evaluations
-    prev_score = mapping.prev_score
     new_score, n_evaluations = mapping.evaluate(mapspace_globals)
     if new_score == float("inf"):
         return prev_mapping, n_evaluations
-    if accept_function(prev_score, new_score):
+    if accept_function(prev_eval_result, new_score):
         return mapping, n_evaluations
     return prev_mapping, n_evaluations
 
@@ -705,7 +704,7 @@ def _fuse_sims(
             # population = parallel([delayed(mutate)(m, mapspace_globals, accept_function) for m in population])
             for j, mapping in enumerate(population):
                 population[j], evaluations = mutate(mapping, mapspace_globals, accept_function)
-                if evaluations_tracker.add_evaluation(evaluations, population[j].prev_score):
+                if evaluations_tracker.add_evaluation(evaluations, population[j].prev_eval_result):
                     return population
     
     def genetic_algorithm_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
@@ -911,7 +910,6 @@ def fuse_sims(
                 raise OSError("Failed to fuse sims with 1 thread") from e
             print(f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}")
             n_threads //= 2
-            
             
     for t in results_and_trackers:
         evaluations_tracker.merge_with(t[1])
