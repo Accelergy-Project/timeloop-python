@@ -905,6 +905,7 @@ def fuse_sims(
                 algorithm=algorithm,
             ) for _ in range(n_threads)], n_jobs=n_threads)
             results = pd.concat([r[0] for r in results_and_trackers])
+            break
         except OSError as e:
             if n_threads == 1:
                 raise OSError("Failed to fuse sims with 1 thread") from e
