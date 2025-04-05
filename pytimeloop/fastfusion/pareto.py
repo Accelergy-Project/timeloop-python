@@ -529,7 +529,9 @@ class Pareto:
     def has_reservations(self):
         return any(col2nameloop(c) is not None for c in self.data.columns)
 
-    
+    def get_reservations(self):
+        return tuple(sorted(c for c in self.data.columns if col2nameloop(c) is not None))
+
     def tuplefy_data(self):
         if self.data.empty:
             return

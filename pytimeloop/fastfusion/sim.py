@@ -565,7 +565,7 @@ class SIM:
         groups = list(SIM._group(sims, live_tensors, drop_tags=drop_tags).values())
         groups_with_one = [g[0] for g in groups if len(g) == 1]
         if len(groups_with_one) == len(groups):
-            return groups_with_one
+            return groups_with_one + no_combine
         others = parallel(
             [
                 delayed(SIM.concat)(g, allow_different_tilings)

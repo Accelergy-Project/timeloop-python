@@ -10,7 +10,7 @@ from joblib import delayed
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
 
 from pytimeloop.fastfusion.sim import SIM, Loop, Tiling
-from pytimeloop.fastfusion.pareto import VALID, Pareto
+from pytimeloop.fastfusion.pareto import MAPPING, VALID, Pareto
 from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
 
@@ -86,7 +86,6 @@ def print_time(what: str):
     total_time[what] += t
     prev_time = time.time()
 
-
 def print_total_time():
     print(f"\n======== Total time ========")
     for k, v in total_time.items():
@@ -147,9 +146,13 @@ def fuse_sims(
     optimus_fused_group_constraint: bool=False,
     optimus_optimizations_only: bool=False,
     evaluations_tracker=None,
+    combine_reservations: bool = True,
+    skip_invalid: bool = True,
+    size_scale: float = 1.0,
 ):
     full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
     changed = True
+    
     while changed:
         changed = False
         for r in full_equivalent_ranks:
@@ -160,18 +163,25 @@ def fuse_sims(
                     changed = True
                     full_equivalent_ranks[r].add(r3)
 
-    for sim_list in sims.values():
+    for einsum_name, sim_list in sims.items():
         for s in sim_list:
             if VALID in s.mapping.data:
                 s.mapping.data = s.mapping.data[s.mapping.data[VALID] == 1]
+            s.mapping.data[MAPPING] = [{einsum_name: s.tiling} for _ in range(len(s.mapping.data))]
     
-    nmappings = []
+    print(f'Do the optimization where we put all the full mappings in a dict and grab them later')
+    
+    n_mappings = {}
+    runtime = {}
     nbuckets = []
     
     n_evaluations = 0
 
     sims = list(sims.items())
     n_sims = len(sims)
+
+    if not skip_invalid:
+        lookahead_filter = False
 
     for einsum_id, s in sims:
         print(f"SIM {einsum_id} tensors: {s[0].tensor_names}")
@@ -191,9 +201,11 @@ def fuse_sims(
     # ======================================================================
     # Initial consolidate and group all SIMs
     # ======================================================================
+    n_mappings["Post Intra-Layer"] = 0
     for i, sim_holder in enumerate(sims):
         if i == 0:
             continue
+        t0 = time.time()
         left_tensors = set.union(set(), *[s.tensor_names for s in sims[:i]])
         right_tensors = set.union(set(), *[s.tensor_names for s in sims[i + 1 :]])
         live_tensors = right_tensors
@@ -209,14 +221,18 @@ def fuse_sims(
             pbar=f"Inital consolidate {sim_holder.einsum_id}",
         )
         sim_holder.sims = SIM.combine_combineable(
-            sim_holder.sims, left_tensors | right_tensors
+            sim_holder.sims, left_tensors | right_tensors, combine_reservations=combine_reservations
         )
+        n_mappings["Post Intra-Layer"] += sum(len(s.mapping.data) for s in sim_holder.sims)
         if i > 0:
             sim_holder.sims = SIM.group_right(
                 sim_holder.sims, left_tensors, drop_tags=True
             )
+        einsum, prev_einsum = sim_holder.einsum_id, sims[i - 1].einsum_id
+        runtime[f"{prev_einsum} → {einsum}"] = time.time() - t0
+        t0 = time.time()
     print_time(f"Initial consolidate and group")
-
+    
     n_iterations = 0
     total_iterations = len(sims)
 
@@ -231,12 +247,13 @@ def fuse_sims(
 
     partial_mapping_size = 1
     while sims:
+        t0 = time.time()
         # ======================================================================
         # Grab new Einsum from the right. Record logging data and find still
         # tensors that will be live after this Einsum.
         # ======================================================================
         nbuckets.append(len(left))
-        nmappings.append(sum(len(s.mapping.data) for s in left))
+        # nmappings.append(sum(len(s.mapping.data) for s in left))
         right, right_einsum, right_tensors = grab_sim_holder()
         right_ranks = einsum2ranks[right_einsum]
         print(f"\nEinsum {right_einsum} ({n_iterations}/{total_iterations})")
@@ -263,7 +280,7 @@ def fuse_sims(
         print_time(f"Consolidating")
         
         # Optimus can't combine SIMs that have reserved data
-        left = SIM.combine_combineable(left, live_tensors | right_tensors, combine_reservations=not optimus_optimizations_only)
+        left = SIM.combine_combineable(left, live_tensors | right_tensors, combine_reservations=combine_reservations)#not optimus_optimizations_only)
 
         print_time(f"Combining")
         # Group left and right into buckets
@@ -293,6 +310,7 @@ def fuse_sims(
         # Merge the left and right buckets.
         # ======================================================================
         combined: list[SIM] = []
+        cur_nmappings = 0
         for k in left:
             found = False
             for k_translated in get_possible_translations(
@@ -303,7 +321,7 @@ def fuse_sims(
                         found = True
                         combined.append(a.merge_next(b, live_tensors, delay=DELAY))
                         if not DELAY and not optimus_optimizations_only:
-                            n_evaluations += len(a.mapping.data) * len(b.mapping.data)
+                            cur_nmappings += len(a.mapping.data) * len(b.mapping.data)
                         if DO_PRINT:
                             s = f"\t{a.tiling} <--> {b.tiling}"
                             s += f" --> {combined[-1].tiling}"
@@ -366,8 +384,18 @@ def fuse_sims(
             )
             for c, mapping in zip(combined, mappings):
                 c.mapping = mapping
-                n_evaluations += len(mapping.data)
+                cur_nmappings += c.n_pre_prune_mappings
         print_time("Mapping merging")
+
+        prev_nmappings = cur_nmappings
+        if not skip_invalid:
+            left_nmappings = sum(len(s.mapping.data) for k in left.values() for s in k)
+            right_nmappings = sum(len(s.mapping.data) for k in right.values() for s in k)
+            cur_nmappings = left_nmappings * right_nmappings
+        n_mappings[f"{left_einsum} → {right_einsum}"] = cur_nmappings
+        n_evaluations += cur_nmappings
+        runtime[f"{prev_einsum} → {einsum}"] += (time.time() - t0) * (cur_nmappings / prev_nmappings)
+        print(f'Scaled runtime by {cur_nmappings / prev_nmappings}')
 
         # ======================================================================
         # Print statements
@@ -376,11 +404,11 @@ def fuse_sims(
             f"\tCombining {sum(len(s) for s in left)}({len(left)}) x {sum(len(s) for s in right)}({len(right)}) -> {len(combined)}"
         )
 
-        n_mappings = sum(len(s.mapping.data) for s in combined)
+        nmappings = sum(len(s.mapping.data) for s in combined)
         for_einsum_text = f"for Einsum {right_einsum}"
         print(f"\tNumber of buckets {for_einsum_text}: {len(combined)}")
-        print(f"\tNumber of mappings {for_einsum_text}: {n_mappings}")
-        print(f"\tMappings per bucket {for_einsum_text}: {n_mappings / len(combined)}")
+        print(f"\tNumber of mappings {for_einsum_text}: {nmappings}")
+        print(f"\tMappings per bucket {for_einsum_text}: {nmappings / len(combined)}")
 
         # ======================================================================
         # Update left for the next iteration.
@@ -392,18 +420,41 @@ def fuse_sims(
     # ======================================================================
     # Final consolidate and group
     # ======================================================================
+    t0 = time.time()
     left = SIM.left_consolidate(left, None, resource2capacity, pbar="Final consolidate")
     s_final = SIM.combine_combineable(left, set(), drop_tags=True)
     assert len(s_final) == 1
     data = s_final[0].mapping.data
     # check_correctness(data, set())
+    
+    # einsum2tiling = data.iloc[3]["__LOOPNEST"]
+    # from pytimeloop.fastfusion.plot.looptree import tilings2looptree
+    # import pydot
+    # tree = tilings2looptree(einsum2tiling)
+    # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+    # tree.to_pydot(graph)
+    # with open(f"test2.png", "wb") as f:
+    #     f.write(graph.create_png())
+
 
     print_total_time()
     if evaluations_tracker is not None:
         edp = data["Latency"] * data["Energy"]
         edp_min = edp.min()
         evaluations_tracker.add_evaluation(n_evaluations, edp_min)
+        evaluations_tracker.n_mappings.update(n_mappings)
+        evaluations_tracker.runtime.update(runtime)
 
     if return_nmappings_nbuckets:
-        return data, nmappings, nbuckets
+        return data, n_mappings, nbuckets
     return data
+
+
+def fuse_sims_no_skip_invalid(*args, **kwargs):
+    return fuse_sims(*args, skip_invalid=False, **kwargs)
+
+def fuse_sims_no_combine_reservations(*args, **kwargs):
+    return fuse_sims(*args, combine_reservations=False, **kwargs)
+
+def fuse_sims_no_either(*args, **kwargs):
+    return fuse_sims(*args, skip_invalid=False, combine_reservations=False, **kwargs)

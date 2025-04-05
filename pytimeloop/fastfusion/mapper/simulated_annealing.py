@@ -66,6 +66,7 @@ class MapsapceGlobals:
         pairwise_equivalent_ranks: PairwiseEquivalentRanks,
         resource2capacity: dict,
         objective_function_cols: str,
+        size_scale: float,
     ):
         self.sims = sims
         self.einsum_names = list(sims.keys())
@@ -88,6 +89,7 @@ class MapsapceGlobals:
         self.einsum2tensors = {k: set(s[0].tensor_names) for k, s in sims.items()}
         self.tiling2leftcompatibility, self.tiling2rightcompatibility, self.leftcompatibility2tiling, self.rightcompatibility2tiling = self._create_compatibility()
         self.einsum_tiling_2_valid, self.einsum_tiling_2_valid_porp = self._create_einsum_tiling_2_valid()
+        self.size_scale = size_scale
         
     def _create_einsum_tiling_2_valid(self):
         einsum_tiling_2_valid = {}
@@ -97,7 +99,10 @@ class MapsapceGlobals:
             einsum_tiling_2_valid_porp[einsum_name] = {}
             for sim in sim_list:
                 sim.mapping.data.reset_index(drop=True, inplace=True)
-                valid_indices = list(sim.mapping.data.index[sim.mapping.data[VALID] == True])
+                if VALID in sim.mapping.data:
+                    valid_indices = list(sim.mapping.data.index[sim.mapping.data[VALID] == True])
+                else:
+                    valid_indices = list(sim.mapping.data.index)
                 valid_indices_porp = len(valid_indices) / len(sim.mapping.data)
                 einsum_tiling_2_valid[einsum_name][sim.tiling] = valid_indices
                 einsum_tiling_2_valid_porp[einsum_name][sim.tiling] = valid_indices_porp
@@ -270,7 +275,7 @@ class Mapping:
         for einsum_name, sim_list in sims.items():
             tensor_names = sim_list[0].tensor_names
             tensors = fzs(TensorStorage(t, 0, 0, 0) for t in tensor_names)
-            self.einsum2tiling[einsum_name] = Tiling(tuple(), tensors)
+            self.set_einsum2tiling(einsum_name, Tiling(tuple(), tensors))
         self.prev_score = float("inf")
         # self.history = []
         class dummy_appender:
@@ -283,6 +288,13 @@ class Mapping:
         self.n_changes = 0
         self.prev_eval_result = None
         self.prev_eval_at_n_changes = -1
+        
+    def set_einsum2tiling(self, einsum_name: str, tiling: Tiling):
+        prev = self.einsum2tiling.get(einsum_name, None)
+        if prev is not None and prev == tiling:
+            return
+        self.einsum2tiling[einsum_name] = tiling
+        self.einsum2intra_choice[einsum_name] = None
 
     def fix_loops(self, mapspace_globals: MapsapceGlobals):
         """ Ensure that all tilings have the correct number of loops """
@@ -296,7 +308,7 @@ class Mapping:
 
                 # If there's too many loops then drop the extra ones
                 if n_loops < len(tiling.loops):
-                    self.einsum2tiling[einsum] = tiling.update(loops=tiling.loops[:n_loops])
+                    self.set_einsum2tiling(einsum, tiling.update(loops=tiling.loops[:n_loops]))
 
                 # If there's not enough loops then add some
                 if n_loops > len(tiling.loops):
@@ -321,7 +333,7 @@ class Mapping:
                         new_loop = random.choice(list(possible_loops))
                         self.history.append(f"Fixing loop {i} for {einsum} to {new_loop}")
                         tiling = tiling.set_loop(i, new_loop)
-                self.einsum2tiling[einsum] = tiling
+                self.set_einsum2tiling(einsum, tiling)
 
         except FailedMutation:
             self.history.append(f"Failed to fix loops")
@@ -353,7 +365,7 @@ class Mapping:
                     )
                 rank_name = random.choice(translations)
                 tiling2 = tiling2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
-            self.einsum2tiling[einsum_name2] = tiling2
+            self.set_einsum2tiling(einsum_name2, tiling2)
 
 
     def mutate_loop(
@@ -403,7 +415,7 @@ class Mapping:
             new_loop = random.choice(candidates)
 
         self.history.append(f"{choice} loop {index} for {einsum_name} to {new_loop}")
-        self.einsum2tiling[einsum_name] = tiling.set_loop(index, new_loop)
+        self.set_einsum2tiling(einsum_name, tiling.set_loop(index, new_loop))
 
     def get_shared_loop_index(
             self, 
@@ -450,7 +462,7 @@ class Mapping:
                     )
                 rank_name = random.choice(translations)
                 tiling2 = tiling2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
-            self.einsum2tiling[einsum_name2] = tiling2
+            self.set_einsum2tiling(einsum_name2, tiling2)
 
     def mutate_backing_storage(self, mapspace_globals: MapsapceGlobals):
         self.n_changes += 1
@@ -463,7 +475,7 @@ class Mapping:
                 )
         self.history.append(f"Moving tensor {tensor} to storage {storage}")
         for einsum, tiling in self.einsum2tiling.items():
-            self.einsum2tiling[einsum] = tiling.set_tensor_storage(tensor, storage)
+            self.set_einsum2tiling(einsum, tiling.set_tensor_storage(tensor, storage))
         self.fix_loops(mapspace_globals)
 
     def mutate_order(self, mapspace_globals: MapsapceGlobals):
@@ -480,6 +492,7 @@ class Mapping:
     def evaluate(self, mapspace_globals: MapsapceGlobals, return_df=False) -> float:
         if self.n_changes == self.prev_eval_at_n_changes and not return_df:
             return self.prev_eval_result, 1
+        
         chosen_sims = []
         chosen_mappings = {}
         n_evaluations = 1
@@ -493,21 +506,29 @@ class Mapping:
             if t not in mapspace_globals.einsum_tiling_2_sim[einsum_name]:
                 assert not return_df
                 return float("inf"), n_evaluations
+
             sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][t]
             chosen_sims.append(sim)
             intra_mappings = sim.mapping.data
-            mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
-            if not mapping[VALID]:
-                valid_indices = mapspace_globals.einsum_tiling_2_valid[einsum_name][t]
-                valid_porp = mapspace_globals.einsum_tiling_2_valid_porp[einsum_name][t]
-                if valid_porp == 0:
-                    n_evaluations += len(mapping)
-                    return float("inf"), n_evaluations
-                choice = valid_indices[self.einsum2intra_choice[einsum_name] % len(valid_indices)]
-                self.einsum2intra_choice[einsum_name] = choice
-                n_evaluations += 1 / valid_porp
-                mapping = intra_mappings.iloc[choice]
-            assert mapping[VALID]
+            
+            if self.einsum2intra_choice[einsum_name] is not None:
+                mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
+                if VALID not in mapping or mapping[VALID]:
+                    chosen_mappings[einsum_name] = mapping
+                    continue
+            
+            valid_indices = mapspace_globals.einsum_tiling_2_valid[einsum_name][t]
+            valid_porp = mapspace_globals.einsum_tiling_2_valid_porp[einsum_name][t]
+            if valid_porp == 0:
+                n_evaluations += len(mapping)
+                return float("inf"), n_evaluations
+            self.einsum2intra_choice[einsum_name] = random.choice(valid_indices)
+            choice = valid_indices[self.einsum2intra_choice[einsum_name] % len(valid_indices)]
+            self.einsum2intra_choice[einsum_name] = choice
+            n_evaluations += 1 / valid_porp * mapspace_globals.size_scale
+            mapping = intra_mappings.iloc[choice]
+            assert VALID not in mapping or mapping[VALID]
+            chosen_mappings[einsum_name] = mapping
             
             # for i in range(10000): # Intra-layer search to find a valid mapping
             #     if VALID not in mapping or mapping[VALID]:
@@ -518,7 +539,6 @@ class Mapping:
             if VALID in mapping and not mapping[VALID]:
                 assert not return_df
                 return float("inf"), n_evaluations
-            chosen_mappings[einsum_name] = mapping
 
         # mapping = {}
         # for c in chosen_mappings:
@@ -533,6 +553,7 @@ class Mapping:
         except:
             assert not return_df
             return float("inf"), n_evaluations
+        
 
         reservations = tree.get_reservations()
         for resource, capacity in mapspace_globals.resource2capacity.items():
@@ -542,6 +563,16 @@ class Mapping:
             
         obj_cols = mapspace_globals.objective_function_cols
         score = prod(sum(c[col] for c in chosen_mappings.values()) for col in obj_cols)
+        # if score < 4.7770043942936216e+20:
+        #     print("AHH")
+        # import pydot
+        # graph = pydot.Dot(graph_type="digraph", ranksep="0.2", nodesep="0.2")
+        # tree.to_pydot(graph)
+        # with open(f"test.png", "wb") as f:
+        #     f.write(graph.create_png())
+
+            
+
         if return_df:
             d = {col: sum(c[col] for c in chosen_mappings.values()) for col in obj_cols}
             d[MAPPING] = mapping
@@ -555,9 +586,8 @@ class Mapping:
     def mutate_intra_mapping(self, mapspace_globals: MapsapceGlobals):
         self.n_changes += 1
         einsum_name = random.choice(self.einsum_names)
-        intra_choice = random.randint(0, 1e12)
-        self.history.append(f"Choosing intra-layer mapping {intra_choice} for {einsum_name}")
-        self.einsum2intra_choice[einsum_name] = intra_choice
+        # self.history.append(f"Choosing intra-layer mapping {intra_choice} for {einsum_name}")
+        self.einsum2intra_choice[einsum_name] = None
     
     def get_mutation_functions(self):
         return [self.mutate_loop, self.mutate_backing_storage, self.mutate_order, self.mutate_intra_mapping]
@@ -566,7 +596,7 @@ class Mapping:
         child = copy.deepcopy(other)
         einsum_name = random.choice(child.einsum_names)
         try:
-            child.einsum2tiling[einsum_name] = self.einsum2tiling[einsum_name]
+            child.set_einsum2tiling(einsum_name, self.einsum2tiling[einsum_name])
             child.einsum2intra_choice[einsum_name] = self.einsum2intra_choice[einsum_name]
             child.n_changes += 1
             for i in range(len(child.einsum2tiling[einsum_name].loops)):
@@ -586,7 +616,7 @@ class Mapping:
             sim_list = mapspace_globals.sims[einsum_name]
             if prev_compatibility is None:
                 sim = random.choice(sim_list)
-                mapping.einsum2tiling[einsum_name] = sim.tiling
+                mapping.set_einsum2tiling(einsum_name, sim.tiling)
                 if len(einsum_names) == 1:
                     break
                 prev_compatibility = mapspace_globals.tiling2rightcompatibility[einsum_name][sim.tiling]
@@ -608,7 +638,7 @@ class Mapping:
                 raise FailedMutation(f"No tilings for {einsum_name} with {prev_compatibility}")
             tiling = random.choice(tilings)
             sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][tiling]
-            mapping.einsum2tiling[einsum_name] = tiling
+            mapping.set_einsum2tiling(einsum_name, tiling)
             mapping.einsum2intra_choice[einsum_name] = random.randint(0, 1e12)
             if i == len(einsum_names) - 1:
                 break
@@ -663,7 +693,7 @@ def _fuse_sims(
     algorithm: str
 ):
     random.seed(time.time() + hash(threading.get_ident()))  # Seed with thread ID
-    evaluations_tracker.set_scale_by(len(mapspace_globals.einsum_names))
+    evaluations_tracker.multiply_scale_by(len(mapspace_globals.einsum_names))
     evaluations_tracker.print_period *= n_threads
     evaluations_tracker.max_evaluations //= n_threads
     def anneal_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
@@ -820,8 +850,8 @@ def fuse_sims(
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
     lookahead_filter: bool = False,
+    size_scale: int = 1,
 ):
-
     objective_function_cols = None
     cols = next(iter(sims.values()))[0].mapping.data.columns
     if objective_function_cols is None:
@@ -851,6 +881,7 @@ def fuse_sims(
         pairwise_equivalent_ranks,
         resource2capacity,
         objective_function_cols,
+        size_scale,
     )
     
     n_threads = 32
