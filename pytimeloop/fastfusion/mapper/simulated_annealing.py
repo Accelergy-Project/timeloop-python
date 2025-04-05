@@ -521,6 +521,7 @@ class Mapping:
             valid_porp = mapspace_globals.einsum_tiling_2_valid_porp[einsum_name][t]
             if valid_porp == 0:
                 n_evaluations += len(mapping)
+                assert not return_df
                 return float("inf"), n_evaluations
             self.einsum2intra_choice[einsum_name] = random.choice(valid_indices)
             choice = valid_indices[self.einsum2intra_choice[einsum_name] % len(valid_indices)]
@@ -586,7 +587,7 @@ class Mapping:
     def mutate_intra_mapping(self, mapspace_globals: MapsapceGlobals):
         self.n_changes += 1
         einsum_name = random.choice(self.einsum_names)
-        # self.history.append(f"Choosing intra-layer mapping {intra_choice} for {einsum_name}")
+        self.history.append(f"Choosing intra-layer mapping for {einsum_name}")
         self.einsum2intra_choice[einsum_name] = None
     
     def get_mutation_functions(self):
@@ -699,7 +700,7 @@ def _fuse_sims(
     def anneal_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
         temperature = 0.07
         cooling_rate = 8
-        for i in range(n_rounds):
+        while True:
             accept_function = get_accept_function(temperature, cooling_rate, evaluations_tracker)
             # population = parallel([delayed(mutate)(m, mapspace_globals, accept_function) for m in population])
             for j, mapping in enumerate(population):
@@ -731,7 +732,7 @@ def _fuse_sims(
                 return prev_mapping
 
         best_fitness = float("inf")
-        for generation in range(n_rounds):
+        while True:
             # Evaluate fitness
             fitness = [0] * len(population)
             for i, individual in enumerate(population):
@@ -769,7 +770,8 @@ def _fuse_sims(
     
     def random_sample_population(population, mapspace_globals: MapsapceGlobals, n_rounds, prune=False):
         best_mapping = population[0]
-        for i in range(n_rounds):
+        best_score = float("inf")
+        while True:
             try:
                 mapping = Mapping.create_random_mapping(mapspace_globals)
             except FailedMutation:
@@ -778,13 +780,16 @@ def _fuse_sims(
                         return [best_mapping]
                 continue
             score, evaluations = mapping.evaluate(mapspace_globals)
+            if score < best_score:
+                best_mapping = mapping
+                best_score = score
             if evaluations_tracker.add_evaluation(evaluations, score):
                 return [best_mapping]
         return [best_mapping]
 
     extra_args = {}
     if algorithm == "genetic":
-        population_size = 1000 // n_threads
+        population_size = 1000
         callfunc = genetic_algorithm_population
     elif algorithm == "simulated_anneal":
         population_size = 100 // n_threads
@@ -817,7 +822,12 @@ def _fuse_sims(
             eval_results.append(m.evaluate(mapspace_globals, return_df=True)[0])
         except:
             pass
-    return pd.concat(eval_results), evaluations_tracker
+    try:
+        return pd.concat(eval_results), evaluations_tracker
+    except Exception as e:
+        for i in range(30):
+            print(f'Failed to concatenate results. Exception: {e}')
+        return pd.DataFrame(), evaluations_tracker
     # pops, score_evaluations = zip(*results)
     # aggregate_score = []
     # aggregate_evaluations = []
@@ -885,7 +895,6 @@ def fuse_sims(
     )
     
     n_threads = 32
-    
     while n_threads >= 1:
         try:
             results_and_trackers = parallel([delayed(_fuse_sims)(
@@ -896,15 +905,17 @@ def fuse_sims(
                 algorithm=algorithm,
             ) for _ in range(n_threads)], n_jobs=n_threads)
             results = pd.concat([r[0] for r in results_and_trackers])
-            for t in results_and_trackers:
-                evaluations_tracker.merge_with(t[1])
-            return results
         except OSError as e:
             if n_threads == 1:
                 raise OSError("Failed to fuse sims with 1 thread") from e
             print(f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}")
             n_threads //= 2
             
+            
+    for t in results_and_trackers:
+        evaluations_tracker.merge_with(t[1])
+    return results
+
 def fuse_sims_simulated_anneal(*args, **kwargs):
     return fuse_sims(*args, **kwargs, algorithm="simulated_anneal")
 def fuse_sims_genetic(*args, **kwargs):
