@@ -453,11 +453,17 @@ def fuse_sims_no_skip_invalid(*args, **kwargs):
     return fuse_sims(*args, skip_invalid=False, **kwargs)
 
 def fuse_sims_no_combine_reservations(*args, **kwargs):
+    args = list(args)
+    if len(args[0]) == 16:
+        args[0] = {k: v for k, v in list(args[0].items())[:11]}
     if len(args[0]) > 16:
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
     return fuse_sims(*args, combine_reservations=False, **kwargs)
 
 def fuse_sims_no_either(*args, **kwargs):
+    args = list(args)
+    if len(args[0]) == 16:
+        args[0] = {k: v for k, v in list(args[0].items())[:11]}
     if len(args[0]) > 16:
         args[0] = {k: v for k, v in list(args[0].items())[:2]}
     return fuse_sims(*args, skip_invalid=False, combine_reservations=False, **kwargs)
