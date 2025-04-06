@@ -73,20 +73,66 @@ class MapsapceGlobals:
         self.tensor_names = set().union(*(s[0].tensor_names for s in sims.values()))
         self.resource2capacity = resource2capacity
         self.objective_function_cols = objective_function_cols
-        self.storage2possible_loops_above = self._create_storage2possible_loops_above()
-        self.storage2possible_loops_above_set = {
-            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.storage2possible_loops_above.items()
-        }
-        self.tensor2memories = self._create_tensor2memories()
+        self.einsum2tensors = {k: set(s[0].tensor_names) for k, s in sims.items()}
         self.pairwise_equivalent_ranks = pairwise_equivalent_ranks
         self.full_equivalent_ranks = self._create_full_equivalent_ranks(
             pairwise_equivalent_ranks
         )
         self.einsum2ranks = einsum2ranks
         self.rank_translations = self._create_rank_translations(einsum2ranks)
+
+        for i, (left_id, left_sims) in enumerate(sims.items()):
+            for j, (right_id, right_sims) in enumerate(sims.items()):
+                if i >= j:
+                    continue
+                
+                left_live = self.get_live_tensors(*self.einsum_names[:i+1])
+                right_live = self.get_live_tensors(*self.einsum_names[j:])
+                left_tensors = self.get_tensors(self.einsum_names[i])
+                right_tensors = self.get_tensors(self.einsum_names[j])
+                
+                
+                if not (left_live & right_live):
+                    continue
+                print(f"Checking {left_id} {right_id}")
+                
+                right_tilings = {
+                    s.tiling.clear_dead_tensors(live_tensors=left_live).clear_dead_tensors(left_tensors, keep_loops=True)
+                    for s in right_sims
+                }
+                assert right_tilings, f"R {left_id} {right_id}"
+                for s in list(left_sims):
+                    for t in self.get_possible_translations(s.tiling, right_id):
+                        t = t.clear_dead_tensors(live_tensors=right_live)
+                        t = t.clear_dead_tensors(live_tensors=right_tensors, keep_loops=True)
+                        if t in right_tilings:
+                            break
+                    else:
+                        left_sims.remove(s)
+                assert left_sims, f"Removed all of left {left_id} while checking right {right_id}"
+                        
+                left_tilings = {
+                    s.tiling.clear_dead_tensors(live_tensors=right_live).clear_dead_tensors(right_tensors, keep_loops=True)
+                    for s in left_sims
+                }
+                assert left_tilings, f"L {left_id} {right_id}"
+                for s in list(right_sims):
+                    for t in self.get_possible_translations(s.tiling, left_id):
+                        t = t.clear_dead_tensors(live_tensors=left_live)
+                        t = t.clear_dead_tensors(live_tensors=left_tensors, keep_loops=True)
+                        if t in left_tilings:
+                            break
+                    else:
+                        right_sims.remove(s)
+                assert right_sims, f"Removed all of right {right_id} while checking left {left_id}"
+        
+        self.storage2possible_loops_above = self._create_storage2possible_loops_above()
+        self.storage2possible_loops_above_set = {
+            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.storage2possible_loops_above.items()
+        }
+        self.tensor2memories = self._create_tensor2memories()
         self.einsum_tiling_2_sim = self._create_einsum_tiling_2_sim()
         self.einsum_rank_index_to_loops = self._create_einsum_rank_index_to_loops()
-        self.einsum2tensors = {k: set(s[0].tensor_names) for k, s in sims.items()}
         self.tiling2leftcompatibility, self.tiling2rightcompatibility, self.leftcompatibility2tiling, self.rightcompatibility2tiling = self._create_compatibility()
         self.einsum_tiling_2_valid, self.einsum_tiling_2_valid_porp = self._create_einsum_tiling_2_valid()
         self.size_scale = size_scale
@@ -115,28 +161,24 @@ class MapsapceGlobals:
     def _create_compatibility(self):
         tiling2leftcompatibility = {}
         tiling2rightcompatibility = {}
-        def tilings2compatibility(tilings: list[Tiling], live_tensors: set[str], keep_tensors: set[str]):
+        def tilings2compatibility(tilings: list[Tiling], live_tensors: set[str]):
             return {
-                t: t.clear_dead_tensors(live_tensors=live_tensors, keep_tensors=keep_tensors)
+                t: t.clear_dead_tensors(live_tensors=live_tensors)
                 for t in tilings
             }
             
         for i, (einsum_name, sim_list) in enumerate(self.sims.items()):
             if i > 0:
                 prev_live = self.get_live_tensors(*self.einsum_names[:i])
-                prev = self.get_live_tensors(self.einsum_names[i - 1])
                 tiling2leftcompatibility[einsum_name] = tilings2compatibility(
                     [s.tiling for s in sim_list],
                     prev_live,
-                    prev,
                 )
             if i < len(self.sims) - 1:
                 next_live = self.get_live_tensors(*self.einsum_names[i + 1:])
-                next = self.get_live_tensors(self.einsum_names[i])
                 tiling2rightcompatibility[einsum_name] = tilings2compatibility(
                     [s.tiling for s in sim_list],
                     next_live,
-                    next,
                 )
         
         leftcompatibility2tiling = {}
@@ -266,11 +308,10 @@ class MapsapceGlobals:
 class FailedMutation(Exception):
     pass
 
-
 class Mapping:
     def __init__(self, sims: dict[str, list[SIM]]):
         self.einsum_names = list(sims.keys())
-        self.einsum2intra_choice = {einsum_name: 0 for einsum_name in self.einsum_names}
+        self.einsum2intra_choice = {einsum_name: None for einsum_name in self.einsum_names}
         self.einsum2tiling = {}
         for einsum_name, sim_list in sims.items():
             tensor_names = sim_list[0].tensor_names
@@ -634,17 +675,16 @@ class Mapping:
                 translation = translation.clear_dead_tensors(live_tensors=cur_tensors, keep_loops=True)
                 if translation in compatiblity_options:
                     tilings.extend(compatiblity_options[translation])
+                
             if not tilings:
                 raise FailedMutation(f"No tilings for {einsum_name} with {prev_compatibility}")
-            tiling = random.choice(tilings)
-            sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][tiling]
+            sim_choices = [mapspace_globals.einsum_tiling_2_sim[einsum_name][t] for t in tilings]
+            sim = random.choice(sim_choices)
+            tiling = sim.tiling
             mapping.set_einsum2tiling(einsum_name, tiling)
-            mapping.einsum2intra_choice[einsum_name] = random.randint(0, 1e12)
             if i == len(einsum_names) - 1:
                 break
-            
             new_compatibility: Tiling = mapspace_globals.tiling2rightcompatibility[einsum_name][tiling]
-
             # Combine prev_compatibility and new_compatibility
             live_tensors = mapspace_globals.get_live_tensors(*einsum_names[i+1:])
             prev_compatibility = prev_compatibility.merge_next(new_compatibility, live_tensors)
@@ -811,7 +851,19 @@ def _fuse_sims(
             except FailedMutation:
                 pass
             
-    population = [get_random_mapping() for _ in range(population_size)]
+    population = []
+    while len(population) < population_size:
+        try:
+            mapping = Mapping.create_random_mapping(mapspace_globals)
+            score, evaluations = mapping.evaluate(mapspace_globals)
+            if evaluations_tracker.add_evaluation(evaluations, score):
+                break
+            if score == float("inf"):
+                raise FailedMutation("Random mapping failed")
+            population.append(mapping)
+        except FailedMutation:
+            if evaluations_tracker.add_evaluation(1, float("inf")):
+                break
 
     n_rounds = 9999999999999999999999999
     results = callfunc(population, mapspace_globals, n_rounds)
