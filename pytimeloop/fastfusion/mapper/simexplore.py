@@ -393,8 +393,8 @@ def fuse_sims(
             cur_nmappings = left_nmappings * right_nmappings
         n_mappings[f"{left_einsum} → {right_einsum}"] = cur_nmappings
         n_evaluations += cur_nmappings
-        runtime[f"{prev_einsum} → {einsum}"] += (time.time() - t0) * (cur_nmappings / prev_nmappings)
-        print(f'Scaled runtime by {cur_nmappings / prev_nmappings}')
+        runtime[f"{left_einsum} → {right_einsum}"] += (time.time() - t0) * (cur_nmappings / prev_nmappings)
+        print(f'Scaled runtime by {cur_nmappings / prev_nmappings}. Runtime: {runtime[f"{prev_einsum} → {einsum}"]:.2f}')
 
         # ======================================================================
         # Print statements
