@@ -418,9 +418,10 @@ class Mapping:
         self.n_changes += 1
         if storage is None:
             memories = set().union(*(t.storage for t in self.einsum2tiling.values()))
+            memories = [m for m in memories if m.above_loop_index > 0]
+            if not memories:
+                raise FailedMutation("No memories to mutate")
             storage = random.choice(list(memories))
-            if storage.above_loop_index == 0:
-                raise FailedMutation(f"No loops above {storage} to mutate")
         if index is None:
             index = random.randint(0, storage.above_loop_index - 1)
         if einsum_name is None:
@@ -703,7 +704,7 @@ def get_accept_function(temperature, cooling_rate, evaluations_tracker):
             return False
         if new_score <= prev_eval_result:
             return True
-        scaleby = prev_eval_result * new_temp * evaluations_tracker.stop_at_score
+        scaleby = new_temp * evaluations_tracker.stop_at_score
         if scaleby > 0 and random.random() < exp((prev_eval_result - new_score) / scaleby):
             return True
         return False
@@ -726,7 +727,6 @@ def mutate(mapping: Mapping, mapspace_globals: MapsapceGlobals, accept_function:
     return prev_mapping, n_evaluations
 
 def _fuse_sims(
-    sims: dict[str, list[SIM]],
     mapspace_globals: MapsapceGlobals,
     n_threads: int,
     evaluations_tracker,
@@ -874,7 +874,9 @@ def _fuse_sims(
         except:
             pass
     try:
-        return pd.concat(eval_results), evaluations_tracker
+        return pd.DataFrame(), evaluations_tracker
+        assert False, "Not saving chosen mappings to avoid big files"
+        return pd.concat(eval_results), evaluations_tracker # <- Resulted in large files bc it's not pareto pruned
     except Exception as e:
         for i in range(30):
             print(f'Failed to concatenate results. Exception: {e}')
@@ -945,11 +947,10 @@ def fuse_sims(
         size_scale,
     )
     
-    n_threads = 32
+    n_threads = 96
     while n_threads >= 1:
         try:
             results_and_trackers = parallel([delayed(_fuse_sims)(
-                sims,
                 mapspace_globals,
                 n_threads=n_threads,
                 evaluations_tracker=copy.deepcopy(evaluations_tracker),
