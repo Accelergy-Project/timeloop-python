@@ -167,7 +167,6 @@ def fuse_sims(
         for s in sim_list:
             if VALID in s.mapping.data:
                 s.mapping.data = s.mapping.data[s.mapping.data[VALID] == 1]
-            s.mapping.data[MAPPING] = [{einsum_name: s.tiling} for _ in range(len(s.mapping.data))]
     
     print(f'Do the optimization where we put all the full mappings in a dict and grab them later')
     
@@ -454,7 +453,11 @@ def fuse_sims_no_skip_invalid(*args, **kwargs):
     return fuse_sims(*args, skip_invalid=False, **kwargs)
 
 def fuse_sims_no_combine_reservations(*args, **kwargs):
+    if len(args[0]) > 16:
+        args[0] = {k: v for k, v in list(args[0].items())[:2]}
     return fuse_sims(*args, combine_reservations=False, **kwargs)
 
 def fuse_sims_no_either(*args, **kwargs):
+    if len(args[0]) > 16:
+        args[0] = {k: v for k, v in list(args[0].items())[:2]}
     return fuse_sims(*args, skip_invalid=False, combine_reservations=False, **kwargs)
