@@ -561,7 +561,7 @@ class Mapping:
             valid_indices = mapspace_globals.einsum_tiling_2_valid[einsum_name][t]
             valid_porp = mapspace_globals.einsum_tiling_2_valid_porp[einsum_name][t]
             if valid_porp == 0:
-                n_evaluations += len(mapping)
+                n_evaluations += len(sim.mapping.data)
                 assert not return_df
                 return float("inf"), n_evaluations
             self.einsum2intra_choice[einsum_name] = random.choice(valid_indices)
