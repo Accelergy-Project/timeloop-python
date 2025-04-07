@@ -117,14 +117,13 @@ class Node:
         """
         for c in self.children:
             c.validate_loops(einsum2ranks)
-        if self.children:
-            for l in self.this_level:
-                if not isinstance(l, Loop):
-                    continue
-                for einsum, ranks in einsum2ranks:
-                    n_ranks_in_r = sum(1 for r in l.rank_names if r in ranks)
-                    if n_ranks_in_r > 1:
-                        return False
+        for l in self.this_level:
+            if not isinstance(l, Loop):
+                continue
+            for einsum, ranks in einsum2ranks:
+                n_ranks_in_einsum = sum(1 for r in l.rank_names if r in ranks)
+                if n_ranks_in_einsum > 1:
+                    return False
             
 def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any]=None,
                      skip_backing_tensors_in_right_branch: Iterable[str] = (), 
