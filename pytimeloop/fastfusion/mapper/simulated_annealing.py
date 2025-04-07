@@ -591,11 +591,13 @@ class Mapping:
                 self.einsum2tiling,
                 add_reservations=chosen_mappings,
             )
-            # tree.validate_loops(mapspace_globals.einsum2ranks)
         except:
             assert not return_df
             return float("inf"), n_evaluations
         
+        if not tree.validate_loops(mapspace_globals.einsum2ranks):
+            assert not return_df
+            return float("inf"), n_evaluations
 
         reservations = tree.get_reservations()
         for resource, capacity in mapspace_globals.resource2capacity.items():

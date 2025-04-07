@@ -109,6 +109,24 @@ class Node:
                 return found
         return None
 
+
+    def validate_loops(self, einsum2ranks):
+        """
+        Validate the loops in the tree. This is a placeholder function and should be
+        implemented with actual validation logic.
+        """
+        for c in self.children:
+            c.validate_loops(einsum2ranks)
+        if self.children:
+            assert len(self.this_level) == 1, "Only one loop expected at this level"
+            for l in self.this_level:
+                if not isinstance(l, Loop):
+                    continue
+                for einsum, ranks in einsum2ranks:
+                    n_ranks_in_r = sum(1 for r in l.rank_names if r in ranks)
+                    if n_ranks_in_r > 1:
+                        return False
+            
 def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any]=None,
                      skip_backing_tensors_in_right_branch: Iterable[str] = (), 
                      still_live_tensors: set[str] = (), skip_merge: bool = False,
@@ -226,6 +244,7 @@ def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any]=None,
                 )
 
     return root
+        
 
 def tilings2svg(mappings: dict[str, Tiling], stats: dict[str, Any], per_component_energy: dict[dict[str, float]] = None):
     root = tilings2looptree(mappings, stats, per_component_energy=per_component_energy)
