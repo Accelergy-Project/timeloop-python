@@ -120,7 +120,7 @@ class Node:
         for l in self.this_level:
             if not isinstance(l, Loop):
                 continue
-            for einsum, ranks in einsum2ranks:
+            for einsum, ranks in einsum2ranks.items():
                 n_ranks_in_einsum = sum(1 for r in l.rank_names if r in ranks)
                 if n_ranks_in_einsum > 1:
                     return False
