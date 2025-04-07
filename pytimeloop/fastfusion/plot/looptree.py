@@ -118,7 +118,6 @@ class Node:
         for c in self.children:
             c.validate_loops(einsum2ranks)
         if self.children:
-            assert len(self.this_level) == 1, "Only one loop expected at this level"
             for l in self.this_level:
                 if not isinstance(l, Loop):
                     continue
