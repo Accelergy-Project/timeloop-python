@@ -113,6 +113,18 @@ def is_special_col(c):
 # Shared index 0: Sum 0 resources, max everyone below
 
 
+def quick_pareto(df):
+    df["chosen"] = False
+    i = 0
+    while i != len(df):
+        i += 1
+        # Pick the entry which is not chosen & has the lowest first columns
+        idx = df.loc[~df["chosen"], df.columns[0]].idxmin()
+        df.loc[idx, "chosen"] = True
+        dominated = (df.iloc[:, :-1] >= df.loc[idx, df.columns[:-1]]).all(axis=1)
+        df = df[~dominated]
+    return df.drop(columns=["chosen"])
+
 def makepareto(
     data: pd.DataFrame,
     reverse_free: bool = True,
