@@ -4,6 +4,7 @@ import islpy as isl
 
 
 def get_sum_of_pw_qpolynomial(pw_qp):
+    """Get the sum of pw_qp over all points in the domain."""
     if isinstance(pw_qp, Number):
         return pw_qp
 
