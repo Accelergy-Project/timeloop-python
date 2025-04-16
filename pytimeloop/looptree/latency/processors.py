@@ -23,15 +23,22 @@ def process_sequential_latency(top_idx: int, latencies):
 def process_pipeline_latency(top_idx: int, latencies):
     sequential_latency = process_sequential_latency(top_idx, latencies)[1]
 
-    summed_latency = sum(map(lambda pair: pair[1], latencies))
-
     all_dim_tags = latencies[0][0]
     dim_tags = all_dim_tags[:]
     for pipeline_idx in range(len(dim_tags)):
         if isinstance(dim_tags[pipeline_idx], PipelineSpatialTag):
             break
-    summed_latency = sum_until_idx(pipeline_idx+1, summed_latency)
-    dim_tags = dim_tags[:pipeline_idx+1]
+
+    try:
+        dim_tags = dim_tags[:pipeline_idx+1]
+        summed_latency = sum(
+            sum_until_idx(pipeline_idx+1, latency)
+            for tags, latency in latencies
+        )
+    except:
+        print('Bad input:')
+        pprint.pp(latencies)
+        raise
 
     space = summed_latency.get_domain_space()
     hidden_latency_map = make_hidden_latency_map(dim_tags,

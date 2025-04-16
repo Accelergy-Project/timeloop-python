@@ -24,7 +24,10 @@ def compute_max(child_caps, caps):
 def compute_total(child_caps, caps):
     for child_cap in child_caps:
         for buf, v in child_cap.items():
-            caps[buf] += v
+            if buf in caps:
+                caps[buf] += v
+            else:
+                caps[buf] = v
 
 
 CAPACITY_AGGREGATORS = {
