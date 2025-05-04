@@ -1,23 +1,23 @@
 import logging
 import os
 import unittest
-from pytimeloop.timeloopfe.v4.processors.constraint_attacher import (
+from pytimeloop.frontend.v4.processors.constraint_attacher import (
     ConstraintAttacherProcessor,
 )
-from pytimeloop.timeloopfe.v4.processors.dataspace2branch import (
+from pytimeloop.frontend.v4.processors.dataspace2branch import (
     Dataspace2BranchProcessor,
 )
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.arch import (
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.arch import (
     ArchNodes,
     Hierarchical,
     Leaf,
     Parallel,
     Nothing,
 )
-from pytimeloop.timeloopfe.v4.constraints import Dataspace, ProblemDataspaceList
+from pytimeloop.frontend.v4.constraints import Dataspace, ProblemDataspaceList
 from typing import Tuple, Union
-from pytimeloop.timeloopfe.v4.processors import References2CopiesProcessor
+from pytimeloop.frontend.v4.processors import References2CopiesProcessor
 
 
 class PeerDataspaceTest(unittest.TestCase):

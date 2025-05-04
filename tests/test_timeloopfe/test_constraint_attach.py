@@ -1,12 +1,12 @@
 import os
 import unittest
-from pytimeloop.timeloopfe.v4.constraints import Temporal
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.arch import Leaf
-from pytimeloop.timeloopfe.v4.processors.constraint_attacher import (
+from pytimeloop.frontend.v4.constraints import Temporal
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.arch import Leaf
+from pytimeloop.frontend.v4.processors.constraint_attacher import (
     ConstraintAttacherProcessor,
 )
-from pytimeloop.timeloopfe.v4.processors import References2CopiesProcessor
+from pytimeloop.frontend.v4.processors import References2CopiesProcessor
 
 
 class TestConstraintAttach(unittest.TestCase):

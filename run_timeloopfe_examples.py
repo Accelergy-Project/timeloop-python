@@ -1,8 +1,8 @@
 import os
 import sys
 import logging
-import pytimeloop.timeloopfe.v4 as tl
-from pytimeloop.timeloopfe.v4.processors import EnableDummyTableProcessor
+import pytimeloop.frontend.v4 as tl
+from pytimeloop.frontend.v4.processors import EnableDummyTableProcessor
 
 
 if __name__ == "__main__":

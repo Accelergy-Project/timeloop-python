@@ -1,8 +1,8 @@
 import logging
 import os
 import unittest
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.arch import (
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.arch import (
     Component,
     Hierarchical,
     Parallel,
@@ -10,7 +10,7 @@ from pytimeloop.timeloopfe.v4.arch import (
     Leaf,
 )
 
-from pytimeloop.timeloopfe.common import ParseError
+from pytimeloop.frontend.common import ParseError
 
 
 class ArchNestTest(unittest.TestCase):

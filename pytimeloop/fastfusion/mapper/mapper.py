@@ -24,8 +24,8 @@ from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
 from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS, TENSORS
 from pytimeloop.fastfusion.mapper.process_results import Metrics
 
-from pytimeloop.timeloopfe.v4 import Ert
-from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+from pytimeloop.frontend.v4 import Ert
+from pytimeloop.frontend.common.backend_calls import call_accelergy_verbose
 
 
 def mapper(

@@ -4,8 +4,8 @@ from tests.util import gather_yaml_configs, TEST_TMP_DIR
 
 from bindings.config import Config
 from bindings.looptree import LooptreeModelApp, LooptreeWorkload
-from pytimeloop.timeloopfe.v4fused import Specification
-from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+from pytimeloop.frontend.v4fused import Specification
+from pytimeloop.frontend.common.backend_calls import call_accelergy_verbose
 
 
 def make_model_app(config_dir: Path, paths: list, tmp_path, call_accelergy: bool = True):

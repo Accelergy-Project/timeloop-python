@@ -1,11 +1,11 @@
 import os
 import unittest
-from pytimeloop.timeloopfe.v4.processors import References2CopiesProcessor
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.processors.constraint_macro import (
+from pytimeloop.frontend.v4.processors import References2CopiesProcessor
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.processors.constraint_macro import (
     ConstraintMacroProcessor,
 )
-from pytimeloop.timeloopfe.v4 import constraints
+from pytimeloop.frontend.v4 import constraints
 
 
 class TestConstraintMacroProcessorParsing(unittest.TestCase):

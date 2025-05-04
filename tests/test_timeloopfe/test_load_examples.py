@@ -4,7 +4,7 @@ import unittest
 import os
 
 
-from pytimeloop.timeloopfe.v4.specification import Specification
+from pytimeloop.frontend.v4.specification import Specification
 
 PROBLEM_FILE = "problem.yaml"
 MAPPER_FILE = "mapper_quick.yaml"

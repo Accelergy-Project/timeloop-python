@@ -2,28 +2,28 @@ import os
 import unittest
 from pathlib import Path
 
-from pytimeloop.timeloopfe.v4.processors.constraint_attacher import (
+from pytimeloop.frontend.v4.processors.constraint_attacher import (
     ConstraintAttacherProcessor,
 )
-from pytimeloop.timeloopfe.common.processor import Processor
-from pytimeloop.timeloopfe.common.nodes import DictNode, ParseError
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.arch import (
+from pytimeloop.frontend.common.processor import Processor
+from pytimeloop.frontend.common.nodes import DictNode, ParseError
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.arch import (
     Component,
     Hierarchical,
     Leaf,
     Storage,
     StorageAttributes,
 )
-from pytimeloop.timeloopfe.v4.constraints import Temporal
-from pytimeloop.timeloopfe.v4.processors import (
+from pytimeloop.frontend.v4.constraints import Temporal
+from pytimeloop.frontend.v4.processors import (
     Dataspace2BranchProcessor,
     References2CopiesProcessor,
 )
 
-from pytimeloop.timeloopfe.common import ParseError, ProcessorError
+from pytimeloop.frontend.common import ParseError, ProcessorError
 
-import pytimeloop.timeloopfe.v4 as tl
+import pytimeloop.frontend.v4 as tl
 
 
 class NodeTest(unittest.TestCase):

@@ -7,11 +7,11 @@ import os
 import logging
 from accelergy.utils import yaml
 
-from pytimeloop.timeloopfe.v4.specification import Specification as spec4
-from pytimeloop.timeloopfe.v3.specification import Specification as spec3
-from pytimeloop.timeloopfe.common.backend_calls import call_mapper, call_model, to_mapper_app, to_model_app
+from pytimeloop.frontend.v4.specification import Specification as spec4
+from pytimeloop.frontend.v3.specification import Specification as spec3
+from pytimeloop.frontend.common.backend_calls import call_mapper, call_model, to_mapper_app, to_model_app
 
-from pytimeloop.timeloopfe.v4.processors import (
+from pytimeloop.frontend.v4.processors import (
     References2CopiesProcessor,
     ConstraintAttacherProcessor,
     ConstraintMacroProcessor,

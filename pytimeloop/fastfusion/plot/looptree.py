@@ -124,6 +124,7 @@ class Node:
                 n_ranks_in_einsum = sum(1 for r in l.rank_names if r in ranks)
                 if n_ranks_in_einsum > 1:
                     return False
+        return True
             
 def tilings2looptree(mappings: dict[str, Tiling], stats: dict[str, Any]=None,
                      skip_backing_tensors_in_right_branch: Iterable[str] = (), 

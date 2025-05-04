@@ -21,8 +21,8 @@ from pytimeloop.fastfusion.sim import Tiling, Loop, TensorStorage
 from pytimeloop.fastfusion.pareto import LOGSTRING, MAPPING, STATS, DICT_COLUMNS, TENSORS
 from pytimeloop.fastfusion.mapper.process_results import Metrics
 
-from pytimeloop.timeloopfe.v4 import Ert
-from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+from pytimeloop.frontend.v4 import Ert
+from pytimeloop.frontend.common.backend_calls import call_accelergy_verbose
 from pytimeloop.fastfusion.sim import SIM
 
 
@@ -61,11 +61,11 @@ def mapper(
         tmp_path = str(tmp_path)
         print(f'Calling Accelergy in {tmp_path}')
     
-    try:
-        call_accelergy_verbose(spec, tmp_path, extra_args=[f" > {tmp_path}/accelergy.log 2>&1"])
-    except Exception as e:
-        logger.error(f"Error running Accelergy: {e}. Log in {tmp_path}/accelergy.log")
-        raise
+    # try:
+    #     call_accelergy_verbose(spec, tmp_path, extra_args=[f" > {tmp_path}/accelergy.log 2>&1"])
+    # except Exception as e:
+    #     logger.error(f"Error running Accelergy: {e}. Log in {tmp_path}/accelergy.log")
+    #     raise
     ert_dict = yaml.load(Path(tmp_path) / "ERT.yaml")
     ert = Ert(ert_dict["ERT"])
     energy_dict = ert.to_dict()

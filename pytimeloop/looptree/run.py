@@ -13,8 +13,8 @@ from pytimeloop.looptree.des import deserialize_looptree_output
 from pytimeloop.looptree.energy import gather_actions, compute_energy_from_actions
 from pytimeloop.looptree.latency import get_latency
 
-from pytimeloop.timeloopfe.v4fused import Specification
-from pytimeloop.timeloopfe.common.backend_calls import call_accelergy_verbose
+from pytimeloop.frontend.v4fused import Specification
+from pytimeloop.frontend.common.backend_calls import call_accelergy_verbose
 
 
 @dataclass

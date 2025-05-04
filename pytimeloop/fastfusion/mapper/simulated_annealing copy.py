@@ -2,8 +2,10 @@ from collections import defaultdict
 from collections.abc import Mapping
 import copy
 import itertools
-from math import exp
+from math import ceil, exp, prod
+import math
 import random
+import threading
 import time
 
 import pandas as pd
@@ -12,12 +14,14 @@ from joblib import delayed
 from pytimeloop.looptree.equivalent_ranks import PairwiseEquivalentRanks
 
 from pytimeloop.fastfusion.sim import SIM, Loop, TensorStorage, Tiling
-from pytimeloop.fastfusion.pareto import MAPPING, Pareto, is_special_col, merge_cross
+from pytimeloop.fastfusion.pareto import MAPPING, Pareto, is_special_col, VALID, col2nameloop
 from pytimeloop.fastfusion.util import fzs, parallel, debugger_active
 
-from pytimeloop.fastfusion.plot.looptree import tilings2looptree#, NotEnoughLoopsError,
+from pytimeloop.fastfusion.plot.looptree import (
+    tilings2looptree,
+)  # , NotEnoughLoopsError,
 
-
+OBJECTIVE_COLUMN = None # None -> Product
 
 
 def explore_fusion(
@@ -44,37 +48,6 @@ def mapping2sims(einsum_to_result: Mapping):
 def paretofy(k, v):
     return SIM(k, Pareto(pd.DataFrame(v).fillna(0)))
 
-
-def get_possible_translations(
-    t: Tiling, 
-    pairwise_equivalent_ranks: dict[str, set[str]],
-    full_equivalent_ranks: dict[str, set[str]],
-    right_ranks: set[str]
-):
-    # Fused ranks should be transitive, but if a fused loop indexes into two
-    # different ranks in the next Einsum, we can't fuse becuase it will tile in
-    # multiple directions.
-    #
-    # The first union checks what loops we CAN fuse with in the next Einsum. The
-    # second union checks what loops MUST index into in the next
-    #
-    # Einsum. If we alias into multiple ranks, we can't fuse. Otherwise, try out
-    # each possible rank.
-    def translate_loop(l: Loop):
-        compatible_ranks = set.union(
-            *(full_equivalent_ranks[n] for n in l.rank_names)
-        ) & right_ranks
-        pairwise_compatible_ranks = set.union(
-            *(pairwise_equivalent_ranks[n] for n in l.rank_names)
-        ) & right_ranks
-        if len(pairwise_compatible_ranks) > 1:
-            return
-        for n in compatible_ranks:
-            yield Loop(fzs((n,)), l.bound, l.is_spatial)
-
-    for loops in itertools.product(*map(translate_loop, t.loops)):
-        yield Tiling(loops, t.storage, t.tags)
-
 class GroupOfSIMsHolder:
     def __init__(self, einsum_name: str, sim_list: list[SIM]):
         self.einsum_name: str = einsum_name
@@ -84,40 +57,143 @@ class GroupOfSIMsHolder:
     def __getitem__(self, i):
         return self.sims[i]
 
+
 class MapsapceGlobals:
-    def __init__(self, sims: dict[str, list[SIM]], einsum2ranks: dict[str, set[str]], pairwise_equivalent_ranks: PairwiseEquivalentRanks):
+    def __init__(
+        self,
+        sims: dict[str, list[SIM]],
+        einsum2ranks: dict[str, set[str]],
+        pairwise_equivalent_ranks: PairwiseEquivalentRanks,
+        resource2capacity: dict,
+        objective_function_cols: str,
+    ):
         self.sims = sims
         self.einsum_names = list(sims.keys())
+        self.tensor_names = set().union(*(s[0].tensor_names for s in sims.values()))
+        self.resource2capacity = resource2capacity
+        self.objective_function_cols = objective_function_cols
         self.storage2possible_loops_above = self._create_storage2possible_loops_above()
-        self.tensor2storage = self._create_tensor2storage()
+        self.storage2possible_loops_above_set = {
+            k: {k2: set(v2) for k2, v2 in v.items()} for k, v in self.storage2possible_loops_above.items()
+        }
+        self.tensor2memories = self._create_tensor2memories()
+        self.pairwise_equivalent_ranks = pairwise_equivalent_ranks
+        self.full_equivalent_ranks = self._create_full_equivalent_ranks(
+            pairwise_equivalent_ranks
+        )
+        self.einsum2ranks = einsum2ranks
         self.rank_translations = self._create_rank_translations(einsum2ranks)
-        self.full_equivalent_ranks = self._create_full_equivalent_ranks(pairwise_equivalent_ranks)
-        self.tensor_names = set().union(*(s.tensor_names for s in sims.values()))
+        self.einsum_tiling_2_sim = self._create_einsum_tiling_2_sim()
+        self.einsum_rank_index_to_loops = self._create_einsum_rank_index_to_loops()
+        self.einsum2tensors = {k: set(s[0].tensor_names) for k, s in sims.items()}
+        self.tiling2leftcompatibility, self.tiling2rightcompatibility, self.leftcompatibility2tiling, self.rightcompatibility2tiling = self._create_compatibility()
+        self.einsum_tiling_2_valid, self.einsum_tiling_2_valid_porp = self._create_einsum_tiling_2_valid()
+        
+    def _create_einsum_tiling_2_valid(self):
+        einsum_tiling_2_valid = {}
+        einsum_tiling_2_valid_porp = {}
+        for einsum_name, sim_list in self.sims.items():
+            einsum_tiling_2_valid[einsum_name] = {}
+            einsum_tiling_2_valid_porp[einsum_name] = {}
+            for sim in sim_list:
+                sim.mapping.data.reset_index(drop=True, inplace=True)
+                valid_indices = list(sim.mapping.data.index[sim.mapping.data[VALID] == True])
+                valid_indices_porp = len(valid_indices) / len(sim.mapping.data)
+                einsum_tiling_2_valid[einsum_name][sim.tiling] = valid_indices
+                einsum_tiling_2_valid_porp[einsum_name][sim.tiling] = valid_indices_porp
+        return einsum_tiling_2_valid, einsum_tiling_2_valid_porp
+
+        
+    def get_live_tensors(self, *einsums: str):
+        return set.union(*(self.einsum2tensors[e] for e in einsums))
+        
+    def _create_compatibility(self):
+        tiling2leftcompatibility = {}
+        tiling2rightcompatibility = {}
+        def tilings2compatibility(tilings: list[Tiling], live_tensors: set[str], keep_tensors: set[str]):
+            return {
+                t: t.clear_dead_tensors(live_tensors=live_tensors, keep_tensors=keep_tensors)
+                for t in tilings
+            }
+            
+        for i, (einsum_name, sim_list) in enumerate(self.sims.items()):
+            if i > 0:
+                prev_live = self.get_live_tensors(*self.einsum_names[:i])
+                prev = self.get_live_tensors(self.einsum_names[i - 1])
+                tiling2leftcompatibility[einsum_name] = tilings2compatibility(
+                    [s.tiling for s in sim_list],
+                    prev_live,
+                    prev,
+                )
+            if i < len(self.sims) - 1:
+                next_live = self.get_live_tensors(*self.einsum_names[i + 1:])
+                next = self.get_live_tensors(self.einsum_names[i])
+                tiling2rightcompatibility[einsum_name] = tilings2compatibility(
+                    [s.tiling for s in sim_list],
+                    next_live,
+                    next,
+                )
+        
+        leftcompatibility2tiling = {}
+        rightcompatibility2tiling = {}
+        for einsum_name in self.einsum_names:
+            for src, dst in (
+                (tiling2leftcompatibility, leftcompatibility2tiling),
+                (tiling2rightcompatibility, rightcompatibility2tiling),
+            ):
+                if einsum_name not in src:
+                    continue
+                dst = dst.setdefault(einsum_name, {})
+                for k, v in src[einsum_name].items():
+                    dst.setdefault(v, []).append(k)
+        return (
+            tiling2leftcompatibility,
+            tiling2rightcompatibility,
+            leftcompatibility2tiling,
+            rightcompatibility2tiling,
+        )
+        
+    def _create_einsum_tiling_2_sim(self):
+        einsum_tiling_2_sim = {}
+        for e, sim_list in self.sims.items():
+            cur_sims = defaultdict(list)
+            for sim in sim_list:
+                cur_sims[sim.tiling].append(sim)
+            einsum_tiling_2_sim[e] = {}
+            for t, s in cur_sims.items():
+                s = SIM.concat(s)
+                einsum_tiling_2_sim[e][t] = s
+        return einsum_tiling_2_sim
         
     def _create_storage2possible_loops_above(self):
         storage2possible_loops_above = {}
-        for einsum_name, sim_list in self.items():
+        for einsum_name, sim_list in self.sims.items():
             storage2possible_loops_above[einsum_name] = defaultdict(set)
             for sim in sim_list:
                 for storage in sim.tiling.storage:
-                    storage2possible_loops_above[einsum_name][storage] |= set(sim.tiling.loops[:storage.above_loop_index])
-        return {e: {s: list(l) for s, l in d.items()} for e, d in self.storage2possible_loops_above.items()}
+                    storage2possible_loops_above[einsum_name][storage] |= set(
+                        sim.tiling.loops[: storage.above_loop_index]
+                    )
+        return {
+            e: {s: list(l) for s, l in d.items()}
+            for e, d in storage2possible_loops_above.items()
+        }
 
-    def _create_tensor2storage(self):
-        tensor2storage = {}
+    def _create_tensor2memories(self):
+        tensor2memories = {}
         for t in self.tensor_names:
-            possible_storage = []
-            for einsum_name, sim_list in self.items():
-                cur_storage = set()
+            possible_memories = []
+            for einsum_name, sim_list in self.sims.items():
+                cur_memories = set()
                 if t not in sim_list[0].tensor_names:
                     continue
                 for sim in sim_list:
                     storage = sim.tiling.get_tensor_storage(t)
-                    cur_storage.add(storage)
-                possible_storage.append(cur_storage)
-            tensor2storage[t] = list(set.intersection(*possible_storage))
-        return tensor2storage
-    
+                    cur_memories.add(storage)
+                possible_memories.append(cur_memories)
+            tensor2memories[t] = list(set.intersection(*possible_memories))
+        return tensor2memories
+
     def _create_rank_translations(self, einsum2ranks: dict[str, set[str]]):
         rank_translations = {}
         for einsum_name, ranks in einsum2ranks.items():
@@ -126,11 +202,18 @@ class MapsapceGlobals:
                 for rank in ranks:
                     equiv = self.full_equivalent_ranks[rank] & ranks2
                     translations[einsum_name2][rank] = equiv
-            rank_translations[einsum_name] = {k: {k2: list(v2) for k2, v2 in v.items()} for k, v in translations.items()}
+            rank_translations[einsum_name] = {
+                k: {k2: list(v2) for k2, v2 in v.items()}
+                for k, v in translations.items()
+            }
         return rank_translations
-    
-    def _create_full_equivalent_ranks(self, pairwise_equivalent_ranks: PairwiseEquivalentRanks):
-        full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
+
+    def _create_full_equivalent_ranks(
+        self, pairwise_equivalent_ranks: PairwiseEquivalentRanks
+    ):
+        full_equivalent_ranks = {
+            k: set(v) for k, v in pairwise_equivalent_ranks.items()
+        }
         changed = True
         while changed:
             changed = False
@@ -143,10 +226,44 @@ class MapsapceGlobals:
                         full_equivalent_ranks[r].add(r3)
         return full_equivalent_ranks
     
+    def _create_einsum_rank_index_to_loops(self) -> dict[str, dict[str, dict[int, list[Loop]]]]:
+        einsum_rank_index_to_loops = {}
+        for einsum_name, sim_list in self.sims.items():
+            einsum_rank_index_to_loops[einsum_name] = {}
+            for sim in sim_list:
+                for rank_index, loop in enumerate(sim.tiling.loops):
+                    x = einsum_rank_index_to_loops[einsum_name].setdefault(loop.rank_name, {})
+                    x.setdefault(rank_index, []).append(loop)
+        return einsum_rank_index_to_loops
+
+    def get_tensors(self, *einsums: str):
+        return set.union(*(self.einsum2tensors[e] for e in einsums))
+
+
+    def get_possible_translations(self, t: Tiling, to_einsum: str):
+        pairwise_equivalent_ranks = self.pairwise_equivalent_ranks
+        full_equivalent_ranks = self.full_equivalent_ranks
+        right_ranks = self.einsum2ranks[to_einsum]
+        def translate_loop(l: Loop):
+            compatible_ranks = set.union(
+                *(full_equivalent_ranks[n] for n in l.rank_names)
+            ) & right_ranks
+            pairwise_compatible_ranks = set.union(
+                *(pairwise_equivalent_ranks[n] for n in l.rank_names)
+            ) & right_ranks
+            if len(pairwise_compatible_ranks) > 1:
+                return
+            for n in compatible_ranks:
+                yield Loop(fzs((n,)), l.bound, l.is_spatial)
+        for loops in itertools.product(*map(translate_loop, t.loops)):
+            yield Tiling(loops, t.storage, t.tags)
+
+class FailedMutation(Exception):
+    pass
+
 
 class Mapping:
     def __init__(self, sims: dict[str, list[SIM]]):
-        self.sims = sims
         self.einsum_names = list(sims.keys())
         self.einsum2intra_choice = {einsum_name: 0 for einsum_name in self.einsum_names}
         self.einsum2tiling = {}
@@ -154,358 +271,624 @@ class Mapping:
             tensor_names = sim_list[0].tensor_names
             tensors = fzs(TensorStorage(t, 0, 0, 0) for t in tensor_names)
             self.einsum2tiling[einsum_name] = Tiling(tuple(), tensors)
-            
-    def fix_loops(self):
-        for einsum, tiling in self.einsum2tiling.items():
-            n_loops = max(s.above_loop_index for s in tiling.storage)
-            
-            # If there's too many loops then drop the extra ones
-            if n_loops < len(tiling.loops):
-                for e, t in self.einsum2tiling.items():
-                    self.einsum2tiling[e] = t.update(loops=t.loops[:n_loops])
-                    
-            # If there's not enough loops then add some 
-            if n_loops > len(tiling.loops):
-                for tensor in tiling.storage:
-                    for loop in range(len(tiling.loops), tensor.above_loop_index):
-                        self.randomize_loop(tensor, loop, einsum)
-                        self.force_loop_match(loop, einsum)
+        self.prev_score = float("inf")
+        # self.history = []
+        class dummy_appender:
+            def append(*args, **kwargs):
+                pass
+        self.history = dummy_appender()
+        self.n_crossovers = 0
+        self.n_mutations = 0
+        
+        self.n_changes = 0
+        self.prev_eval_result = None
+        self.prev_eval_at_n_changes = -1
 
-    def randomize_loop(self, storage: TensorStorage, index: int, einsum_name: str):
-        if storage is None:
-            storage = set().union(*(t.storage for t in self.einsum2tiling.values()))
-            storage = random.choice(list(storage))
-        
-        
+    def fix_loops(self, mapspace_globals: MapsapceGlobals):
+        """ Ensure that all tilings have the correct number of loops """
+        self.n_changes += 1
+        self.history.append("Fixing loops")
+
+        try: 
+            for einsum in self.einsum_names:
+                tiling = self.einsum2tiling[einsum]
+                n_loops = max(t.above_loop_index for t in tiling.storage)
+
+                # If there's too many loops then drop the extra ones
+                if n_loops < len(tiling.loops):
+                    self.einsum2tiling[einsum] = tiling.update(loops=tiling.loops[:n_loops])
+
+                # If there's not enough loops then add some
+                if n_loops > len(tiling.loops):
+                    for tensor in tiling.storage:
+                        for loop in range(len(tiling.loops), tensor.above_loop_index):
+                            self.mutate_loop(mapspace_globals, tensor, loop, einsum)
+                            self.force_loop_match(mapspace_globals, loop, einsum)
+                assert n_loops == len(self.einsum2tiling[einsum].loops)
+                
+                tiling = self.einsum2tiling[einsum]
+                tensors = tiling.storage
+                for i in range(len(tiling.loops)):
+                    tensors = list(t for t in tensors if t.above_loop_index > i)
+                    if not tensors:
+                        continue
+                    possible_loops = set.intersection(
+                        *(mapspace_globals.storage2possible_loops_above_set[einsum][t] for t in tensors)
+                    )
+                    if not possible_loops:
+                        raise FailedMutation(f"No possible loops above {i} for {einsum}")
+                    if tiling.loops[i] not in possible_loops:
+                        new_loop = random.choice(list(possible_loops))
+                        self.history.append(f"Fixing loop {i} for {einsum} to {new_loop}")
+                        tiling = tiling.set_loop(i, new_loop)
+                self.einsum2tiling[einsum] = tiling
+
+        except FailedMutation:
+            self.history.append(f"Failed to fix loops")
+            raise FailedMutation("Failed to fix loops")
+
+
+    def match_loops(
+        self, index: int, einsum_name: str, mapspace_globals: MapsapceGlobals
+    ):
+        """ Ensure that loops match across Einsums """
+        self.n_changes += 1
         tiling = self.einsum2tiling[einsum_name]
-        candidates = storage2possible_loops_above[einsum_name][storage]
-        loop = None
+        for einsum_name2, tiling2 in self.einsum2tiling.items():
+            if einsum_name2 == einsum_name:
+                continue
+            shared_loop_index = max(
+                tiling.shared_loop_index(tiling2.tensor_names),
+                tiling2.shared_loop_index(tiling.tensor_names),
+            )
+            for i in range(min(shared_loop_index, index) + 1):
+                # Translate loop from einsum_name to einsum_name2
+                loop = tiling.loops[i]
+                translations = mapspace_globals.rank_translations[einsum_name][
+                    einsum_name2
+                ][loop.rank_name]
+                if not translations:
+                    raise FailedMutation(
+                        f"Failed to translate loop {loop} from {einsum_name} to {einsum_name2}"
+                    )
+                rank_name = random.choice(translations)
+                tiling2 = tiling2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
+            self.einsum2tiling[einsum_name2] = tiling2
+
+
+    def mutate_loop(
+        self,
+        mapspace_globals: MapsapceGlobals,
+        storage: TensorStorage=None,
+        index: int=None,
+        einsum_name: str=None,
+    ):
+        self.n_changes += 1
+        if storage is None:
+            memories = set().union(*(t.storage for t in self.einsum2tiling.values()))
+            storage = random.choice(list(memories))
+            if storage.above_loop_index == 0:
+                raise FailedMutation(f"No loops above {storage} to mutate")
+        if index is None:
+            index = random.randint(0, storage.above_loop_index - 1)
+        if einsum_name is None:
+            possible_einsums = [e for e, t in self.einsum2tiling.items() if storage in t.storage]
+            assert possible_einsums
+            einsum_name = random.choice(possible_einsums)
+
+        tiling = self.einsum2tiling[einsum_name]
+        prev_loop = None
+
+        choice = random.choice(["Increasing", "Decreasing", "Randomizing"])
         if len(tiling.loops) <= index:
-            choice = 'Randomizing'
-        else:
-            choice = random.choice(['Increasing', 'Decreasing', 'Randomizing'])
+            choice = "Randomizing"
 
-        if choice == 'Randomizing':
+        candidates = mapspace_globals.storage2possible_loops_above[einsum_name][storage]
+        if choice == "Randomizing":
             new_loop = random.choice(candidates)
         else:
-            loop = tiling.loops[index]
-            rank, bound = loop.rank_name, loop.bound
-            candidates = [c for c in candidates if c.rank_name == rank]
-            if choice == 'Increasing':
-                pruned_candidates = [c for c in candidates if c.bound > bound]
-            else:
-                pruned_candidates = [c for c in candidates if c.bound < bound]
-            if len(pruned_candidates) == 0:
-                choice = 'Randomizing'
-            else:
-                candidates = pruned_candidates
+            prev_loop = tiling.loops[index]
+            rank, bound = prev_loop.rank_name, prev_loop.bound
+            comparison = lambda x, y: x > y if choice == "Increasing" else x < y
+
+            candidates = [
+                c
+                for c in candidates
+                if comparison(c.bound, bound) and c.rank_name == rank
+            ]
             if not candidates:
-                return None
-
+                raise FailedMutation(
+                    f"{choice} {prev_loop} for {einsum_name} at {index} failed"
+                )
             new_loop = random.choice(candidates)
-        print(f'{choice} loop {loop} -> {new_loop}')
 
+        self.history.append(f"{choice} loop {index} for {einsum_name} to {new_loop}")
         self.einsum2tiling[einsum_name] = tiling.set_loop(index, new_loop)
-        return self.force_loop_match(index, einsum_name)
 
+    def get_shared_loop_index(
+            self, 
+            mapspace_globals: MapsapceGlobals, 
+            einsum_name0: int, 
+            einsum_name1: int
+        ):
+        einsum_names = list(self.einsum2tiling.keys())
+        if einsum_name0 == einsum_name1:
+            einsum_name = einsum_names[einsum_index0]
+            return len(self.einsum2tiling[einsum_name].loops) - 1
+        
+        einsum_index0 = einsum_names.index(einsum_name0)
+        einsum_index1 = einsum_names.index(einsum_name1)
+        
+        if einsum_index0 > einsum_index1:
+            einsum_index0, einsum_index1 = einsum_index1, einsum_index0
+            
+        tiling0 = self.einsum2tiling[einsum_names[einsum_index0]]
+        tiling1 = self.einsum2tiling[einsum_names[einsum_index1]]
+        left_tensors = mapspace_globals.get_tensors(*einsum_names[:einsum_index0 + 1])
+        right_tensors = mapspace_globals.get_tensors(*einsum_names[einsum_index1:])
+        return max(
+            tiling0.shared_loop_index(right_tensors),
+            tiling1.shared_loop_index(left_tensors),
+        )
+
+    def force_loop_match(
+        self, mapspace_globals: MapsapceGlobals, index: int, einsum_name: str, 
+    ):
+        self.n_changes += 1
+        tiling = self.einsum2tiling[einsum_name]
+        for einsum_name2, tiling2 in self.einsum2tiling.items():
+            if einsum_name2 == einsum_name:
+                continue
+            shared_loop_index = self.get_shared_loop_index(mapspace_globals, einsum_name, einsum_name2)
+            rank_translations = mapspace_globals.rank_translations[einsum_name][einsum_name2]
+            for i in range(min(shared_loop_index, index) + 1):
+                loop = tiling.loops[i]
+                translations = rank_translations[loop.rank_name]
+                if not translations:
+                    raise FailedMutation(
+                        f"Failed to translate loop {loop} from {einsum_name} to {einsum_name2}"
+                    )
+                rank_name = random.choice(translations)
+                tiling2 = tiling2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
+            self.einsum2tiling[einsum_name2] = tiling2
+
+    def mutate_backing_storage(self, mapspace_globals: MapsapceGlobals):
+        self.n_changes += 1
+        tensor = random.choice(list(mapspace_globals.tensor_names))
+        storage = random.choice(mapspace_globals.tensor2memories[tensor])
+        for t in self.einsum2tiling.values():
+            if storage in t.storage:
+                raise FailedMutation(
+                    f"Moving tensor {tensor} to storage {storage} failed"
+                )
+        self.history.append(f"Moving tensor {tensor} to storage {storage}")
+        for einsum, tiling in self.einsum2tiling.items():
+            self.einsum2tiling[einsum] = tiling.set_tensor_storage(tensor, storage)
+        self.fix_loops(mapspace_globals)
+
+    def mutate_order(self, mapspace_globals: MapsapceGlobals):
+        return
+        self.n_changes += 1
+        e0, e1 = random.sample(self.einsum_names, 2)
+        print(f"Switching {e0} and {e1}")
+        self.einsum2tiling[e0], self.einsum2tiling[e1] = (
+            self.einsum2tiling[e1],
+            self.einsum2tiling[e0],
+        )
+        self.fix_loops(mapspace_globals)
+
+    def evaluate(self, mapspace_globals: MapsapceGlobals, return_df=False) -> float:
+        if self.n_changes == self.prev_eval_at_n_changes and not return_df:
+            return self.prev_eval_result, 1
+        chosen_sims = []
+        chosen_mappings = {}
+        n_evaluations = 1
+        
+        if self.n_changes == self.prev_eval_at_n_changes and not return_df:
+            return self.prev_eval_result, 1
+        self.prev_eval_at_n_changes = self.n_changes
+        self.prev_eval_result = float("inf")
+
+        for einsum_name, t in self.einsum2tiling.items():
+            if t not in mapspace_globals.einsum_tiling_2_sim[einsum_name]:
+                assert not return_df
+                return float("inf"), n_evaluations
+            sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][t]
+            chosen_sims.append(sim)
+            intra_mappings = sim.mapping.data
+            mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
+            if not mapping[VALID]:
+                valid_indices = mapspace_globals.einsum_tiling_2_valid[einsum_name][t]
+                valid_porp = mapspace_globals.einsum_tiling_2_valid_porp[einsum_name][t]
+                if valid_porp == 0:
+                    n_evaluations += len(mapping)
+                    assert not return_df
+                    return float("inf"), n_evaluations
+                choice = valid_indices[self.einsum2intra_choice[einsum_name] % len(valid_indices)]
+                self.einsum2intra_choice[einsum_name] = choice
+                n_evaluations += 1 / valid_porp
+                mapping = intra_mappings.iloc[choice]
+            assert mapping[VALID]
+            
+            # for i in range(10000): # Intra-layer search to find a valid mapping
+            #     if VALID not in mapping or mapping[VALID]:
+            #         break
+            #     n_evaluations += 1
+            #     self.einsum2intra_choice[einsum_name] = random.randint(1, 1e12)
+            #     mapping = intra_mappings.iloc[self.einsum2intra_choice[einsum_name] % len(intra_mappings)]
+            if VALID in mapping and not mapping[VALID]:
+                assert not return_df
+                return float("inf"), n_evaluations
+            chosen_mappings[einsum_name] = mapping
+
+        # mapping = {}
+        # for c in chosen_mappings:
+        #     mapping.update(c[MAPPING])
+        try:
+            # tree = tilings2looptree(mapping, None)
+            tree = tilings2looptree(
+                self.einsum2tiling,
+                add_reservations=chosen_mappings,
+            )
+            # tree.validate_loops(mapspace_globals.einsum2ranks)
+        except:
+            assert not return_df
+            return float("inf"), n_evaluations
+
+        reservations = tree.get_reservations()
+        for resource, capacity in mapspace_globals.resource2capacity.items():
+            if capacity is not None and reservations.get(resource, 0) > capacity:
+                assert not return_df
+                return float("inf"), n_evaluations
+            
+        obj_cols = mapspace_globals.objective_function_cols
+        score = prod(sum(c[col] for c in chosen_mappings.values()) for col in obj_cols)
+        if return_df:
+            d = {col: sum(c[col] for c in chosen_mappings.values()) for col in obj_cols}
+            d[MAPPING] = mapping
+            for k, v in reservations.items():
+                d[f"RESOURCE_{k}_LEVEL_0"] = v
+            self.prev_eval_result = score
+            return pd.DataFrame([d]), n_evaluations
+        self.prev_eval_result = score
+        return score, n_evaluations
+    
+    def mutate_intra_mapping(self, mapspace_globals: MapsapceGlobals):
+        self.n_changes += 1
+        einsum_name = random.choice(self.einsum_names)
+        intra_choice = random.randint(0, 1e12)
+        self.history.append(f"Choosing intra-layer mapping {intra_choice} for {einsum_name}")
+        self.einsum2intra_choice[einsum_name] = intra_choice
+    
+    def get_mutation_functions(self):
+        return [self.mutate_loop, self.mutate_backing_storage, self.mutate_order, self.mutate_intra_mapping]
+
+    def crossover(self, other: Mapping, mapspace_globals: MapsapceGlobals):
+        child = copy.deepcopy(other)
+        einsum_name = random.choice(child.einsum_names)
+        try:
+            child.einsum2tiling[einsum_name] = self.einsum2tiling[einsum_name]
+            child.einsum2intra_choice[einsum_name] = self.einsum2intra_choice[einsum_name]
+            child.n_changes += 1
+            for i in range(len(child.einsum2tiling[einsum_name].loops)):
+                child.match_loops(i, einsum_name, mapspace_globals)
+            child.fix_loops(mapspace_globals)
+            child.n_crossovers += 1
+        except FailedMutation:
+            return copy.deepcopy(other)
+        return child
+    
+    @staticmethod
+    def create_random_mapping(mapspace_globals: MapsapceGlobals):
+        mapping = Mapping(mapspace_globals.sims)
+        prev_compatibility: Tiling = None
+        einsum_names = list(mapping.einsum2tiling.keys())
+        for i, einsum_name in enumerate(einsum_names):
+            sim_list = mapspace_globals.sims[einsum_name]
+            if prev_compatibility is None:
+                sim = random.choice(sim_list)
+                mapping.einsum2tiling[einsum_name] = sim.tiling
+                if len(einsum_names) == 1:
+                    break
+                prev_compatibility = mapspace_globals.tiling2rightcompatibility[einsum_name][sim.tiling]
+                live_tensors = mapspace_globals.get_live_tensors(*einsum_names[i+1:])
+                prev_compatibility = prev_compatibility.clear_dead_tensors(live_tensors=live_tensors)
+                continue
+
+            tilings = []
+            compatiblity_options = mapspace_globals.leftcompatibility2tiling[einsum_name]
+            cur_tensors = mapspace_globals.get_tensors(einsum_name)
+            for translation in mapspace_globals.get_possible_translations(
+                prev_compatibility,
+                einsum_name
+            ):
+                translation = translation.clear_dead_tensors(live_tensors=cur_tensors, keep_loops=True)
+                if translation in compatiblity_options:
+                    tilings.extend(compatiblity_options[translation])
+            if not tilings:
+                raise FailedMutation(f"No tilings for {einsum_name} with {prev_compatibility}")
+            tiling = random.choice(tilings)
+            sim = mapspace_globals.einsum_tiling_2_sim[einsum_name][tiling]
+            mapping.einsum2tiling[einsum_name] = tiling
+            mapping.einsum2intra_choice[einsum_name] = random.randint(0, 1e12)
+            if i == len(einsum_names) - 1:
+                break
+            
+            new_compatibility: Tiling = mapspace_globals.tiling2rightcompatibility[einsum_name][tiling]
+
+            # Combine prev_compatibility and new_compatibility
+            live_tensors = mapspace_globals.get_live_tensors(*einsum_names[i+1:])
+            prev_compatibility = prev_compatibility.merge_next(new_compatibility, live_tensors)
+        return mapping
+    
+def get_accept_function(temperature, cooling_rate, evaluations_tracker):
+    proportion = evaluations_tracker.evaluations / evaluations_tracker.max_evaluations
+    new_temp = (
+        temperature
+        * (1 - proportion)
+        / (1 + cooling_rate * proportion)
+    )
+    def accept(prev_score, new_score):
+        if new_score == float("inf"):
+            return False
+        if new_score <= prev_score:
+            return True
+        scaleby = prev_score * new_temp
+        if scaleby > 0 and random.random() < exp((prev_score - new_score) / scaleby):
+            return True
+        return False
+    return accept
+
+def mutate(mapping: Mapping, mapspace_globals: MapsapceGlobals, accept_function: callable):
+    prev_mapping = copy.deepcopy(mapping)
+    prev_score = mapping.prev_score
+    n_evaluations = 1
+    try:
+        choice = random.choice(mapping.get_mutation_functions())
+        choice(mapspace_globals)
+    except FailedMutation:
+        return prev_mapping, n_evaluations
+    prev_score = mapping.prev_score
+    new_score, n_evaluations = mapping.evaluate(mapspace_globals)
+    if new_score == float("inf"):
+        return prev_mapping, n_evaluations
+    if accept_function(prev_score, new_score):
+        return mapping, n_evaluations
+    return prev_mapping, n_evaluations
+
+def _fuse_sims(
+    sims: dict[str, list[SIM]],
+    mapspace_globals: MapsapceGlobals,
+    n_threads: int,
+    evaluations_tracker,
+    algorithm: str
+):
+    random.seed(time.time() + hash(threading.get_ident()))  # Seed with thread ID
+    evaluations_tracker.set_scale_by(len(mapspace_globals.einsum_names))
+    evaluations_tracker.print_period *= n_threads
+    evaluations_tracker.max_evaluations //= n_threads
+    def anneal_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
+        temperature = 0.07
+        cooling_rate = 8
+        while True:
+            accept_function = get_accept_function(temperature, cooling_rate, evaluations_tracker)
+            # population = parallel([delayed(mutate)(m, mapspace_globals, accept_function) for m in population])
+            for j, mapping in enumerate(population):
+                population[j], evaluations = mutate(mapping, mapspace_globals, accept_function)
+                if evaluations_tracker.add_evaluation(evaluations, population[j].prev_score):
+                    return population
+    
+    def genetic_algorithm_population(population, mapspace_globals: MapsapceGlobals, n_rounds):
+        population_size = len(population)
+        crossover_rate = 0.7
+        mutation_rate = 0.2
+
+        def crossover(parent1: Mapping, parent2: Mapping):
+            if random.random() > crossover_rate:
+                return copy.deepcopy(parent1)
+            return parent1.crossover(parent2, mapspace_globals)
+
+        def mutate_individual(individual):
+            individual = copy.deepcopy(individual)
+            prev_mapping = copy.deepcopy(individual)
+            if random.random() > mutation_rate:
+                return individual
+            try:
+                mutation_function = random.choice(individual.get_mutation_functions())
+                mutation_function(mapspace_globals)
+                individual.n_mutations += 1
+                return individual
+            except FailedMutation:
+                return prev_mapping
+
+        best_fitness = float("inf")
+        while True:
+            # Evaluate fitness
+            fitness = [0] * len(population)
+            for i, individual in enumerate(population):
+                f, evaluations = individual.evaluate(mapspace_globals)
+                fitness[i] = f
+                best_fitness = min(best_fitness, f)
+                if evaluations_tracker.add_evaluation(evaluations, best_fitness):
+                    return population
+
+            best_score = min(fitness)
+            best_mapping = population[fitness.index(best_score)]
+
+            # Selection (roulette wheel selection)
+            total_fitness = sum(1.0 / (f + 1e-9) for f in fitness)
+            probabilities = [(1.0 / (f + 1e-9)) / total_fitness for f in fitness]
+            selected_indices = random.choices(range(len(population)), probabilities, k=population_size)
+
+            # Crossover
+            new_population = list(population[i] for i in selected_indices)
+            for i in range(0, population_size, 2):
+                parent1 = population[selected_indices[i]]
+                parent2 = population[selected_indices[(i + 1) % population_size]]
+                child1 = crossover(parent1, parent2)
+                child2 = crossover(parent2, parent1)
+                new_population.extend([child1, child2])
+
+            # Mutation
+            for i, individual in enumerate(new_population):
+                new_population[i] = mutate_individual(individual)
+
+            new_population.append(best_mapping) # Keep the best mapping around
+            population = new_population
+
+        return population
+    
+    def random_sample_population(population, mapspace_globals: MapsapceGlobals, n_rounds, prune=False):
+        best_mapping = population[0]
+        best_score = float("inf")
+        while True:
+            try:
+                mapping = Mapping.create_random_mapping(mapspace_globals)
+            except FailedMutation:
+                if not prune:
+                    if evaluations_tracker.add_evaluation(1, float("inf")):
+                        return [best_mapping]
+                continue
+            score, evaluations = mapping.evaluate(mapspace_globals)
+            if score < best_score:
+                best_mapping = mapping
+                best_score = score
+            if evaluations_tracker.add_evaluation(evaluations, score):
+                return [best_mapping]
+        return [best_mapping]
+
+    extra_args = {}
+    if algorithm == "genetic":
+        population_size = 1000
+        callfunc = genetic_algorithm_population
+    elif algorithm == "simulated_anneal":
+        population_size = 100 // n_threads
+        callfunc = anneal_population
+    elif "random" in algorithm:
+        population_size = 1
+        callfunc = random_sample_population
+        extra_args["prune"] = "pruned" in algorithm
+        
+    # Randomly intialize the population
+    def get_random_mapping():
+        while True:
+            try:
+                mapping = Mapping.create_random_mapping(mapspace_globals)
+                score, evaluations = mapping.evaluate(mapspace_globals)
+                evaluations_tracker.add_evaluation(evaluations, score)
+                if score == float("inf"):
+                    raise FailedMutation("Random mapping failed")
+                return mapping
+            except FailedMutation:
+                pass
+            
+    population = [get_random_mapping() for _ in range(population_size)]
+
+    n_rounds = 9999999999999999999999999
+    results = callfunc(population, mapspace_globals, n_rounds)
+    eval_results = []
+    for m in results:
+        try:
+            eval_results.append(m.evaluate(mapspace_globals, return_df=True)[0])
+        except:
+            pass
+    try:
+        return pd.concat(eval_results), evaluations_tracker
+    except:
+        return pd.DataFrame(), evaluations_tracker
+    # pops, score_evaluations = zip(*results)
+    # aggregate_score = []
+    # aggregate_evaluations = []
+    # for se in score_evaluations:
+    #     if not aggregate_score:
+    #         aggregate_score = [s for s, _ in se]
+    #         aggregate_evaluations = [e for _, e in se]
+    #     else:
+    #         for i, (s, e) in enumerate(se):
+    #             aggregate_score[i] = min(aggregate_score[i], s)
+    #             aggregate_evaluations[i] += e
+
+    # zipped = list(zip(aggregate_score, aggregate_evaluations))
+    # print(f'Evaluations, Score')
+    # for i in range(0, len(zipped), len(zipped) // 10):
+    #     score, evaluations = zipped[i]
+    #     print(f"{evaluations}, {score}")
+
+    # mappings = list(itertools.chain(*pops))
+    # mappings = pd.concat([m.evaluate(mapspace_globals, return_df=True)[0] for m in mappings])
+    # mappings.sort_values(by=mapspace_globals.objective_function_cols, inplace=True)
+    # return mappings, evaluations_tracker
 
 def fuse_sims(
     sims: dict[str, list[SIM]],
     pairwise_equivalent_ranks: PairwiseEquivalentRanks,
     einsum2ranks: dict[str, set[str]],
+    evaluations_tracker,
+    algorithm: str,
     resource2capacity: dict = None,
     return_nmappings_nbuckets: bool = False,
-    lookahead_filter: bool = True,
+    lookahead_filter: bool = False,
 ):
-    t0 = time.time()
-    
-    objective_function_col = None
-    if objective_function_col is None:
-        cols = [c for c in sims.values()][0][0].mapping.data.columns
-        cols = [c for c in cols if not is_special_col(c)]
-        assert len(cols) == 1
-        objective_function_col = cols[0]
 
-    full_equivalent_ranks = {k: set(v) for k, v in pairwise_equivalent_ranks.items()}
-    changed = True
-    while changed:
-        changed = False
-        for r in full_equivalent_ranks:
-            for r2 in list(full_equivalent_ranks[r]):
-                for r3 in list(full_equivalent_ranks[r2]):
-                    if r3 in full_equivalent_ranks[r]:
-                        continue
-                    changed = True
-                    full_equivalent_ranks[r].add(r3)
-    
-    rank_translations = {}
-    for einsum_name, ranks in einsum2ranks.items():
-        translations = {einsum_name2: {} for einsum_name2 in sims}
-        for einsum_name2, ranks2 in einsum2ranks.items():
-            for rank in ranks:
-                equiv = full_equivalent_ranks[rank] & ranks2
-                translations[einsum_name2][rank] = equiv
-        rank_translations[einsum_name] = {k: {k2: list(v2) for k2, v2 in v.items()} for k, v in translations.items()}
+    objective_function_cols = None
+    cols = next(iter(sims.values()))[0].mapping.data.columns
+    if objective_function_cols is None:
+        objective_function_cols = [c for c in cols if not is_special_col(c)]
+    keepcols = []
+    if MAPPING in cols:
+        keepcols.append(MAPPING)
+    if VALID in cols:
+        keepcols.append(VALID)
 
-    einsum_tiling_2_sims = {}
-    for e, sim_list in sims.items():
-        cur_sims = defaultdict(list)
+    def detuplefy(s):
+        s.mapping.detuplefy_data()
+        return s
+
+    for sim_list in sims.values():
         for sim in sim_list:
-            cur_sims[sim.tiling].append(sim)
-        einsum_tiling_2_sims[e] = {}
-        for t, s in cur_sims.items():
-            s = SIM.concat(s)
-            if objective_function_col not in s.mapping.data.columns:
-                s.mapping.data[objective_function_col] = 0
-            s.mapping.data = s.mapping.data[[objective_function_col, MAPPING]]
-            einsum_tiling_2_sims[e][t] = s
+            for col in objective_function_cols:
+                if col not in sim.mapping.data.columns:
+                    sim.mapping.data[col] = 0
+            reservations = [c for c in sim.mapping.data.columns if col2nameloop(c) is not None]
+            sim.mapping.data = sim.mapping.data[objective_function_cols + keepcols + reservations]
+            sim.mapping.detuplefy_data()
 
-    # Implementing simulated annealing
-    tensor_names = set()
-    for einsum_name, sim_list in sims.items():
-        tensor_names |= sim_list[0].tensor_names
-    einsum_names = list(sims.keys())
+    mapspace_globals = MapsapceGlobals(
+        sims,
+        einsum2ranks,
+        pairwise_equivalent_ranks,
+        resource2capacity,
+        objective_function_cols,
+    )
     
-    storage2possible_loops_above = {}
-    for einsum_name, sim_list in sims.items():
-        storage2possible_loops_above[einsum_name] = defaultdict(set)
-        for sim in sim_list:
-            for storage in sim.tiling.storage:
-                storage2possible_loops_above[einsum_name][storage] |= set(sim.tiling.loops[:storage.above_loop_index])
-    storage2possible_loops_above = {e: {s: list(l) for s, l in d.items()} for e, d in storage2possible_loops_above.items()}
-    
-    tensor2storage = {}
-    for t in tensor_names:
-        possible_storage = []
-        for einsum_name, sim_list in sims.items():
-            cur_storage = set()
-            if t not in sim_list[0].tensor_names:
-                continue
-            for sim in sim_list:
-                storage = sim.tiling.get_tensor_storage(t)
-                cur_storage.add(storage)
-            possible_storage.append(cur_storage)
-        tensor2storage[t] = list(set.intersection(*possible_storage))
-        
-    # for tensor_name in tensor_names:
-    #     possible_storage = set()
-    #     for einsum_name, sim_list in sims.items():
-    #         if tensor_name not in sim_list[0].tensor_names:
-    #             continue
-    #         for sim in sim_list:
-    #             storage = sim.tiling.get_tensor_storage(tensor_name)
-    #             possible_storage.add(storage)
-    #             storage2possible_loops_above[storage] |= set(sim.tiling.loops[:storage.above_loop_index])
-    #     if tensor_name not in tensor2storage:
-    #         tensor2storage[tensor_name] = possible_storage
-    #     else:
-    #         possible_storage &= tensor2storage[tensor_name]
-    # storage2possible_loops_above = {s: list(l) for s, l in storage2possible_loops_above.items()}
-
-    einsum2tiling = {}
-    for einsum_name, sim_list in sims.items():
-        tensors = fzs(TensorStorage(t, 0, 0, 0) for t in sim_list[0].tensor_names)
-        einsum2tiling[einsum_name] = Tiling(tuple(), tensors)
-        
-    einsum2intra_choice = {einsum_name: 0 for einsum_name in einsum_names}
-        
-    def switch_order(einsum2tiling, einsum2intra_choice):
-        return einsum2tiling, einsum2intra_choice
-        e0, e1 = random.sample(einsum_names, 2)
-        print(f'Switching {e0} and {e1}')
-        einsum2tiling[e0], einsum2tiling[e1] = einsum2tiling[e1], einsum2tiling[e0]
-        return pad_loops(einsum2tiling, einsum2intra_choice)
-
-    def move_memory(einsum2tiling, einsum2intra_choice):
-        tensor = random.choice(list(tensor_names))
-        storage = random.choice(tensor2storage[tensor])
-        # If no change happened, skip
-        for t in einsum2tiling.values():
-            if storage in t.storage:
-                return None
-        print(f'Moving tensor {tensor} to storage {storage}')
-        einsum2tiling = {e: t.set_tensor_storage(tensor, storage) for e, t in einsum2tiling.items()}
-        return pad_loops(einsum2tiling, einsum2intra_choice)
-
-    def pad_loops(einsum2tiling, einsum2intra_choice):
-        print(f'\tPadding loops')
-        for e, t in einsum2tiling.items():
-            n_loops = max(s.above_loop_index for s in t.storage)
-            if n_loops < len(t.loops):
-                for e, t in einsum2tiling.items():
-                    einsum2tiling[e] = t.update(loops=t.loops[:n_loops]) 
-            if n_loops > len(t.loops):
-                for s in t.storage:
-                    for i in range(len(t.loops), s.above_loop_index):
-                        randomize_loop(einsum2tiling, einsum2intra_choice, s, i, e)
-                        force_loop_match(einsum2tiling, einsum2intra_choice, e, i)
-                        break
-        return einsum2tiling, einsum2intra_choice
-    
-    def force_loop_match(einsum2tiling, einsum2intra_choice, einsum_name, loop_index):
-        print(f'\tForcing loop match for {einsum_name} at {loop_index}')
-        tiling = einsum2tiling[einsum_name]
-        for e, t in einsum2tiling.items():
-            if e == einsum_name:
-                continue
-            t2 = einsum2tiling[e]
-            shared_loop_index = max(t.shared_loop_index(t2.tensor_names), t2.shared_loop_index(t.tensor_names))
-            for i in range(min(shared_loop_index, loop_index)+1):
-                loop = tiling.loops[i]
-                translations = rank_translations[einsum_name][e][loop.rank_name]
-                if not translations:
-                    return None
-                rank_name = random.choice(translations)
-                t2 = t2.set_loop(i, loop.update(rank_names=fzs((rank_name,))))
-            einsum2tiling[e] = t2
-        return einsum2tiling, einsum2intra_choice
-        
-    def randomize_loop(einsum2tiling, einsum2intra_choice, storage=None, index=None, einsum_name=None):
-        print(f'Randomizing loop')
-        if storage is None:
-            storage = set().union(*(t.storage for t in einsum2tiling.values()))
-            storage = random.choice(list(storage))
-        if storage.above_loop_index == 0:
-            return einsum2tiling, einsum2intra_choice
-            
-        if einsum_name is None:
-            possible_einsums = [e for e, t in einsum2tiling.items() if storage in t.storage]
-            assert possible_einsums
-            einsum_name = random.choice(possible_einsums)
-        tiling = einsum2tiling[einsum_name]
-
-        candidates = storage2possible_loops_above[einsum_name][storage]
-        if index is None:
-            index = random.randint(0, storage.above_loop_index - 1)
-
-        loop = None
-        if len(tiling.loops) <= index:
-            choice = 'Randomizing'
-        else:
-            choice = random.choice(['Increasing', 'Decreasing', 'Randomizing'])
-
-        if choice == 'Randomizing':
-            new_loop = random.choice(candidates)
-        else:
-            loop = tiling.loops[index]
-            rank, bound = loop.rank_name, loop.bound
-            candidates = [c for c in candidates if c.rank_name == rank]
-            if choice == 'Increasing':
-                pruned_candidates = [c for c in candidates if c.bound > bound]
-            else:
-                pruned_candidates = [c for c in candidates if c.bound < bound]
-            if len(pruned_candidates) == 0:
-                choice = 'Randomizing'
-            else:
-                candidates = pruned_candidates
-            if not candidates:
-                return None
-
-            new_loop = random.choice(candidates)
-        print(f'{choice} loop {loop} -> {new_loop}')
-
-        einsum2tiling[einsum_name] = tiling.set_loop(index, new_loop)
-        return force_loop_match(einsum2tiling, einsum2intra_choice, einsum_name, index)
-    
-    def eval_mapping(mapping):
-        tree = tilings2looptree(mapping[MAPPING], None)
-        reservations = tree.get_reservations()
-        for resource, capacity in resource2capacity.items():
-            if reservations[resource] > capacity:
-                return float("inf")
-        obj_val = mapping[objective_function_col]
-        # print(f'Mapping has objective value {obj_val} and reservations {dict(reservations)}')
-        return obj_val
-
-    def evaluate(einsum2tiling, einsum2intra_choice, return_df=False):
-        chosen_sims = []
-        chosen_mappings = []
-        for einsum_name, t in einsum2tiling.items():
-            if t not in einsum_tiling_2_sims[einsum_name]:
-                return float("inf")
-            chosen_sims.append(einsum_tiling_2_sims[einsum_name][t])
-            data = chosen_sims[-1].mapping.data
-            data = data.iloc[einsum2intra_choice[einsum_name] % len(data)]
-            chosen_mappings.append(data)
-
-        mapping = {}
-        for c in chosen_mappings:
-            mapping.update(c[MAPPING])
+    n_threads = 32
+    evaluations = 0
+    while n_threads >= 1:
         try:
-            tree = tilings2looptree(mapping, None)
-        except:# NotEnoughLoopsError:
-            return float("inf")
-        reservations = tree.get_reservations()
-        for resource, capacity in resource2capacity.items():
-            if reservations[resource] > capacity:
-                return float("inf")
-        if return_df:
-            d = {
-                objective_function_col: sum(c[objective_function_col] for c in chosen_mappings),
-                MAPPING: mapping,
-            }
-            for k, v in reservations.items():
-                d[f"RESOURCE_{k}_LEVEL_0"] = v
-            return pd.DataFrame([d])
-        
-        score = sum(c[objective_function_col] for c in chosen_mappings)
-        if score < 3.35e9:
-            print(f'Found a mapping with score {score} after {time.time() - t0:.2f} seconds')
-            assert False
-        return score
+            results_and_trackers = parallel([delayed(_fuse_sims)(
+                sims,
+                mapspace_globals,
+                n_threads=n_threads,
+                evaluations_tracker=copy.deepcopy(evaluations_tracker),
+                algorithm=algorithm,
+            ) for _ in range(n_threads)], n_jobs=n_threads)
+            results = pd.concat([r[0] for r in results_and_trackers])
+            # print(f'Total trackers: {len(results_and_trackers)}')
+            for t in results_and_trackers:
+                evaluations_tracker.merge_with(t[1])
+                evaluations += t[1].evaluations
+                # print(f'Evaluations: {t[1].evaluations}')
+            # print(f'Total evaluations: {evaluations}')
+            return results
+        except OSError as e:
+            if n_threads == 1:
+                raise OSError("Failed to fuse sims with 1 thread") from e
+            print(f"Failed to fuse sims with {n_threads} threads, trying with {n_threads // 2}")
+            n_threads //= 2
             
-        # N_SAMPLE = 10
-        
-        # def sample(data):
-        #     return data.sample(N_SAMPLE) if len(data) > N_SAMPLE else data
-            
-        # data = sample(chosen_sims[0].mapping.data)
-        for right in chosen_sims[1:]:
-            data = sample(merge_cross(data, right.mapping.data, shared_loop_index=-1, live_tensors=set(), pareto_prune=False))
-        return min(eval_mapping(row) for _, row in data.iterrows())
-
-    def choose_intra_mapping(einsum2tiling, einsum2intra_choice):
-        einsum_name = random.choice(einsum_names)
-        intra_choice = random.randint(0, 1e9) # There won't be more than 1B intra-layer mappings
-        print(f'Choosing intra-layer mapping {intra_choice} for {einsum_name}')
-        einsum2intra_choice[einsum_name] = intra_choice
-        return einsum2tiling, einsum2intra_choice
-
-    mutations = [switch_order, move_memory, randomize_loop, choose_intra_mapping]
-
-    def anneal(einsum2tiling, einsum2intra_choice, temperature, cooling_rate, n_iterations):
-        prev_score = evaluate(einsum2tiling, einsum2intra_choice)
-        for i in range(n_iterations):
-            j = i + 1
-            new_temp = temperature * (1 - j / n_iterations) / (1 + cooling_rate * j / n_iterations)
-            new_einsum2tiling = copy.deepcopy(einsum2tiling)
-            new_einsum2intra_choice = copy.deepcopy(einsum2intra_choice)
-            mutated = random.choice(mutations)(new_einsum2tiling, new_einsum2intra_choice)
-            if mutated is None:
-                continue
-            new_einsum2tiling, new_einsum2intra_choice = mutated
-            new_score = evaluate(new_einsum2tiling, new_einsum2intra_choice)
-            if new_score == float('inf'):
-                continue
-            
-            if new_score <= prev_score or random.random() < exp((prev_score - new_score) / prev_score / new_temp):
-                print(f'Iteration {i}: {prev_score} -> {new_score} accepted')
-                prev_score = new_score
-                einsum2tiling = new_einsum2tiling
-                einsum2intra_choice = new_einsum2intra_choice
-            else:
-                print(f'Iteration {i}: {prev_score} -> {new_score} rejected')
-            temperature *= 1 - cooling_rate
-        return einsum2tiling, einsum2intra_choice
-    
-    # From SET code:
-    # Cooling rate = 8
-    # Temp = 0.07
-    
-    einsum2tiling, einsum2intra_choice = anneal(einsum2tiling, einsum2intra_choice, 0.07, 8, 1000000)
-    
-    
-    # Just return the first one for now
-    return evaluate(einsum2tiling, einsum2intra_choice, return_df=True)
-    
-    
+def fuse_sims_simulated_anneal(*args, **kwargs):
+    return fuse_sims(*args, **kwargs, algorithm="simulated_anneal")
+def fuse_sims_genetic(*args, **kwargs):
+    return fuse_sims(*args, **kwargs, algorithm="genetic")
+def fuse_sims_random(*args, **kwargs):
+    return fuse_sims(*args, **kwargs, algorithm="random")

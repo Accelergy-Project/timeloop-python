@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
 
-from pytimeloop.timeloopfe.v4.specification import Specification
+from pytimeloop.frontend.v4.specification import Specification
 
 
 class TestErt(unittest.TestCase):

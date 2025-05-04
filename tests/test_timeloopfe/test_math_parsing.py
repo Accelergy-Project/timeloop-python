@@ -1,13 +1,13 @@
 import os
 import unittest
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.arch import (
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.arch import (
     Component,
     Hierarchical,
     Parallel,
     Pipelined,
 )
-from pytimeloop.timeloopfe.v4.processors import References2CopiesProcessor
+from pytimeloop.frontend.v4.processors import References2CopiesProcessor
 
 
 class TestMathProcessorParsing(unittest.TestCase):

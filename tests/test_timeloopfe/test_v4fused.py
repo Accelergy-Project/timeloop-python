@@ -1,8 +1,8 @@
 from pathlib import Path
 import unittest
 
-from pytimeloop.timeloopfe.v4fused.specification import Specification
-from pytimeloop.timeloopfe.common.version_transpilers.v4_to_v3 import transpile
+from pytimeloop.frontend.v4fused.specification import Specification
+from pytimeloop.frontend.common.version_transpilers.v4_to_v3 import transpile
 
 
 class TestV4Fused(unittest.TestCase):

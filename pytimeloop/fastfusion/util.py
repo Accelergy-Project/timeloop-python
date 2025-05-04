@@ -2,8 +2,10 @@ import itertools
 from math import ceil
 from numbers import Number
 
-from joblib import Parallel, delayed
+# import joblib.externals.loky
+# joblib.externals.loky.process_executor._MAX_MEMORY_LEAK_SIZE = int(3e9)  # 3GB
 
+from joblib import Parallel, delayed
 import sys
 
 from tqdm import tqdm

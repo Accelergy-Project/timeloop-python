@@ -1,18 +1,18 @@
 import os
 import unittest
-from pytimeloop.timeloopfe.v4.processors.constraint_attacher import (
+from pytimeloop.frontend.v4.processors.constraint_attacher import (
     ConstraintAttacherProcessor,
 )
-from pytimeloop.timeloopfe.common.processor import Processor
-from pytimeloop.timeloopfe.common.nodes import Node, ParseError
-from pytimeloop.timeloopfe.v4.specification import Specification
-from pytimeloop.timeloopfe.v4.arch import Component, Hierarchical, Leaf, Parallel
-from pytimeloop.timeloopfe.v4.constraints import (
+from pytimeloop.frontend.common.processor import Processor
+from pytimeloop.frontend.common.nodes import Node, ParseError
+from pytimeloop.frontend.v4.specification import Specification
+from pytimeloop.frontend.v4.arch import Component, Hierarchical, Leaf, Parallel
+from pytimeloop.frontend.v4.constraints import (
     ConstraintGroup,
     Temporal,
     Factors,
 )
-from pytimeloop.timeloopfe.v4.processors import References2CopiesProcessor
+from pytimeloop.frontend.v4.processors import References2CopiesProcessor
 
 
 class Refs2CopiesTest(unittest.TestCase):

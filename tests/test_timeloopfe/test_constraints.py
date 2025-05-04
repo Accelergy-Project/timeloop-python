@@ -1,5 +1,5 @@
 import unittest
-from pytimeloop.timeloopfe.v4 import constraints
+from pytimeloop.frontend.v4 import constraints
 
 
 class ConstraintTest(unittest.TestCase):

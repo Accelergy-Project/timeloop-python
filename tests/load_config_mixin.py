@@ -2,7 +2,7 @@ from pathlib import Path
 
 from bindings.config import Config
 
-from pytimeloop.timeloopfe.v4fused import Specification
+from pytimeloop.frontend.v4fused import Specification
 
 from tests.util import gather_yaml_configs, CONFIG_DIR
 

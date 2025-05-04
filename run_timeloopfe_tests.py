@@ -34,5 +34,6 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=2, failfast=True)
     result = runner.run(suite)
     if result.wasSuccessful():
-        shutil.rmtree(os.path.join(os.path.dirname(__file__),
-                      "tests/test_timeloopfe/compare"))
+        shutil.rmtree(
+            os.path.join(os.path.dirname(__file__), "tests/test_timeloopfe/compare")
+        )

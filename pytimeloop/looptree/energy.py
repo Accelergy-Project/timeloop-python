@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from numbers import Real
 
 from pytimeloop.isl.singular import get_sum_of_pw_qpolynomial
-from pytimeloop.timeloopfe.v4.ert import Ert
+from pytimeloop.frontend.v4.ert import Ert
 from pytimeloop.looptree.accesses import *
 from pytimeloop.looptree.mapping_utilities import *
 
