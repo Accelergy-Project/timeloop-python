@@ -22,7 +22,10 @@ namespace pytimeloop::application_bindings
     py::class_<application::Model::Stats>(m, "ModelResult")
         .def_readwrite("cycles", &application::Model::Stats::cycles)
         .def_readwrite("energy", &application::Model::Stats::energy)
-        .def_readwrite("stats_string", &application::Model::Stats::stats_string);
+        .def_readwrite("stats_string", &application::Model::Stats::stats_string)
+        .def_readwrite("map_string", &application::Model::Stats::map_string)
+        .def_readwrite("xml_map_and_stats_string", &application::Model::Stats::xml_map_and_stats_string)
+        .def_readwrite("tensella_string", &application::Model::Stats::tensella_string);
 
     py::class_<application::Mapper>(m, "MapperApp")
         .def(py::init<config::CompoundConfig*, std::string, std::string>())
@@ -30,13 +33,13 @@ namespace pytimeloop::application_bindings
         .def("get_global_best", &application::Mapper::GetGlobalBest);
     
     py::class_<application::Mapper::Result>(m, "MapperResult")
-        .PROPERTY(mapping_cpp_string, application::Mapper::Result)
-        .PROPERTY(mapping_yaml_string, application::Mapper::Result)
-        .PROPERTY(mapping_string, application::Mapper::Result)
-        .PROPERTY(stats_string, application::Mapper::Result)
-        .PROPERTY(tensella_string, application::Mapper::Result)
-        .PROPERTY(xml_mapping_stats_string, application::Mapper::Result)
-        .PROPERTY(orojenesis_string, application::Mapper::Result);
+        .def_readwrite("mapping_cpp_string", &application::Mapper::Result::mapping_cpp_string)
+        .def_readwrite("mapping_yaml_string", &application::Mapper::Result::mapping_yaml_string)
+        .def_readwrite("mapping_string", &application::Mapper::Result::mapping_string)
+        .def_readwrite("stats_string", &application::Mapper::Result::stats_string)
+        .def_readwrite("tensella_string", &application::Mapper::Result::tensella_string)
+        .def_readwrite("xml_mapping_stats_string", &application::Mapper::Result::xml_mapping_stats_string)
+        .def_readwrite("orojenesis_string", &application::Mapper::Result::orojenesis_string);
 
     // EvaluationResult in mapper-thread.cpp
     py::class_<EvaluationResult>(m, "MapperEvaluationResult")

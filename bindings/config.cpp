@@ -43,10 +43,14 @@ void BindConfigClasses(py::module& m) {
   )DOCSTRING";
 
   config
+      /// @brief Initializer. Uses list of input file paths
+      .def(py::init<std::vector<std::string> &>())
       /// @brief Initializer. Uses the CompoundConfig string + type constructor.
       .def(py::init<std::string &, std::string &>())
       /// @brief Fetches the root CompoundConfigNode.
       .def_property_readonly("root", &CompoundConfig::getRoot)
+      /// @brief Member variable.
+      .def_readwrite("in_files", &CompoundConfig::inFiles)
       /// @brief Pickling and unpickling support
       .def(py::pickle(
         [](CompoundConfig& config)
