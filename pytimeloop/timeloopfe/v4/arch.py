@@ -517,6 +517,7 @@ class StorageAttributes(Attributes):
     @classmethod
     def declare_attrs(cls, *args, **kwargs):
         super().declare_attrs(*args, **kwargs)
+        super().add_attr("name", (str, int), None)
         super().add_attr("datawidth", (str, int))
         super().add_attr("technology", (str, int), None)
         super().add_attr("n_banks", (str, int), 2)
