@@ -383,6 +383,8 @@ class Storage(Component):
     def __init__(self, *args, **kwargs):
         super().__init__(self, *args, **kwargs)
         self.attributes: StorageAttributes = self["attributes"]
+        if self.attributes.depth is None:
+            print(f'WARNING: "depth" is not set for storage element {self.name}')
 
 
 class Compute(Component):
@@ -587,8 +589,6 @@ class StorageAttributes(Attributes):
         ]
         self.decompression_supported: Union[str, bool] = self["decompression_supported"]
         self.compression_supported: Union[str, bool] = self["compression_supported"]
-        if self.depth is None:
-            print(f'WARNING: "depth" is not set for storage element {self.name}')
 
 
 class Nothing(Component):
