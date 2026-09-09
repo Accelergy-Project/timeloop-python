@@ -199,6 +199,11 @@ class NodeTest(unittest.TestCase):
             x.cluster_size = 5
             x.check_unrecognized()
 
+    def test_storage_attributes_missing_depth_does_not_crash(self):
+        x = StorageAttributes(datawidth=5, width=5, block_size=5, technology=5)
+        self.assertIsNone(x.depth)
+        x.check_unrecognized()
+
     def test_multi_require_all_or_none_of(self):
         x = StorageAttributes(datawidth=5, depth=5, width=5, block_size=5, technology=5)
         x.check_unrecognized()
