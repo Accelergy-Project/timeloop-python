@@ -588,7 +588,12 @@ class StorageAttributes(Attributes):
         self.decompression_supported: Union[str, bool] = self["decompression_supported"]
         self.compression_supported: Union[str, bool] = self["compression_supported"]
         if self.depth is None:
-            print(f'WARNING: "depth" is not set for storage element {self.name}')
+            name = getattr(self, "name", None)
+            if name is None and getattr(self, "parent_node", None) is not None:
+                name = getattr(self.parent_node, "name", None)
+            if name is None:
+                name = self.get_name()
+            print(f'WARNING: "depth" is not set for storage element {name}')
 
 
 class Nothing(Component):
